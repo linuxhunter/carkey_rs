@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate lazy_static;
+
 mod carkey_icce;
 
 use std::{sync::Arc, time::Duration, str::FromStr};
@@ -6,9 +9,6 @@ use bluer::{adv::Advertisement, gatt::local::{Application, Service, Characterist
 use futures::FutureExt;
 use tokio::{sync::{Mutex, oneshot}, io::AsyncBufReadExt};
 use uuid::Uuid;
-
-#[macro_use]
-extern crate lazy_static;
 
 lazy_static! {
     static ref SERVICE_UUID: Uuid = Uuid::from_u16(0xFCD1);
@@ -22,7 +22,7 @@ struct UuidOrShort(pub Uuid);
 impl FromStr for UuidOrShort {
     type Err = String;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> std::result::Result<UuidOrShort, std::string::String> {
         match s.parse::<Uuid>() {
             Ok(uuid) => Ok(Self(uuid)),
             Err(_) => {

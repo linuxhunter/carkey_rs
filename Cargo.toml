@@ -11,5 +11,6 @@ bluer = { version = "0.15.7", features = ["full"] }
 crc16 = "0.4.0"
 futures = "0.3.28"
 lazy_static = "1.4.0"
+libaes = "0.6.5"
 tokio = { version = "1.29.1", features = ["full"] }
 uuid = "1.4.1"
