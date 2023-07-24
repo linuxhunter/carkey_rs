@@ -22,10 +22,10 @@ lazy_static! {
 }
 
 fn test_create_get_process_data_request() -> Vec<u8> {
-    let reader_type = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06];
-    let reader_id = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0xe, 0x0f, 0x00];
-    let reader_rnd = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
-    let reader_key_parameter = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
+    let reader_type = carkey_icce_aes128::get_reader_type();
+    let reader_id = carkey_icce_aes128::get_reader_id();
+    let reader_rnd = carkey_icce_aes128::get_reader_rnd();
+    let reader_key_parameter = carkey_icce_aes128::get_reader_key_parameter();
 
     let get_process_data_apdu = carkey_icce::create_auth_get_process_data_payload(&reader_type, &reader_id, &reader_rnd, &reader_key_parameter);
     let icce = carkey_icce::create_icce_auth_request(&get_process_data_apdu);
