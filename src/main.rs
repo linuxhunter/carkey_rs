@@ -4,7 +4,7 @@ extern crate lazy_static;
 mod bluetooth_agent;
 mod bluetooth_uuid;
 mod carkey_icce;
-mod carkey_icce_crypto;
+mod carkey_icce_aes128;
 
 use bluer::{adv::Advertisement, gatt::local::{Application, Service, Characteristic, CharacteristicNotify, CharacteristicRead, CharacteristicWrite, CharacteristicWriteMethod}, UuidExt};
 use futures::FutureExt;
@@ -17,6 +17,67 @@ lazy_static! {
     static ref SERVICE_UUID: Uuid = Uuid::from_u16(0xFCD1);
     static ref WRITE_CHARACTERISTIC_UUID: Uuid = Uuid::from_u16(0xFFFD);
     static ref READ_CHARACTERISTIC_UUID: Uuid = Uuid::from_u16(0xFFFE);
+}
+
+fn test_create_get_process_data_request() -> Vec<u8> {
+    let reader_type = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06];
+    let reader_id = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0xe, 0x0f, 0x00];
+    let reader_rnd = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
+    let reader_key_parameter = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
+
+    let get_process_data_apdu = carkey_icce::create_auth_get_process_data_payload(&reader_type, &reader_id, &reader_rnd, &reader_key_parameter);
+    let icce = carkey_icce::create_icce_auth_request(&get_process_data_apdu);
+    icce.serialize()
+}
+
+fn test_create_measure_request() -> Vec<u8> {
+    let measure_type = 0x01;
+    let icce = carkey_icce::create_icce_measure_request(measure_type);
+    icce.serialize()
+}
+
+fn test_craate_anti_relay_request() -> Vec<u8> {
+    let measure_type = 0x01;
+    let vehicle_info = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06];
+    let icce = carkey_icce::create_icce_anti_relay_request(measure_type, &vehicle_info);
+    icce.serialize()
+}
+
+fn test_create_mobile_info_request() -> Vec<u8> {
+    let request_type = 0x01;
+    let icce = carkey_icce::create_icce_get_mobile_info_request(request_type);
+    icce.serialize()
+}
+
+fn test_create_calbriate_time_request() -> Vec<u8> {
+    let icce = carkey_icce::create_icce_calibrate_clock_request();
+    icce.serialize()
+}
+
+fn test_create_protocol_request() -> Vec<u8> {
+    let vehicle_protocol = vec![0x01, 0x02, 0x03, 0x04];
+    let icce = carkey_icce::create_icce_get_protocol_request(&vehicle_protocol);
+    icce.serialize()
+}
+
+fn test_create_vehicle_event_request() -> Vec<u8> {
+    let vehicle_event = 0x00;
+    let async_result = vec![0x11, 0x22, 0x33, 0x44];
+    let vehicle_state = vec![0x55, 0x66, 0x77, 0x88];
+    let icce = carkey_icce::create_icce_vehicle_state_event_request(vehicle_event, &async_result, &vehicle_state);
+    icce.serialize()
+}
+
+fn test_create_app_event_request() -> Vec<u8> {
+    let app_data = vec![0xaa, 0xbb, 0xcc, 0xdd];
+    let icce = carkey_icce::create_icce_vehicle_to_app_event_request(&app_data);
+    icce.serialize()
+}
+
+fn test_create_server_event_request() -> Vec<u8> {
+    let server_data = vec![0xff, 0xee, 0xdd, 0xcc];
+    let icce = carkey_icce::create_icce_vehicle_to_server_event_request(&server_data);
+    icce.serialize()
 }
 
 #[tokio::main]
@@ -73,15 +134,16 @@ async fn main() -> bluer::Result<()> {
                     encrypt_authenticated_read: true,
                     fun: Box::new(move |req| {
                         async move {
-                            let reader_type = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06];
-                            let reader_id = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0xe, 0x0f, 0x00];
-                            let reader_rnd = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
-                            let reader_key_parameter = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
-                            let get_process_data_apdu = carkey_icce::create_auth_get_process_data_payload(&reader_type, &reader_id, &reader_rnd, &reader_key_parameter);
-                            let icce = carkey_icce::create_icce_auth_request(&get_process_data_apdu);
-                            let icce_package = icce.serialize();
-                            println!("Read request {:?} with value {:02x?}", req, icce_package);
-                            println!("Sending Get Process Data Request");
+                            //let icce_package = test_create_get_process_data_request();
+                            //let icce_package = test_create_measure_request();
+                            //let icce_package = test_craate_anti_relay_request();
+                            //let icce_package = test_create_mobile_info_request();
+                            //let icce_package = test_create_calbriate_time_request();
+                            //let icce_package = test_create_protocol_request();
+                            let icce_package = test_create_vehicle_event_request();
+                            //let icce_package = test_create_app_event_request();
+                            //let icce_package = test_create_server_event_request();
+                            println!("Sending Request to Mobile: {:02X?}", icce_package);
                             Ok(icce_package)
                         }.boxed()
                     }),
@@ -118,9 +180,12 @@ async fn main() -> bluer::Result<()> {
         while let Some(icce_package) = bt_write_rx.recv().await {
             println!("GOT = {:02X?}", icce_package);
             if let Ok(icce_object) = carkey_icce::ICCE::deserialize(&icce_package) {
+                println!("icce_object is {:?}", icce_object);
                 if icce_object.get_header().get_control().is_request() {
                     if let Ok(response) = carkey_icce::handle_icce_mobile_request(&icce_object) {
-                        let _ = bt_notify_tx.send(response);
+                        if response.len() > 1 {
+                            let _ = bt_notify_tx.send(response);
+                        }
                     }
                 } else {
                     if let Ok(response) = carkey_icce::handle_icce_mobile_response(&icce_object) {
@@ -130,6 +195,8 @@ async fn main() -> bluer::Result<()> {
 
                     }
                 }
+            } else {
+                println!("Error on ICCE deserialized");
             }
         }
     });

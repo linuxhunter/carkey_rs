@@ -1,6 +1,9 @@
-use libaes::{AES_128_KEY_LEN, Cipher};
+use aes::cipher::{KeyIvInit, BlockEncryptMut, block_padding::Pkcs7, BlockDecryptMut};
 
 type Result<T> = std::result::Result<T, String>;
+
+type Aes128CbcEnc = cbc::Encryptor<aes::Aes128>;
+type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 
 pub fn calculate_dkey(_card_seid: &[u8], _card_id: &[u8]) -> Vec<u8> {
     //根据card_seid查找到相应的认证根密钥
@@ -23,28 +26,37 @@ pub fn calculate_session_iv(reader_rnd: &[u8], card_rnd: &[u8]) -> Vec<u8> {
     }
 }
 
-pub fn calculate_sesion_key(dkey: &[u8], card_iv: &[u8], session_iv: &[u8], reader_key_parameter: &[u8]) -> Result<Vec<u8>> {
+pub fn calculate_session_key(dkey: &[u8], card_iv: &[u8], session_iv: &[u8], reader_key_parameter: &[u8]) -> Result<Vec<u8>> {
     let mut payload = Vec::new();
     payload.append(&mut session_iv.clone().to_vec());
     payload.append(&mut reader_key_parameter.clone().to_vec());
-    let key = dkey[0..AES_128_KEY_LEN].try_into().map_err(|e| "Invalid dkey".to_string())?;
-    let cipher = Cipher::new_128(key);
-    let session_key = cipher.cbc_encrypt(card_iv, &payload);
+
+    let mut buf = [0u8; 48];
+    let pt_len = payload.len();
+    buf[..pt_len].copy_from_slice(&payload);
+
+    let session_key = Aes128CbcEnc::new(dkey.into(), card_iv.into()).encrypt_padded_b2b_mut::<Pkcs7>(&payload, &mut buf).unwrap();
     if session_key.len() > 16 {
         Ok(session_key[session_key.len() - 16..].to_vec())
     } else {
-        Ok(session_key)
+        Ok(session_key.to_vec())
     }
 }
 
 pub fn encrypt_with_session_key(session_key: &[u8], session_iv: &[u8], plain_text: &[u8]) -> Result<Vec<u8>> {
-    let key = session_key[0..AES_128_KEY_LEN].try_into().map_err(|e| "Invalid session key".to_string())?;
-    let cipher = Cipher::new_128(key);
-    Ok(cipher.cbc_encrypt(session_iv, plain_text))
+    let mut buf = [0u8; 48];
+    let pt_len = plain_text.len();
+    buf[..pt_len].copy_from_slice(&plain_text);
+
+    let encrypted_text = Aes128CbcEnc::new(session_key.into(), session_iv.into()).encrypt_padded_b2b_mut::<Pkcs7>(plain_text, &mut buf).unwrap();
+    Ok(encrypted_text.to_vec())
 }
 
 pub fn decrypt_with_session_key(session_key: &[u8], session_iv: &[u8], encrypted_text: &[u8]) -> Result<Vec<u8>> {
-    let key = session_key[0..AES_128_KEY_LEN].try_into().map_err(|e| "Invalid session key".to_string())?;
-    let cipher = Cipher::new_128(key);
-    Ok(cipher.cbc_decrypt(session_iv, encrypted_text))
+    let cipher_len = encrypted_text.len();
+    let mut buf = [0u8; 48];
+    buf[..cipher_len].copy_from_slice(encrypted_text);
+
+    let plain_text = Aes128CbcDec::new(session_key.into(), session_iv.into()).decrypt_padded_b2b_mut::<Pkcs7>(encrypted_text, &mut buf).unwrap();
+    Ok(plain_text.to_vec())
 }

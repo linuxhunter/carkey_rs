@@ -2,7 +2,7 @@ use std::sync::Mutex;
 
 use crc16::CCITT_FALSE;
 
-use crate::carkey_icce_crypto;
+use crate::carkey_icce_aes128;
 
 type Result<T> = std::result::Result<T, String>;
 
@@ -324,7 +324,7 @@ impl ICCE {
             //handle body encrypt
             let mut plain_text = Vec::new();
             plain_text.append(&mut self.body.serialize());
-            let encrypted_text = carkey_icce_crypto::encrypt_with_session_key(
+            let encrypted_text = carkey_icce_aes128::encrypt_with_session_key(
                 &SESSION_KEY.lock().unwrap().to_vec(),
                 &SESSION_IV.lock().unwrap().to_vec(),
                 &plain_text).unwrap();
@@ -359,15 +359,14 @@ impl ICCE {
             new_header.set_fsn(icce.get_header().get_fsn());
 
             let encrypted_text = &byte_stream[5..byte_stream.len()-2];
-            let plain_text = carkey_icce_crypto::decrypt_with_session_key(
+            let plain_text = carkey_icce_aes128::decrypt_with_session_key(
                 &SESSION_KEY.lock().unwrap().to_vec(),
                 &SESSION_IV.lock().unwrap().to_vec(),
-                &encrypted_text)?;
+                encrypted_text)?;
             new_header.set_length(2 + plain_text.len() as u16);
             icce.set_header(new_header);
 
             icce.set_body(Body::deserialize(&plain_text)?);
-
             let mut checksum_entry = new_header.serialize();
             checksum_entry.append(&mut plain_text.to_vec());
             icce.set_checksum(ICCE::calculate_bytearray_checksum(&checksum_entry));
@@ -517,11 +516,11 @@ pub fn handle_auth_get_process_data_response_payload(payload: &[u8], reader_rnd:
                 println!("Cannot calculate session IV and session Key");
                 return Err("Cannot calculate session IV or session Key".to_string());
             }
-            session_iv = carkey_icce_crypto::calculate_session_iv(reader_rnd, &card_rnd);
-            let dkey = carkey_icce_crypto::calculate_dkey(&card_seid, &card_id);
-            let card_iv = carkey_icce_crypto::get_card_iv();
-            session_key = carkey_icce_crypto::calculate_sesion_key(&dkey, &card_iv, &session_iv, &reader_key_parameter)?;
-            let decrypted_text = carkey_icce_crypto::decrypt_with_session_key(&session_key, &session_iv, &encrypted_text)?;
+            session_iv = carkey_icce_aes128::calculate_session_iv(reader_rnd, &card_rnd);
+            let dkey = carkey_icce_aes128::calculate_dkey(&card_seid, &card_id);
+            let card_iv = carkey_icce_aes128::get_card_iv();
+            session_key = carkey_icce_aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter)?;
+            let decrypted_text = carkey_icce_aes128::decrypt_with_session_key(&session_key, &session_iv, &encrypted_text)?;
             index = 0;
             while index < decrypted_text.len() {
                 if decrypted_text[index] == 0x9F && decrypted_text[index+1] == 0x36 {
@@ -569,7 +568,7 @@ pub fn create_auth_auth_payload(card_atc: &[u8], reader_auth_parameter: &[u8], c
     data_domain.push(0x3E);
     data_domain.push(card_rnd.len() as u8);
     data_domain.append(&mut card_rnd.clone().to_vec());
-    let encrypt_data = carkey_icce_crypto::encrypt_with_session_key(session_key, session_iv, &data_domain)?;
+    let encrypt_data = carkey_icce_aes128::encrypt_with_session_key(session_key, session_iv, &data_domain)?;
 
     payload.push(1 + encrypt_data.len() as u8);      //Lc
     payload.push(0x77);
@@ -586,7 +585,7 @@ pub fn handle_auth_auth_response_payload(payload: &[u8], _reader_rnd: &[u8], ses
     let mut reader_auth_parameter = Vec::new();
     if sw1 == 0x90 && sw2 == 0x00 {
         if payload[0] == 0x77 {
-            let decrypted_text = carkey_icce_crypto::decrypt_with_session_key(session_key, session_iv, &payload[1..payload.len()-2])?;
+            let decrypted_text = carkey_icce_aes128::decrypt_with_session_key(session_key, session_iv, &payload[1..payload.len()-2])?;
             let mut index = 0;
             while index < decrypted_text.len() {
                 if decrypted_text[index] == 0x9F && decrypted_text[index+1] == 0x31 {
@@ -1053,7 +1052,88 @@ pub fn create_icce_mobile_to_vehicle_event_response(status: u8) -> ICCE {
 }
 
 pub fn handle_icce_mobile_request(icce_object: &ICCE) -> Result<Vec<u8>> {
-    let response = Vec::new();
+    let mut response = Vec::new();
+    let body = icce_object.get_body();
+
+    match body.get_message_id() {
+        0x02 => {
+            match body.get_command_id() {
+                0x03 => {
+                    //test for print decrypted RKE Commands
+                    for payload in body.get_payloads() {
+                        println!("RKE Command Type is {}", payload.get_payload_type());
+                        println!("RKE Command Content Length is {}", payload.get_payload_length());
+                        println!("RKE Comamnd Content is {:?}", payload.get_payload_value());
+                    }
+                    //test for reply RKE Command Response
+                    let status = 0x00;
+                    let rke_response = vec![0x04, 0x03, 0x02, 0x01];
+                    let icce = create_icce_rke_control_response(status, &rke_response);
+                    response.append(&mut icce.serialize());
+                    println!("RKE Response is {:02X?}", response);
+                },
+                0x04 => {
+                    for payload in body.get_payloads() {
+                        println!("RKE Challege Type is {}", payload.get_payload_type());
+                        println!("RKE Challege Content Length is {}", payload.get_payload_length());
+                        println!("RKE Challege Content is {:?}", payload.get_payload_value());
+                    }
+                    let status = 0x00;
+                    let rke_challege_random_numbers = vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
+                    let icce = create_icce_rke_challege_response(status, &rke_challege_random_numbers);
+                    response.append(&mut icce.serialize());
+                    println!("RKE Challege Response is {:02X?}", response);
+                },
+                0x05 => {
+                    for payload in body.get_payloads(){
+                        println!("Get Vehicle Info Type is {}", payload.get_payload_type());
+                        println!("Get Vehicle Info Length is {}", payload.get_payload_length());
+                        println!("Get Vehicle Info Value is {:?}", payload.get_payload_value());
+                    }
+                    let status = 0x00;
+                    let vehicle_info = vec![0x01];
+                    let icce = create_icce_get_vehicle_info_response(status, &vehicle_info);
+                    response.append(&mut icce.serialize());
+                    println!("Get Vehicle Info Response is {:02X?}", response);
+                },
+                _ => {
+                    return Err("RFU".to_string());
+                }
+            }
+        },
+        0x03 => {
+            match body.get_command_id() {
+                0x01 => {
+                    for payload in body.get_payloads() {
+                        println!("Mobile Event Type is {}", payload.get_payload_type());
+                        println!("Mobile Event Length is {}", payload.get_payload_length());
+                        println!("Mobild Event Value is {:?}", payload.get_payload_value());
+                    }
+                    let status = 0x00;
+                    let icce = create_icce_mobile_state_event_response(status);
+                    response.append(&mut icce.serialize());
+                    println!("Mobile Event Response is {:02X?}", response);
+                },
+                0x05 => {
+                    for payload in body.get_payloads() {
+                        println!("Framework to Vehicle Type is {}", payload.get_payload_type());
+                        println!("Framework to Vehicle Length is {}", payload.get_payload_length());
+                        println!("Framework to Vehicle Value is {:?}", payload.get_payload_value());
+                    }
+                    let status = 0x00;
+                    let icce = create_icce_mobile_to_vehicle_event_response(status);
+                    response.append(&mut icce.serialize());
+                    println!("Framework to Vehicle Response is {:02X?}", response);
+                },
+                _ => {
+                    return Err("RFU".to_string());
+                }
+            }
+        },
+        _ => {
+            return Err("RFU".to_string());
+        }
+    }
 
     Ok(response)
 }
@@ -1099,6 +1179,157 @@ fn handle_icce_auth_response(body: &Body) -> Result<Vec<u8>> {
     }
     Ok(response)
 }
+
+fn handle_measure_response(body: &Body) -> Result<Vec<u8>> {
+    let response = Vec::new();
+    for payload in body.get_payloads() {
+        let payload_type = payload.get_payload_type();
+        match payload_type {
+            0x00 => {
+                if payload.get_payload_value()[0] != 0x00 {
+                    return Err("Measure Response Status Error".to_string());
+                }
+            },
+            0x01 => {
+                println!("Measure Last Time(ms) = {:?}", payload.get_payload_value());
+            },
+            _ => {
+                return Err("RFU".to_string());
+            }
+        }
+    }
+    Ok(response)
+}
+
+fn handle_anti_relay_response(body: &Body) -> Result<Vec<u8>> {
+    let response = Vec::new();
+    for payload in body.get_payloads() {
+        let payload_type = payload.get_payload_type();
+        match payload_type {
+            0x00 => {
+                if payload.get_payload_value()[0] != 0x00 {
+                    return Err("Anti-Relay Response Status Error".to_string());
+                }
+            },
+            0x01 => {
+                println!("Result of Anti-Relay is {:?}", payload.get_payload_value())
+            },
+            0x02 => {
+                println!("Device Info about Anti-Relay is {:?}", payload.get_payload_value());
+            },
+            _ => {
+                return Err("RFU".to_string());
+            }
+        }
+    }
+    Ok(response)
+}
+
+fn handle_mobile_info_response(body: &Body) -> Result<Vec<u8>> {
+    let response = Vec::new();
+    for payload in body.get_payloads() {
+        let payload_type = payload.get_payload_type();
+        match payload_type {
+            0x00 => {
+                if payload.get_payload_value()[0] != 0x00 {
+                    return Err("Get Mobile Info Response Status Error".to_string());
+                }
+            },
+            0x01 => {
+                println!("Mobile Info is {:?}", payload.get_payload_value())
+            },
+            _ => {
+                return Err("RFU".to_string());
+            }
+        }
+    }
+    Ok(response)
+}
+
+fn handle_calbriate_time_response(body: &Body) -> Result<Vec<u8>> {
+    let response = Vec::new();
+    for payload in body.get_payloads() {
+        let payload_type = payload.get_payload_type();
+        match payload_type {
+            0x00 => {
+                if payload.get_payload_value()[0] != 0x00 {
+                    return Err("Calbriate Time Response Status Error".to_string());
+                }
+            },
+            0x01 => {
+                println!("Calbriated Time is {:?}", payload.get_payload_value())
+            },
+            _ => {
+                return Err("RFU".to_string());
+            }
+        }
+    }
+    Ok(response)
+}
+
+fn handle_protocol_response(body: &Body) -> Result<Vec<u8>> {
+    let response = Vec::new();
+    for payload in body.get_payloads() {
+        let payload_type = payload.get_payload_type();
+        match payload_type {
+            0x00 => {
+                if payload.get_payload_value()[0] != 0x00 {
+                    return Err("Protocol Response Status Error".to_string());
+                }
+            },
+            0x01 => {
+                println!("Protocol is {:?}", payload.get_payload_value())
+            },
+            _ => {
+                return Err("RFU".to_string());
+            }
+        }
+    }
+    Ok(response)
+}
+
+fn handle_get_vehicle_state_event_response(body: &Body) -> Result<Vec<u8>> {
+    let response = Vec::new();
+    for payload in body.get_payloads() {
+        if payload.get_payload_type() == 0x00 {
+            if payload.get_payload_value()[0] != 0x00 {
+                return Err("Get Mobile State Event Status Error".to_string());
+            }
+        } else {
+            return Err("RFU".to_string());
+        }
+    }
+    Ok(response)
+}
+
+fn handle_get_app_state_event_response(body: &Body) -> Result<Vec<u8>> {
+    let response = Vec::new();
+    for payload in body.get_payloads() {
+        if payload.get_payload_type() == 0x00 {
+            if payload.get_payload_value()[0] != 0x00 {
+                return Err("Get App State Event Status Error".to_string());
+            }
+        } else {
+            return Err("RFU".to_string());
+        }
+    }
+    Ok(response)
+}
+
+fn handle_get_server_state_event_response(body: &Body) -> Result<Vec<u8>> {
+    let response = Vec::new();
+    for payload in body.get_payloads() {
+        if payload.get_payload_type() == 0x00 {
+            if payload.get_payload_value()[0] != 0x00 {
+                return Err("Get Server State Event Status Error".to_string());
+            }
+        } else {
+            return Err("RFU".to_string());
+        }
+    }
+    Ok(response)
+}
+
 pub fn handle_icce_mobile_response(icce_object: &ICCE) -> Result<Vec<u8>> {
     let _header = icce_object.get_header();
     let body = icce_object.get_body();
@@ -1114,10 +1345,42 @@ pub fn handle_icce_mobile_response(icce_object: &ICCE) -> Result<Vec<u8>> {
             }
         },
         0x02 => {
-            return Err("RFU".to_string());
+            match body.get_command_id() {
+                0x01 => {
+                    return handle_measure_response(body);
+                },
+                0x02 => {
+                    return handle_anti_relay_response(body);
+                },
+                0x06 => {
+                    return handle_mobile_info_response(body);
+                },
+                0x07 => {
+                    return handle_calbriate_time_response(body);
+                },
+                0x08 => {
+                    return handle_protocol_response(body);
+                },
+                _ => {
+                    return Err("RFU".to_string());
+                }
+            }
         },
         0x03 => {
-            return Err("RFU".to_string());
+            match body.get_command_id() {
+                0x02 => {
+                    return handle_get_vehicle_state_event_response(body);
+                },
+                0x03 => {
+                    return handle_get_app_state_event_response(body);
+                },
+                0x04 => {
+                    return handle_get_server_state_event_response(body);
+                },
+                _ => {
+                    return Err("RFU".to_string());
+                }
+            }
         },
         _ => {
             return Err("RFU".to_string());
@@ -1535,19 +1798,19 @@ mod tests {
     fn test_calculate_dkey() {
         let card_seid = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06];
         let card_id = vec![0x07, 0x08, 0x9, 0x0a, 0x0b, 0x0c];
-        let dkey = carkey_icce_crypto::calculate_dkey(&card_seid, &card_id);
+        let dkey = carkey_icce_aes128::calculate_dkey(&card_seid, &card_id);
         assert_eq!(dkey, vec![0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]);
     }
     #[test]
     fn test_get_card_iv() {
-        let card_iv = carkey_icce_crypto::get_card_iv();
+        let card_iv = carkey_icce_aes128::get_card_iv();
         assert_eq!(card_iv, vec![0x00; 16]);
     }
     #[test]
     fn test_calculate_session_iv() {
         let reader_rnd = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
         let card_rnd = vec![0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01];
-        let session_iv = carkey_icce_crypto::calculate_session_iv(&reader_rnd, &card_rnd);
+        let session_iv = carkey_icce_aes128::calculate_session_iv(&reader_rnd, &card_rnd);
         assert_eq!(session_iv, vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01]);
     }
     #[test]
@@ -1558,11 +1821,11 @@ mod tests {
         let card_id = vec![0x07, 0x08, 0x9, 0x0a, 0x0b, 0x0c];
         let reader_key_parameter = vec![0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f];
 
-        let session_iv = carkey_icce_crypto::calculate_session_iv(&reader_rnd, &card_rnd);
-        let dkey = carkey_icce_crypto::calculate_dkey(&card_seid, &card_id);
-        let card_iv = carkey_icce_crypto::get_card_iv();
+        let session_iv = carkey_icce_aes128::calculate_session_iv(&reader_rnd, &card_rnd);
+        let dkey = carkey_icce_aes128::calculate_dkey(&card_seid, &card_id);
+        let card_iv = carkey_icce_aes128::get_card_iv();
 
-        let session_key = carkey_icce_crypto::calculate_sesion_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
+        let session_key = carkey_icce_aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
         assert_eq!(session_key.len(), 16);
     }
     #[test]
@@ -1573,15 +1836,15 @@ mod tests {
         let card_id = vec![0x07, 0x08, 0x9, 0x0a, 0x0b, 0x0c];
         let reader_key_parameter = vec![0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f];
 
-        let session_iv = carkey_icce_crypto::calculate_session_iv(&reader_rnd, &card_rnd);
-        let dkey = carkey_icce_crypto::calculate_dkey(&card_seid, &card_id);
-        let card_iv = carkey_icce_crypto::get_card_iv();
+        let session_iv = carkey_icce_aes128::calculate_session_iv(&reader_rnd, &card_rnd);
+        let dkey = carkey_icce_aes128::calculate_dkey(&card_seid, &card_id);
+        let card_iv = carkey_icce_aes128::get_card_iv();
 
-        let session_key = carkey_icce_crypto::calculate_sesion_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
+        let session_key = carkey_icce_aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
 
         let plain_text = b"Hello,World";
-        let encrypt_text = carkey_icce_crypto::encrypt_with_session_key(&session_key, &session_iv, plain_text).unwrap();
-        let decrypt_text = carkey_icce_crypto::decrypt_with_session_key(&session_key, &session_iv, &encrypt_text).unwrap();
+        let encrypt_text = carkey_icce_aes128::encrypt_with_session_key(&session_key, &session_iv, plain_text).unwrap();
+        let decrypt_text = carkey_icce_aes128::decrypt_with_session_key(&session_key, &session_iv, &encrypt_text).unwrap();
         assert_eq!(decrypt_text, plain_text);
     }
     #[test]
@@ -1663,10 +1926,10 @@ mod tests {
         let reader_rnd = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
         let reader_key_parameter = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
 
-        let session_iv = carkey_icce_crypto::calculate_session_iv(&reader_rnd, &card_rnd);
-        let dkey = carkey_icce_crypto::calculate_dkey(&card_seid, &card_id);
-        let card_iv = carkey_icce_crypto::get_card_iv();
-        let session_key = carkey_icce_crypto::calculate_sesion_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
+        let session_iv = carkey_icce_aes128::calculate_session_iv(&reader_rnd, &card_rnd);
+        let dkey = carkey_icce_aes128::calculate_dkey(&card_seid, &card_id);
+        let card_iv = carkey_icce_aes128::get_card_iv();
+        let session_key = carkey_icce_aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
 
         let mut payload = Vec::new();
         payload.push(0x77);
@@ -1696,7 +1959,7 @@ mod tests {
         plain_text.push(0x37);
         plain_text.push(reader_rnd.len() as u8);
         plain_text.append(&mut reader_rnd.clone().to_vec());
-        let encrypted_text = carkey_icce_crypto::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let encrypted_text = carkey_icce_aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
 
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
@@ -1725,10 +1988,10 @@ mod tests {
         let card_rnd = vec![0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01];
         let card_atc = vec![0x01, 0x02, 0x03, 0x04];
 
-        let session_iv = carkey_icce_crypto::calculate_session_iv(&reader_rnd, &card_rnd);
-        let dkey = carkey_icce_crypto::calculate_dkey(&card_seid, &card_id);
-        let card_iv = carkey_icce_crypto::get_card_iv();
-        let session_key = carkey_icce_crypto::calculate_sesion_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
+        let session_iv = carkey_icce_aes128::calculate_session_iv(&reader_rnd, &card_rnd);
+        let dkey = carkey_icce_aes128::calculate_dkey(&card_seid, &card_id);
+        let card_iv = carkey_icce_aes128::get_card_iv();
+        let session_key = carkey_icce_aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
 
         let payload = create_auth_auth_payload(&card_atc, &reader_auth_parameter, &card_rnd, &session_key, &session_iv).unwrap();
 
@@ -1745,10 +2008,10 @@ mod tests {
         let reader_key_parameter = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
         let reader_auth_parameter = vec![0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f];
 
-        let session_iv = carkey_icce_crypto::calculate_session_iv(&reader_rnd, &card_rnd);
-        let dkey = carkey_icce_crypto::calculate_dkey(&card_seid, &card_id);
-        let card_iv = carkey_icce_crypto::get_card_iv();
-        let session_key = carkey_icce_crypto::calculate_sesion_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
+        let session_iv = carkey_icce_aes128::calculate_session_iv(&reader_rnd, &card_rnd);
+        let dkey = carkey_icce_aes128::calculate_dkey(&card_seid, &card_id);
+        let card_iv = carkey_icce_aes128::get_card_iv();
+        let session_key = carkey_icce_aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
 
         let mut payload = Vec::new();
         payload.push(0x77);
@@ -1766,7 +2029,7 @@ mod tests {
         plain_text.push(0x37);
         plain_text.push(reader_rnd.len() as u8);
         plain_text.append(&mut reader_rnd.clone().to_vec());
-        let encrypted_text = carkey_icce_crypto::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let encrypted_text = carkey_icce_aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
 
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
@@ -1793,10 +2056,10 @@ mod tests {
         let reader_rnd = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
         let reader_key_parameter = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
 
-        let session_iv = carkey_icce_crypto::calculate_session_iv(&reader_rnd, &card_rnd);
-        let dkey = carkey_icce_crypto::calculate_dkey(&card_seid, &card_id);
-        let card_iv = carkey_icce_crypto::get_card_iv();
-        let session_key = carkey_icce_crypto::calculate_sesion_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
+        let session_iv = carkey_icce_aes128::calculate_session_iv(&reader_rnd, &card_rnd);
+        let dkey = carkey_icce_aes128::calculate_dkey(&card_seid, &card_id);
+        let card_iv = carkey_icce_aes128::get_card_iv();
+        let session_key = carkey_icce_aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
 
         let mut payload = Vec::new();
         payload.push(0x77);
@@ -1826,7 +2089,7 @@ mod tests {
         plain_text.push(0x37);
         plain_text.push(reader_rnd.len() as u8);
         plain_text.append(&mut reader_rnd.clone().to_vec());
-        let encrypted_text = carkey_icce_crypto::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let encrypted_text = carkey_icce_aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
 
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
@@ -1844,10 +2107,10 @@ mod tests {
         let reader_key_parameter = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
         let reader_auth_parameter = vec![0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f];
 
-        let session_iv = carkey_icce_crypto::calculate_session_iv(&reader_rnd, &card_rnd);
-        let dkey = carkey_icce_crypto::calculate_dkey(&card_seid, &card_id);
-        let card_iv = carkey_icce_crypto::get_card_iv();
-        let session_key = carkey_icce_crypto::calculate_sesion_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
+        let session_iv = carkey_icce_aes128::calculate_session_iv(&reader_rnd, &card_rnd);
+        let dkey = carkey_icce_aes128::calculate_dkey(&card_seid, &card_id);
+        let card_iv = carkey_icce_aes128::get_card_iv();
+        let session_key = carkey_icce_aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
 
         let mut payload = Vec::new();
         payload.push(0x77);
@@ -1865,7 +2128,7 @@ mod tests {
         plain_text.push(0x37);
         plain_text.push(reader_rnd.len() as u8);
         plain_text.append(&mut reader_rnd.clone().to_vec());
-        let encrypted_text = carkey_icce_crypto::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let encrypted_text = carkey_icce_aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
 
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
@@ -1876,13 +2139,189 @@ mod tests {
     #[test]
     fn test_create_rke_control_request() {
         let rke_type = 0x01;
-        let rke_cmd = vec![0x01, 0x02, 0x03, 0x04];
+        let rke_cmd = vec![0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa];
+
+        let icce = create_icce_rke_control_request(rke_type, &rke_cmd);
+        let origin_icce = ICCE::deserialize(&icce.serialize()).unwrap();
+    }
+    #[test]
+    fn test_create_rke_control_response() {
+        let status = 0x00;
+        let rke_response= vec![0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa];
+
+        let icce = create_icce_rke_control_response(status, &rke_response);
+    }
+
+    #[test]
+    fn test_encrypted_with_session_key_and_session_iv() {
+        let card_seid = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
+        let card_id = vec![0x0f, 0x0e, 0x0d, 0x0c, 0x0b, 0x0a, 0x09, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00];
+        let card_rnd = vec![0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01];
+        let card_info1 = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06];
+        let card_auth_parameter = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
+        let card_atc = vec![0x01, 0x02, 0x03, 0x04];
+        let reader_rnd = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
+        let reader_key_parameter = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
+        let reader_auth_parameter = vec![0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f];
+
+        let session_iv = carkey_icce_aes128::calculate_session_iv(&reader_rnd, &card_rnd);
+        let dkey = carkey_icce_aes128::calculate_dkey(&card_seid, &card_id);
+        let card_iv = carkey_icce_aes128::get_card_iv();
+        let session_key = carkey_icce_aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
+
+        //emulate auth get process data response package from mobile
+        let mut payload = Vec::new();
+        payload.push(0x77);
+        payload.push(0x5A);
+        payload.push(card_seid.len() as u8);
+        payload.append(&mut card_seid.clone().to_vec());
+        payload.push(0x9F);
+        payload.push(0x3B);
+        payload.push(card_id.len() as u8);
+        payload.append(&mut card_id.clone().to_vec());
+        payload.push(0x9F);
+        payload.push(0x3E);
+        payload.push(card_rnd.len() as u8);
+        payload.append(&mut card_rnd.clone().to_vec());
+        payload.push(0x9F);
+        payload.push(0x05);
+        payload.push(card_info1.len() as u8);
+        payload.append(&mut card_info1.clone().to_vec());
+        payload.push(0x73);
+
+        let mut plain_text = Vec::new();
+        plain_text.push(0x9F);
+        plain_text.push(0x36);
+        plain_text.push(card_atc.len() as u8);
+        plain_text.append(&mut card_atc.clone().to_vec());
+        plain_text.push(0x9F);
+        plain_text.push(0x37);
+        plain_text.push(reader_rnd.len() as u8);
+        plain_text.append(&mut reader_rnd.clone().to_vec());
+        let encrypted_text = carkey_icce_aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        payload.append(&mut encrypted_text.clone().to_vec());
+        payload.push(0x90);
+        payload.push(0x00);
+
+        let icce = create_icce_auth_response(0x00, &payload);
+        println!("[get process data response] = {:02X?}", icce.serialize());
+
+        //handle get process data response on vehicle
+        let _auth_auth_request = handle_icce_mobile_response(&icce).unwrap();
+
+        //emulate auth auth response package from mobile with encrypted body payload
+        let mut payload = Vec::new();
+        payload.push(0x77);
+        let mut plain_text = Vec::new();
+        plain_text.push(0x9F);
+        plain_text.push(0x31);
+        plain_text.push(card_auth_parameter.len() as u8);
+        plain_text.append(&mut card_auth_parameter.clone().to_vec());
+        plain_text.push(0x9F);
+        plain_text.push(0x0A);
+        plain_text.push(reader_auth_parameter.len() as u8);
+        plain_text.append(&mut &mut reader_auth_parameter.clone().to_vec());
+        plain_text.push(0x9F);
+        plain_text.push(0x37);
+        plain_text.push(reader_rnd.len() as u8);
+        plain_text.append(&mut reader_rnd.clone().to_vec());
+        let encrypted_text = carkey_icce_aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        payload.append(&mut encrypted_text.clone().to_vec());
+        payload.push(0x90);
+        payload.push(0x00);
+
+        let icce = create_icce_auth_response(0x00, &payload);
+        println!("[auth auth data response] = {:02X?}", icce.serialize());
+
+        //handle get process data response on vehicle
+        let _ = handle_icce_mobile_response(&icce).unwrap();
+
+        //emulate RKE Control Command package from vehicle with encrypted body payload
+        let rke_type = 0x01;
+        let rke_cmd = vec![0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa];
 
         let icce = create_icce_rke_control_request(rke_type, &rke_cmd);
         println!("RKE Command ICCE is {:02X?}", icce.serialize());
-        println!("RKE Command is {:?}", icce);
+        let origin_icce = ICCE::deserialize(&icce.serialize()).unwrap();
 
-        let decrypted_icce = ICCE::deserialize(&icce.serialize()).unwrap();
-        println!("decrypted_icce is {:?}", decrypted_icce);
+        let _ = handle_icce_mobile_request(&origin_icce).unwrap();
+    }
+    #[test]
+    fn test_create_rke_challege_request() {
+        let rke_type = 0x01;
+        let icce = create_icce_rke_challege_request(rke_type);
+        println!("RKE Challege Request is {:02X?}", icce.serialize());
+    }
+    #[test]
+    fn test_create_get_vehicle_info_request() {
+        let get_vehicle_info_type = 0x01;
+        let icce = create_icce_get_vehicle_info_request(get_vehicle_info_type);
+        println!("Get Vehicle Info Request is {:02X?}", icce.serialize());
+    }
+    #[test]
+    fn test_create_mobile_event_request() {
+        let mobile_event = 0x01;
+        let icce = create_icce_mobile_state_event_request(mobile_event);
+        println!("Mobile Event Request is {:02X?}", icce.serialize());
+    }
+    #[test]
+    fn test_create_framework_to_vehicle_event_request() {
+        let framework_to_vehicle_data = vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
+        let icce = create_icce_mobile_to_vehicle_event_request(&framework_to_vehicle_data);
+        println!("Framework to Vehicle Event Request is {:02X?}", icce.serialize());
+    }
+    #[test]
+    fn test_create_measure_response() {
+        let status = 0x00;
+        let measure_times = vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
+        let icce = create_icce_measure_response(status, &measure_times);
+        println!("Measure Response is {:02X?}", icce.serialize());
+    }
+    #[test]
+    fn test_create_anti_relay_response() {
+        let status = 0x00;
+        let check_result = 0x01;
+        let device_info = vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
+        let icce = create_icce_anti_relay_response(status, check_result, &device_info);
+        println!("Anti-Relay Response is {:02X?}", icce.serialize());
+    }
+    #[test]
+    fn test_create_mobile_info_response() {
+        let status = 0x00;
+        let mobile_info = vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
+        let icce = create_icce_get_mobile_info_response(status, &mobile_info);
+        println!("Mobile Info Response is {:02X?}", icce.serialize());
+    }
+    #[test]
+    fn test_create_calbriate_time_response() {
+        let status = 0x00;
+        let calbriate_time = vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
+        let icce = create_icce_calibrate_clock_response(status, &calbriate_time);
+        println!("Calbriate Time Response is {:02X?}", icce.serialize());
+    }
+    #[test]
+    fn test_create_protocol_response() {
+        let status = 0x00;
+        let protocol = vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
+        let icce = create_icce_get_protocol_response(status, &protocol);
+        println!("Protocol Response is {:02X?}", icce.serialize());
+    }
+    #[test]
+    fn test_create_get_vehicle_state_event_response() {
+        let status = 0x00;
+        let icce = create_icce_vehicle_state_event_response(status);
+        println!("Get Vehicle State Event Response is {:02X?}", icce.serialize())
+    }
+    #[test]
+    fn test_create_get_app_state_event_response() {
+        let status = 0x00;
+        let icce = create_icce_vehicle_to_app_event_response(status);
+        println!("Get App State Event Response is {:02X?}", icce.serialize())
+    }
+    #[test]
+    fn test_create_get_server_state_event_response() {
+        let status = 0x00;
+        let icce = create_icce_vehicle_to_server_event_response(status);
+        println!("Get Server State Event Response is {:02X?}", icce.serialize())
     }
 }
