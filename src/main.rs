@@ -6,6 +6,8 @@ mod bluetooth_uuid;
 mod carkey_icce;
 mod carkey_icce_aes128;
 
+use std::time::Duration;
+
 use bluer::{adv::Advertisement, gatt::local::{Application, Service, Characteristic, CharacteristicNotify, CharacteristicRead, CharacteristicWrite, CharacteristicWriteMethod}, UuidExt};
 use futures::FutureExt;
 use tokio::sync::{mpsc, broadcast};
@@ -85,6 +87,9 @@ async fn main() -> bluer::Result<()> {
     let (bt_write_tx, mut bt_write_rx) = mpsc::channel(32);
     let (bt_notify_tx, _) = broadcast::channel::<Vec<u8>>(32);
     let bt_notify_tx2 = bt_notify_tx.clone();
+    let bt_notify_tx3 = bt_notify_tx.clone();
+    let (bt_send_package_tx, mut bt_send_package_rx) = mpsc::channel::<Vec<u8>>(32);
+
     let session = bluer::Session::new().await?;
     let adapter = session.default_adapter().await?;
     adapter.set_powered(true).await?;
@@ -114,7 +119,7 @@ async fn main() -> bluer::Result<()> {
                     write: true,
                     write_without_response: true,
                     encrypt_authenticated_write: true,
-                    method: CharacteristicWriteMethod::Fun(Box::new(move |new_value, req| {
+                    method: CharacteristicWriteMethod::Fun(Box::new(move |new_value, _req| {
                         let bt_write_tx = bt_write_tx.clone();
                         async move {
                             let _ = bt_write_tx.send(new_value).await;
@@ -132,19 +137,9 @@ async fn main() -> bluer::Result<()> {
                 read: Some(CharacteristicRead {
                     read: true,
                     encrypt_authenticated_read: true,
-                    fun: Box::new(move |req| {
+                    fun: Box::new(move |_req| {
                         async move {
-                            //let icce_package = test_create_get_process_data_request();
-                            //let icce_package = test_create_measure_request();
-                            //let icce_package = test_craate_anti_relay_request();
-                            //let icce_package = test_create_mobile_info_request();
-                            //let icce_package = test_create_calbriate_time_request();
-                            //let icce_package = test_create_protocol_request();
-                            let icce_package = test_create_vehicle_event_request();
-                            //let icce_package = test_create_app_event_request();
-                            //let icce_package = test_create_server_event_request();
-                            println!("Sending Request to Mobile: {:02X?}", icce_package);
-                            Ok(icce_package)
+                            Ok(vec![])
                         }.boxed()
                     }),
                     ..Default::default()
@@ -176,44 +171,79 @@ async fn main() -> bluer::Result<()> {
     let app_handle = adapter.serve_gatt_application(app).await?;
 
     tokio::spawn(async move {
-        let bt_notify_tx = bt_notify_tx.clone();
-        while let Some(icce_package) = bt_write_rx.recv().await {
-            println!("GOT = {:02X?}", icce_package);
-            if let Ok(icce_object) = carkey_icce::ICCE::deserialize(&icce_package) {
-                println!("icce_object is {:?}", icce_object);
-                if icce_object.get_header().get_control().is_request() {
-                    if let Ok(response) = carkey_icce::handle_icce_mobile_request(&icce_object) {
-                        if response.len() > 1 {
-                            let _ = bt_notify_tx.send(response);
-                        }
-                    }
-                } else {
-                    if let Ok(response) = carkey_icce::handle_icce_mobile_response(&icce_object) {
-                        if response.len() > 0 {
-                            let _ = bt_notify_tx.send(response);
-                        }
-
-                    }
+        let mut index = 0;
+        loop {
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            let icce_package = match index {
+                0x00 => {
+                    test_create_get_process_data_request()
+                },
+                0x01 => {
+                    test_create_measure_request()
+                },
+                0x02 => {
+                    test_craate_anti_relay_request()
+                },
+                0x03 => {
+                    test_create_mobile_info_request()
+                },
+                0x04 => {
+                    test_create_calbriate_time_request()
+                },
+                0x05 => {
+                    test_create_protocol_request()
+                },
+                0x06 => {
+                    test_create_vehicle_event_request()
+                },
+                0x07 => {
+                    test_create_app_event_request()
+                },
+                _ => {
+                    test_create_server_event_request()
                 }
-            } else {
-                println!("Error on ICCE deserialized");
+            };
+            println!("sending icce_package is {:02X?}", icce_package);
+            let _ = bt_send_package_tx.send(icce_package).await;
+            index += 1;
+            if index > 0x08 {
+                index = 0;
             }
         }
     });
 
-    /*
-    tokio::spawn(async move {
-        loop {
-            let mut value = vec![0x10, 0x11, 0x22, 0x33, 0x44];
-            println!("Sending data from vehicle to mobile");
-            let _ = bt_notify_tx3.send(value);
-            tokio::time::sleep(Duration::from_secs(3)).await;
-        }
-    });
-    */
-
     println!("Server ready. Press ctrl-c to quit");
-    tokio::signal::ctrl_c().await?;
+    loop {
+        tokio::select! {
+            Some(icce_package) = bt_write_rx.recv() => {
+                println!("GOT ICCE Package from Mobile = {:02X?}", icce_package);
+                if let Ok(icce_object) = carkey_icce::ICCE::deserialize(&icce_package) {
+                    println!("icce_object is {:?}", icce_object);
+                    if icce_object.get_header().get_control().is_request() {
+                        if let Ok(response) = carkey_icce::handle_icce_mobile_request(&icce_object) {
+                            if response.len() > 1 {
+                                let _ = bt_notify_tx.send(response);
+                            }
+                        }
+                    } else {
+                        if let Ok(response) = carkey_icce::handle_icce_mobile_response(&icce_object) {
+                            if response.len() > 0 {
+                                let _ = bt_notify_tx.send(response);
+                            }
+                        }
+                    }
+                } else {
+                    println!("Error on ICCE deserialized");
+                }
+            },
+            Some(icce_package) = bt_send_package_rx.recv() => {
+                println!("GOT ICCE Package from Vehicle = {:02X?}", icce_package);
+                let _ = bt_notify_tx3.send(icce_package);
+            },
+            Ok(_) = tokio::signal::ctrl_c() => break,
+            else => break,
+        }
+    }
 
     println!("Removing service and advertisement");
     adapter.set_pairable(false).await?;
