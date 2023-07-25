@@ -634,6 +634,15 @@ pub fn create_icce_auth_request(apdu: &[u8]) -> ICCE {
     icce
 }
 
+pub fn create_icce_auth_get_process_data_request() -> ICCE {
+    let reader_type = carkey_icce_aes128::get_reader_type();
+    let reader_id = carkey_icce_aes128::get_reader_id();
+    let reader_rnd = carkey_icce_aes128::get_reader_rnd();
+    let reader_key_parameter = carkey_icce_aes128::get_reader_key_parameter();
+    let get_process_data_apdu = create_auth_get_process_data_payload(&reader_type, &reader_id, &reader_rnd, &reader_key_parameter);
+    create_icce_auth_request(&get_process_data_apdu)
+}
+
 pub fn create_icce_auth_response(status: u8, apdu: &[u8]) -> ICCE {
     let mut icce = ICCE::new();
 
@@ -1385,6 +1394,15 @@ pub fn handle_icce_mobile_response(icce_object: &ICCE) -> Result<Vec<u8>> {
         _ => {
             return Err("RFU".to_string());
         }
+    }
+}
+
+pub fn is_session_key_valid() -> bool {
+    let session_key = SESSION_KEY.lock().unwrap().to_vec();
+    if session_key.ne(&[0u8; 16]) {
+        true
+    } else {
+        false
     }
 }
 

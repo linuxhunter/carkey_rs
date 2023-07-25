@@ -6,8 +6,6 @@ mod bluetooth_uuid;
 mod carkey_icce;
 mod carkey_icce_aes128;
 
-use std::time::Duration;
-
 use bluer::{adv::Advertisement, gatt::local::{Application, Service, Characteristic, CharacteristicNotify, CharacteristicRead, CharacteristicWrite, CharacteristicWriteMethod}, UuidExt};
 use futures::FutureExt;
 use tokio::sync::{mpsc, broadcast};
@@ -19,17 +17,6 @@ lazy_static! {
     static ref SERVICE_UUID: Uuid = Uuid::from_u16(0xFCD1);
     static ref WRITE_CHARACTERISTIC_UUID: Uuid = Uuid::from_u16(0xFFFD);
     static ref READ_CHARACTERISTIC_UUID: Uuid = Uuid::from_u16(0xFFFE);
-}
-
-fn test_create_get_process_data_request() -> Vec<u8> {
-    let reader_type = carkey_icce_aes128::get_reader_type();
-    let reader_id = carkey_icce_aes128::get_reader_id();
-    let reader_rnd = carkey_icce_aes128::get_reader_rnd();
-    let reader_key_parameter = carkey_icce_aes128::get_reader_key_parameter();
-
-    let get_process_data_apdu = carkey_icce::create_auth_get_process_data_payload(&reader_type, &reader_id, &reader_rnd, &reader_key_parameter);
-    let icce = carkey_icce::create_icce_auth_request(&get_process_data_apdu);
-    icce.serialize()
 }
 
 fn test_create_measure_request() -> Vec<u8> {
@@ -150,6 +137,12 @@ async fn main() -> bluer::Result<()> {
                         let bt_notify_tx = bt_notify_tx2.clone();
                         async move {
                             tokio::spawn(async move {
+                                if notifier.is_stopped() == false {
+                                    let icce = carkey_icce::create_icce_auth_get_process_data_request();
+                                    if let Err(err) = notifier.notify(icce.serialize()).await {
+                                        println!("Notification error when setting get process data request: {}", err);
+                                    }
+                                }
                                 let mut bt_notify_rx = bt_notify_tx.subscribe();
                                 while let Ok(notify_data) = bt_notify_rx.recv().await {
                                     if let Err(err) = notifier.notify(notify_data).await {
@@ -170,33 +163,34 @@ async fn main() -> bluer::Result<()> {
     };
     let app_handle = adapter.serve_gatt_application(app).await?;
 
+    //test code for sending message from vehicle to mobile by notification
     tokio::spawn(async move {
         let mut index = 0;
         loop {
-            tokio::time::sleep(Duration::from_secs(5)).await;
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            if carkey_icce::is_session_key_valid() == false {
+                continue;
+            }
             let icce_package = match index {
                 0x00 => {
-                    test_create_get_process_data_request()
-                },
-                0x01 => {
                     test_create_measure_request()
                 },
-                0x02 => {
+                0x01 => {
                     test_craate_anti_relay_request()
                 },
-                0x03 => {
+                0x02 => {
                     test_create_mobile_info_request()
                 },
-                0x04 => {
+                0x03 => {
                     test_create_calbriate_time_request()
                 },
-                0x05 => {
+                0x04 => {
                     test_create_protocol_request()
                 },
-                0x06 => {
+                0x05 => {
                     test_create_vehicle_event_request()
                 },
-                0x07 => {
+                0x06 => {
                     test_create_app_event_request()
                 },
                 _ => {
@@ -206,7 +200,7 @@ async fn main() -> bluer::Result<()> {
             println!("sending icce_package is {:02X?}", icce_package);
             let _ = bt_send_package_tx.send(icce_package).await;
             index += 1;
-            if index > 0x08 {
+            if index > 0x07 {
                 index = 0;
             }
         }
