@@ -6,11 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-aes = "0.8.3"
 bluer = { version = "0.15.7", features = ["full"] }
-cbc = "0.1.2"
 crc16 = "0.4.0"
 futures = "0.3.28"
 lazy_static = "1.4.0"
+openssl = "0.10.55"
 tokio = { version = "1.29.1", features = ["full"] }
 uuid = "1.4.1"

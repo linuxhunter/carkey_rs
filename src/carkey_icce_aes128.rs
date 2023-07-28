@@ -1,9 +1,6 @@
-use aes::cipher::{KeyIvInit, BlockEncryptMut, block_padding::Pkcs7, BlockDecryptMut};
+use openssl::symm::{encrypt, decrypt, Cipher};
 
 type Result<T> = std::result::Result<T, String>;
-
-type Aes128CbcEnc = cbc::Encryptor<aes::Aes128>;
-type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 
 //CardSEID rule is 车钥匙应用卡片唯一标识，根据CardSEID查找到响应的认证根密钥，长度8字节
 pub fn get_card_seid() -> Vec<u8> {
@@ -90,34 +87,24 @@ pub fn calculate_session_key(dkey: &[u8], card_iv: &[u8], session_iv: &[u8], rea
     payload.append(&mut session_iv.clone().to_vec());
     payload.append(&mut reader_key_parameter.clone().to_vec());
 
-    let mut buf = [0u8; 48];
-    let pt_len = payload.len();
-    buf[..pt_len].copy_from_slice(&payload);
-
-    let session_key = Aes128CbcEnc::new(dkey.into(), card_iv.into()).encrypt_padded_b2b_mut::<Pkcs7>(&payload, &mut buf).unwrap();
+    let session_key = encrypt_with_session_key(dkey, card_iv, &payload)?;
     if session_key.len() > 16 {
-        Ok(session_key[session_key.len() - 16..].to_vec())
+        Ok(session_key[0..16].to_vec())
     } else {
-        Ok(session_key.to_vec())
+        Ok(session_key)
     }
-}
-
-//encrypt plain text with Session Key and Session IV
-pub fn encrypt_with_session_key(session_key: &[u8], session_iv: &[u8], plain_text: &[u8]) -> Result<Vec<u8>> {
-    let mut buf = [0u8; 48];
-    let pt_len = plain_text.len();
-    buf[..pt_len].copy_from_slice(&plain_text);
-
-    let encrypted_text = Aes128CbcEnc::new(session_key.into(), session_iv.into()).encrypt_padded_b2b_mut::<Pkcs7>(plain_text, &mut buf).unwrap();
-    Ok(encrypted_text.to_vec())
 }
 
 //decrypt encrypted text with Session Key and Session IV
 pub fn decrypt_with_session_key(session_key: &[u8], session_iv: &[u8], encrypted_text: &[u8]) -> Result<Vec<u8>> {
-    let cipher_len = encrypted_text.len();
-    let mut buf = [0u8; 48];
-    buf[..cipher_len].copy_from_slice(encrypted_text);
+    let cipher = Cipher::aes_128_cbc();
+    let plain_text = decrypt(cipher, session_key, Some(session_iv), encrypted_text).map_err(|_| "decrypt error")?;
+    Ok(plain_text)
+}
 
-    let plain_text = Aes128CbcDec::new(session_key.into(), session_iv.into()).decrypt_padded_b2b_mut::<Pkcs7>(encrypted_text, &mut buf).unwrap();
-    Ok(plain_text.to_vec())
+//encrypt plain text with Session Key and Session IV
+pub fn encrypt_with_session_key(session_key: &[u8], session_iv: &[u8], plain_text: &[u8]) -> Result<Vec<u8>> {
+    let cipher = Cipher::aes_128_cbc();
+    let encrypted_text = encrypt(cipher, session_key, Some(session_iv), plain_text).map_err(|_| "encrypt error")?;
+    Ok(encrypted_text)
 }
