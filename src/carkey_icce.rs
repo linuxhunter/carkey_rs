@@ -2343,4 +2343,105 @@ mod tests {
         let icce = create_icce_vehicle_to_server_event_response(status);
         println!("Get Server State Event Response is {:02X?}", icce.serialize())
     }
+    #[test]
+    fn test_encrypt_and_decrypt_with_session_key_iv() {
+        let card_seid = carkey_icce_aes128::get_card_seid();
+        let card_id = carkey_icce_aes128::get_card_id();
+        let card_rnd = carkey_icce_aes128::get_card_rnd();
+        let card_info1 = carkey_icce_aes128::get_card_info1();
+        let card_auth_parameter = carkey_icce_aes128::get_card_auth_parameter();
+        let card_atc = carkey_icce_aes128::get_card_atc();
+        let reader_rnd = carkey_icce_aes128::get_reader_rnd();
+        let reader_key_parameter = carkey_icce_aes128::get_reader_key_parameter();
+        let reader_auth_parameter = carkey_icce_aes128::get_reader_auth_parameter();
+
+        let session_iv = carkey_icce_aes128::calculate_session_iv(&reader_rnd, &card_rnd);
+        let dkey = carkey_icce_aes128::calculate_dkey(&card_seid, &card_id);
+        let card_iv = carkey_icce_aes128::get_card_iv();
+        let session_key = carkey_icce_aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
+
+        //emulate auth get process data response package from mobile
+        let mut payload = Vec::new();
+        payload.push(0x77);
+        payload.push(0x5A);
+        payload.push(card_seid.len() as u8);
+        payload.append(&mut card_seid.clone().to_vec());
+        payload.push(0x9F);
+        payload.push(0x3B);
+        payload.push(card_id.len() as u8);
+        payload.append(&mut card_id.clone().to_vec());
+        payload.push(0x9F);
+        payload.push(0x3E);
+        payload.push(card_rnd.len() as u8);
+        payload.append(&mut card_rnd.clone().to_vec());
+        payload.push(0x9F);
+        payload.push(0x05);
+        payload.push(card_info1.len() as u8);
+        payload.append(&mut card_info1.clone().to_vec());
+        payload.push(0x73);
+
+        let mut plain_text = Vec::new();
+        plain_text.push(0x9F);
+        plain_text.push(0x36);
+        plain_text.push(card_atc.len() as u8);
+        plain_text.append(&mut card_atc.clone().to_vec());
+        plain_text.push(0x9F);
+        plain_text.push(0x37);
+        plain_text.push(reader_rnd.len() as u8);
+        plain_text.append(&mut reader_rnd.clone().to_vec());
+        let encrypted_text = carkey_icce_aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        payload.append(&mut encrypted_text.clone().to_vec());
+        payload.push(0x90);
+        payload.push(0x00);
+
+        let icce = create_icce_auth_response(0x00, &payload);
+
+        //handle get process data response on vehicle
+        let _auth_auth_request = handle_icce_mobile_response(&icce).unwrap();
+
+        //emulate auth auth response package from mobile with encrypted body payload
+        let mut payload = Vec::new();
+        payload.push(0x77);
+        let mut plain_text = Vec::new();
+        plain_text.push(0x9F);
+        plain_text.push(0x31);
+        plain_text.push(card_auth_parameter.len() as u8);
+        plain_text.append(&mut card_auth_parameter.clone().to_vec());
+        plain_text.push(0x9F);
+        plain_text.push(0x0A);
+        plain_text.push(reader_auth_parameter.len() as u8);
+        plain_text.append(&mut &mut reader_auth_parameter.clone().to_vec());
+        plain_text.push(0x9F);
+        plain_text.push(0x37);
+        plain_text.push(reader_rnd.len() as u8);
+        plain_text.append(&mut reader_rnd.clone().to_vec());
+        let encrypted_text = carkey_icce_aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        payload.append(&mut encrypted_text.clone().to_vec());
+        payload.push(0x90);
+        payload.push(0x00);
+
+        let icce = create_icce_auth_response(0x00, &payload);
+
+        //handle get process data response on vehicle
+        let _ = handle_icce_mobile_response(&icce).unwrap();
+
+        //emulate RKE Control Command package from vehicle with encrypted body payload
+        let rke_type = 0x01;
+        let rke_cmd = vec![0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa];
+
+        let icce = create_icce_rke_control_request(rke_type, &rke_cmd);
+        let origin_icce = ICCE::deserialize(&icce.serialize()).unwrap();
+        let _ = handle_icce_mobile_request(&origin_icce).unwrap();
+
+        let session_key = SESSION_KEY.lock().unwrap().to_vec();
+        let session_iv = SESSION_IV.lock().unwrap().to_vec();
+        let plain_text: Vec<u8> = vec![0x5A, 0x0C, 0x00, 0x10, 0x00, 0x01, 0x02, 0x01, 0x06, 0x01, 0x02, 0x03, 0x04, 0x5, 0x06];
+        let encrypted_text = carkey_icce_aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let decrypted_text = carkey_icce_aes128::decrypt_with_session_key(&session_key, &session_iv, &encrypted_text).unwrap();
+        println!("session_key = {:02X?}", session_key);
+        println!("sesion_iv = {:02X?}", session_iv);
+        println!("plain_text = {:02X?}", plain_text);
+        println!("encrypted_text = {:02X?}", encrypted_text);
+        println!("decrypted_text = {:02X?}", decrypted_text);
+    }
 }
