@@ -168,7 +168,7 @@ impl Header {
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct Payload {
     payload_type: u8,
-    payload_length: u8,
+    payload_length: usize,
     payload_value: Vec<u8>,
 }
 
@@ -179,7 +179,7 @@ impl Payload {
     pub fn set_payload_type(&mut self, payload_type: u8) {
         self.payload_type = payload_type;
     }
-    pub fn set_payload_length(&mut self, payload_length: u8) {
+    pub fn set_payload_length(&mut self, payload_length: usize) {
         self.payload_length = payload_length;
     }
     pub fn set_payload_value(&mut self, payload_value: &[u8]) {
@@ -188,7 +188,7 @@ impl Payload {
     pub fn get_payload_type(&self) -> u8 {
         self.payload_type
     }
-    pub fn get_payload_length(&self) -> u8 {
+    pub fn get_payload_length(&self) -> usize {
         self.payload_length
     }
     pub fn get_payload_value(&self) -> &[u8] {
@@ -197,7 +197,11 @@ impl Payload {
     pub fn serialize(&self) -> Vec<u8> {
         let mut serialized_data: Vec<u8> = Vec::new();
         serialized_data.push(self.payload_type);
-        serialized_data.push(self.payload_length);
+        if self.payload_length >= 255 {
+            serialized_data.push(0xFF);
+            serialized_data.push((self.payload_length >> 8) as u8);
+        }
+        serialized_data.push(self.payload_length as u8);
         serialized_data.append(&mut self.payload_value.to_vec());
 
         serialized_data
@@ -208,8 +212,19 @@ impl Payload {
         }
         let mut payload = Payload::new();
         payload.set_payload_type(byte_stream[0]);
-        payload.set_payload_length(byte_stream[1]);
-        payload.set_payload_value(&byte_stream[2..2+byte_stream[1] as usize]);
+        let mut value_offset = 2;
+        if byte_stream[1] == 0xFF {
+            let mut ret = 0;
+            for i in 2..4 {
+                let x = byte_stream[i];
+                ret = ret << 8 | usize::from(x);
+            }
+            payload.set_payload_length(ret);
+            value_offset = 4;
+        } else {
+            payload.set_payload_length(usize::from(byte_stream[1]));
+        }
+        payload.set_payload_value(&byte_stream[value_offset..value_offset+payload.payload_length]);
 
         Ok(payload)
     }
@@ -414,7 +429,7 @@ pub fn create_icce_header(request_flag: bool, crypto_flag: bool, async_flag: boo
 pub fn create_icce_body_payload(payload_type: u8, payload_value: &[u8]) -> Payload {
     let mut payload = Payload::new();
     payload.set_payload_type(payload_type);
-    payload.set_payload_length(payload_value.len() as u8);
+    payload.set_payload_length(payload_value.len());
     payload.set_payload_value(payload_value);
     payload
 }
@@ -2443,5 +2458,29 @@ mod tests {
         println!("plain_text = {:02X?}", plain_text);
         println!("encrypted_text = {:02X?}", encrypted_text);
         println!("decrypted_text = {:02X?}", decrypted_text);
+    }
+    #[test]
+    fn test_large_payload() {
+        let mut value = vec![];
+        for i in 0..255 {
+            value.push(i);
+        }
+        for i in 0..255 {
+            value.push(i);
+        }
+        for i in 0..255 {
+            value.push(i);
+        }
+        for i in 0..255 {
+            value.push(i);
+        }
+        let mut payload = Payload::new();
+        payload.set_payload_type(0x01);
+        println!("value length = {}", value.len());
+        payload.set_payload_length(value.len());
+        payload.set_payload_value(&value);
+        println!("serialized payload = {:02X?}", payload.serialize());
+        let deserialized_payload = Payload::deserialize(&payload.serialize()).unwrap();
+        println!("deserialzied_payload = {:?}", deserialized_payload);
     }
 }
