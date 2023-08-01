@@ -1072,7 +1072,7 @@ pub fn handle_icce_mobile_request(icce_object: &ICCE) -> Result<Vec<u8>> {
                     for payload in body.get_payloads() {
                         println!("RKE Command Type is {}", payload.get_payload_type());
                         println!("RKE Command Content Length is {}", payload.get_payload_length());
-                        println!("RKE Comamnd Content is {:?}", payload.get_payload_value());
+                        println!("RKE Comamnd Content is {:02X?}", payload.get_payload_value());
                     }
                     //test for reply RKE Command Response
                     let status = 0x00;
@@ -1085,7 +1085,7 @@ pub fn handle_icce_mobile_request(icce_object: &ICCE) -> Result<Vec<u8>> {
                     for payload in body.get_payloads() {
                         println!("RKE Challege Type is {}", payload.get_payload_type());
                         println!("RKE Challege Content Length is {}", payload.get_payload_length());
-                        println!("RKE Challege Content is {:?}", payload.get_payload_value());
+                        println!("RKE Challege Content is {:02X?}", payload.get_payload_value());
                     }
                     let status = 0x00;
                     let rke_challege_random_numbers = vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
@@ -1097,7 +1097,7 @@ pub fn handle_icce_mobile_request(icce_object: &ICCE) -> Result<Vec<u8>> {
                     for payload in body.get_payloads(){
                         println!("Get Vehicle Info Type is {}", payload.get_payload_type());
                         println!("Get Vehicle Info Length is {}", payload.get_payload_length());
-                        println!("Get Vehicle Info Value is {:?}", payload.get_payload_value());
+                        println!("Get Vehicle Info Value is {:02X?}", payload.get_payload_value());
                     }
                     let status = 0x00;
                     let vehicle_info = vec![0x01];
@@ -1116,7 +1116,7 @@ pub fn handle_icce_mobile_request(icce_object: &ICCE) -> Result<Vec<u8>> {
                     for payload in body.get_payloads() {
                         println!("Mobile Event Type is {}", payload.get_payload_type());
                         println!("Mobile Event Length is {}", payload.get_payload_length());
-                        println!("Mobild Event Value is {:?}", payload.get_payload_value());
+                        println!("Mobild Event Value is {:02X?}", payload.get_payload_value());
                     }
                     let status = 0x00;
                     let icce = create_icce_mobile_state_event_response(status);
@@ -1127,7 +1127,7 @@ pub fn handle_icce_mobile_request(icce_object: &ICCE) -> Result<Vec<u8>> {
                     for payload in body.get_payloads() {
                         println!("Framework to Vehicle Type is {}", payload.get_payload_type());
                         println!("Framework to Vehicle Length is {}", payload.get_payload_length());
-                        println!("Framework to Vehicle Value is {:?}", payload.get_payload_value());
+                        println!("Framework to Vehicle Value is {:02X?}", payload.get_payload_value());
                     }
                     let status = 0x00;
                     let icce = create_icce_mobile_to_vehicle_event_response(status);
@@ -1200,7 +1200,7 @@ fn handle_measure_response(body: &Body) -> Result<Vec<u8>> {
                 }
             },
             0x01 => {
-                println!("Measure Last Time(ms) = {:?}", payload.get_payload_value());
+                println!("Measure Last Time(ms) = {:02X?}", payload.get_payload_value());
             },
             _ => {
                 return Err("RFU".to_string());
@@ -1221,10 +1221,10 @@ fn handle_anti_relay_response(body: &Body) -> Result<Vec<u8>> {
                 }
             },
             0x01 => {
-                println!("Result of Anti-Relay is {:?}", payload.get_payload_value())
+                println!("Result of Anti-Relay is {:02X?}", payload.get_payload_value())
             },
             0x02 => {
-                println!("Device Info about Anti-Relay is {:?}", payload.get_payload_value());
+                println!("Device Info about Anti-Relay is {:02X?}", payload.get_payload_value());
             },
             _ => {
                 return Err("RFU".to_string());
@@ -1245,7 +1245,7 @@ fn handle_mobile_info_response(body: &Body) -> Result<Vec<u8>> {
                 }
             },
             0x01 => {
-                println!("Mobile Info is {:?}", payload.get_payload_value())
+                println!("Mobile Info is {:02X?}", payload.get_payload_value())
             },
             _ => {
                 return Err("RFU".to_string());
@@ -1266,7 +1266,7 @@ fn handle_calbriate_time_response(body: &Body) -> Result<Vec<u8>> {
                 }
             },
             0x01 => {
-                println!("Calbriated Time is {:?}", payload.get_payload_value())
+                println!("Calbriated Time is {:02X?}", payload.get_payload_value())
             },
             _ => {
                 return Err("RFU".to_string());
@@ -1287,7 +1287,7 @@ fn handle_protocol_response(body: &Body) -> Result<Vec<u8>> {
                 }
             },
             0x01 => {
-                println!("Protocol is {:?}", payload.get_payload_value())
+                println!("Protocol is {:02X?}", payload.get_payload_value())
             },
             _ => {
                 return Err("RFU".to_string());
