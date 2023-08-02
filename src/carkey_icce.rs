@@ -10,6 +10,7 @@ lazy_static! {
     static ref SESSION_KEY: Mutex<[u8; 16]> = Mutex::new([0; 16]);
     static ref SESSION_IV: Mutex<[u8; 16]> = Mutex::new([0; 16]);
     static ref CARD_ATC: Mutex<[u8; 4]> = Mutex::new([0; 4]);
+    static ref ICCE_FRAGMENTS: Mutex<Vec<ICCE>> = Mutex::new(Vec::new());
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq)]
@@ -73,6 +74,34 @@ impl Control {
             false
         } else {
             true
+        }
+    }
+    pub fn is_no_frag(&self) -> bool {
+        if self.0 & 0b0000_0011 == 0b0000_0000 {
+            true
+        } else {
+            false
+        }
+    }
+    pub fn is_first_frag(&self) -> bool {
+        if self.0 & 0b0000_0001 == 0b0000_0001 {
+            true
+        } else {
+            false
+        }
+    }
+    pub fn is_conti_frag(&self) -> bool {
+        if self.0 & 0b0000_0010 == 0b0000_0010 {
+            true
+        } else {
+            false
+        }
+    }
+    pub fn is_last_frag(&self) -> bool {
+        if self.0 & 0b0000_0011 == 0b0000_0011 {
+            true
+        } else {
+            false
         }
     }
     pub fn serialize(&self) -> Vec<u8> {
@@ -259,27 +288,38 @@ impl Body {
     pub fn get_payloads(&self) -> &[Payload] {
         &self.payloads
     }
-    pub fn serialize(&self) -> Vec<u8> {
+    pub fn serialize(&self, frag_flag: bool) -> Vec<u8> {
         let mut serialized_data: Vec<u8> = Vec::new();
-        serialized_data.push(self.message_id);
-        serialized_data.push(self.command_id);
-        self.payloads.iter().for_each(|payload| {
-            serialized_data.append(&mut payload.serialize().to_vec());
-        });
+        if frag_flag == false {
+            serialized_data.push(self.message_id);
+            serialized_data.push(self.command_id);
+            self.payloads.iter().for_each(|payload| {
+                serialized_data.append(&mut payload.serialize().to_vec());
+            });
+        } else {
+            serialized_data.append(&mut self.payloads[0].get_payload_value().to_vec());
+        }
 
         serialized_data
     }
-    pub fn deserialize(byte_stream: &[u8]) -> Result<Self> {
+    pub fn deserialize(byte_stream: &[u8], frag_flag: bool) -> Result<Self> {
         if byte_stream.len() < 2 {
             return Err("Invalid byte stream length".to_string());
         }
         let mut body = Body::new();
-        body.set_message_id(byte_stream[0]);
-        body.set_command_id(byte_stream[1]);
-        let mut index = 2;
-        while index < byte_stream.len() {
-            let payload = Payload::deserialize(&byte_stream[index..])?;
-            index = index + 2 + payload.payload_length as usize;
+        if frag_flag == false {
+            body.set_message_id(byte_stream[0]);
+            body.set_command_id(byte_stream[1]);
+            let mut index = 2;
+            while index < byte_stream.len() {
+                let payload = Payload::deserialize(&byte_stream[index..])?;
+                index = index + 2 + payload.payload_length as usize;
+                body.set_payload(payload);
+            }
+        } else {
+            let mut payload = Payload::new();
+            payload.set_payload_length(byte_stream.len());
+            payload.set_payload_value(byte_stream);
             body.set_payload(payload);
         }
 
@@ -318,7 +358,8 @@ impl ICCE {
     }
     pub fn calculate_checksum(&mut self) {
         let crc16_header= self.header.serialize();
-        let crc16_body = self.body.serialize();
+        let frag_flag = self.get_header().get_control().is_conti_frag() || self.get_header().get_control().is_last_frag();
+        let crc16_body = self.body.serialize(frag_flag);
         let mut crc16_ccitt = crc16::State::<CCITT_FALSE>::new();
         crc16_ccitt.update(&crc16_header);
         crc16_ccitt.update(&crc16_body);
@@ -331,14 +372,15 @@ impl ICCE {
     }
     pub fn serialize(&self) -> Vec<u8> {
         let mut serialized_data = Vec::new();
+        let frag_flag = self.get_header().get_control().is_conti_frag() || self.get_header().get_control().is_last_frag();
         if self.get_header().get_control().is_crypto() == false {
             serialized_data.append(&mut self.header.serialize());
-            serialized_data.append(&mut self.body.serialize());
+            serialized_data.append(&mut self.body.serialize(frag_flag));
             serialized_data.append(&mut self.checksum.to_le_bytes().to_vec());
         } else {
             //handle body encrypt
             let mut plain_text = Vec::new();
-            plain_text.append(&mut self.body.serialize());
+            plain_text.append(&mut self.body.serialize(frag_flag));
             let encrypted_text = carkey_icce_aes128::encrypt_with_session_key(
                 &SESSION_KEY.lock().unwrap().to_vec(),
                 &SESSION_IV.lock().unwrap().to_vec(),
@@ -363,8 +405,9 @@ impl ICCE {
             return Err("Invalid byte stream length".to_string());
         }
         icce.set_header(Header::deserialize(&byte_stream[0..])?);
+        let frag_flag = icce.get_header().get_control().is_conti_frag() || icce.get_header().get_control().is_last_frag();
         if icce.get_header().get_control().is_crypto() == false {
-            icce.set_body(Body::deserialize(&byte_stream[5..byte_stream.len()-2])?);
+            icce.set_body(Body::deserialize(&byte_stream[5..byte_stream.len()-2], frag_flag)?);
             let checksum_bytes: [u8; 2] = [byte_stream[byte_stream.len()-2], byte_stream[byte_stream.len()-1]];
             icce.set_checksum(u16::from_le_bytes(checksum_bytes));
         } else {
@@ -381,7 +424,7 @@ impl ICCE {
             new_header.set_length(2 + plain_text.len() as u16);
             icce.set_header(new_header);
 
-            icce.set_body(Body::deserialize(&plain_text)?);
+            icce.set_body(Body::deserialize(&plain_text, frag_flag)?);
             let mut checksum_entry = new_header.serialize();
             checksum_entry.append(&mut plain_text.to_vec());
             icce.set_checksum(ICCE::calculate_bytearray_checksum(&checksum_entry));
@@ -1421,6 +1464,54 @@ pub fn is_session_key_valid() -> bool {
     }
 }
 
+pub fn collect_icce_fragments(icce: ICCE) {
+    let mut icce_fragments = ICCE_FRAGMENTS.lock().unwrap();
+    icce_fragments.push(icce);
+}
+
+pub fn reassemble_icce_fragments() -> ICCE {
+    let mut icce = ICCE::new();
+    let mut icce_fragments = ICCE_FRAGMENTS.lock().unwrap();
+    icce_fragments.sort_by(|a, b| a.get_header().get_fsn().cmp(&b.get_header().get_fsn()));
+    println!("icce_fragments = {:02X?}", icce_fragments);
+    let mut total_length: u16 = 0x0000;
+    for (index, tmp_icce) in icce_fragments.iter().enumerate() {
+        if index == 0 {
+            let mut header = Header::new();
+            header.set_sof(0x5A);
+            header.set_control(tmp_icce.get_header().get_control());
+            header.get_control().set_no_frag();
+            header.set_fsn(0x00);
+            icce.set_header(header);
+            let mut payload = Payload::new();
+            payload.set_payload_type(tmp_icce.body.get_payloads()[0].get_payload_type());
+            payload.set_payload_length(tmp_icce.body.get_payloads()[0].get_payload_length());
+            payload.set_payload_value(tmp_icce.get_body().get_payloads()[0].get_payload_value());
+            let mut body = Body::new();
+            body.set_message_id(tmp_icce.get_body().get_message_id());
+            body.set_command_id(tmp_icce.get_body().get_command_id());
+            body.set_payload(payload);
+            icce.set_body(body);
+            total_length += 4 + 1 + tmp_icce.body.get_payloads()[0].get_payload_value().len() as u16;
+        } else {
+            let mut src_value = tmp_icce.get_body().get_payloads()[0].get_payload_value().to_vec();
+            icce.body.payloads[0].payload_value.append(&mut src_value);
+            icce.body.payloads[0].payload_length += tmp_icce.body.get_payloads()[0].get_payload_value().len();
+            total_length += tmp_icce.body.get_payloads()[0].get_payload_value().len() as u16;
+
+        }
+    }
+    if total_length - 5 >= 255 {
+        total_length += 3
+    } else {
+        total_length += 1
+    }
+    icce.header.set_length(total_length);
+    icce.calculate_checksum();
+    icce_fragments.clear();
+    icce
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1716,8 +1807,8 @@ mod tests {
         payload2.set_payload_value(&value2);
         body.set_payload(payload2);
         
-        let serialized_body = body.serialize();
-        let deserialized_body: Body = Body::deserialize(&serialized_body).unwrap();
+        let serialized_body = body.serialize(false);
+        let deserialized_body: Body = Body::deserialize(&serialized_body, false).unwrap();
         assert_eq!(deserialized_body,
         Body {
             message_id: 0x01,
@@ -2482,5 +2573,85 @@ mod tests {
         println!("serialized payload = {:02X?}", payload.serialize());
         let deserialized_payload = Payload::deserialize(&payload.serialize()).unwrap();
         println!("deserialzied_payload = {:?}", deserialized_payload);
+    }
+    #[test]
+    fn test_fragment_payload() {
+        let mut control1 = Control::new();
+        control1.set_request();
+        control1.set_no_crypto();
+        control1.set_sync();
+        control1.set_first_frag();
+        let mut header1 = Header::new();
+        header1.set_sof(0x5A);
+        header1.set_length(4+2+4);
+        header1.set_control(control1);
+        header1.set_fsn(0x01);
+        let mut payload1 = Payload::new();
+        payload1.set_payload_type(0x01);
+        payload1.set_payload_length(0x04);
+        payload1.set_payload_value(&vec![0x01, 0x02, 0x03,0x04]);
+        let mut body1 = Body::new();
+        body1.set_message_id(0x02);
+        body1.set_command_id(0x01);
+        body1.set_payload(payload1);
+        let mut icce1 = ICCE::new();
+        icce1.set_header(header1);
+        icce1.set_body(body1);
+        icce1.calculate_checksum();
+        println!("serialized icce1 = {:02X?}", icce1.serialize());
+        let deserialzied_icce1 = ICCE::deserialize(&icce1.serialize()).unwrap();
+        println!("deserialized icce1 = {:02X?}", deserialzied_icce1);
+
+        let mut control2 = Control::new();
+        control2.set_request();
+        control2.set_no_crypto();
+        control2.set_sync();
+        control2.set_conti_frag();
+        let mut header2 = Header::new();
+        header2.set_sof(0x5A);
+        header2.set_length(2+4);
+        header2.set_control(control2);
+        header2.set_fsn(0x02);
+        let mut payload2 = Payload::new();
+        payload2.set_payload_length(0x04);
+        payload2.set_payload_value(&vec![0x05, 0x06, 0x07, 0x08]);
+        let mut body2 = Body::new();
+        body2.set_payload(payload2);
+        let mut icce2 = ICCE::new();
+        icce2.set_header(header2);
+        icce2.set_body(body2);
+        icce2.calculate_checksum();
+        println!("serialized icce2 = {:02X?}", icce2.serialize());
+        let deserialized_icce2 = ICCE::deserialize(&icce2.serialize()).unwrap();
+        println!("deserialized icce2 = {:02X?}", deserialized_icce2);
+
+        let mut control3 = Control::new();
+        control3.set_request();
+        control3.set_no_crypto();
+        control3.set_sync();
+        control3.set_last_frag();
+        let mut header3 = Header::new();
+        header3.set_sof(0x5A);
+        header3.set_length(2+2);
+        header3.set_control(control3);
+        header3.set_fsn(0x03);
+        let mut payload3 = Payload::new();
+        payload3.set_payload_length(0x02);
+        payload3.set_payload_value(&vec![0x09, 0x0a]);
+        let mut body3 = Body::new();
+        body3.set_payload(payload3);
+        let mut icce3 = ICCE::new();
+        icce3.set_header(header3);
+        icce3.set_body(body3);
+        icce3.calculate_checksum();
+        println!("serialzied icce3 = {:02X?}", icce3.serialize());
+        let deserialized_icce3 = ICCE::deserialize(&icce3.serialize()).unwrap();
+        println!("deserialized icce3 = {:02X?}", deserialized_icce3);
+
+        collect_icce_fragments(icce3);
+        collect_icce_fragments(icce2);
+        collect_icce_fragments(icce1);
+        let reassemble_icce = reassemble_icce_fragments();
+        println!("reassemble_icce = {:02X?}", reassemble_icce);
     }
 }

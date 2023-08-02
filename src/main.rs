@@ -211,9 +211,18 @@ async fn main() -> bluer::Result<()> {
         tokio::select! {
             Some(icce_package) = bt_write_rx.recv() => {
                 println!("GOT ICCE Package from Mobile = {:02X?}", icce_package);
-                if let Ok(icce_object) = carkey_icce::ICCE::deserialize(&icce_package) {
+                if let Ok(mut icce_object) = carkey_icce::ICCE::deserialize(&icce_package) {
                     println!("icce_object is {:?}", icce_object);
-                    if icce_object.get_header().get_control().is_request() {
+                    let icce_header_control = icce_object.get_header().get_control();
+                    if icce_header_control.is_first_frag() || icce_header_control.is_conti_frag() {
+                        carkey_icce::collect_icce_fragments(icce_object);
+                        continue;
+                    }
+                    if icce_header_control.is_last_frag() {
+                        carkey_icce::collect_icce_fragments(icce_object);
+                        icce_object = carkey_icce::reassemble_icce_fragments();
+                    }
+                    if icce_header_control.is_request() {
                         if let Ok(response) = carkey_icce::handle_icce_mobile_request(&icce_object) {
                             if response.len() > 1 {
                                 let _ = bt_notify_tx.send(response);
