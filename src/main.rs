@@ -6,8 +6,9 @@ mod bluetooth_uuid;
 mod carkey_icce;
 mod carkey_icce_aes128;
 
-use bluer::{adv::Advertisement, gatt::local::{Application, Service, Characteristic, CharacteristicNotify, CharacteristicRead, CharacteristicWrite, CharacteristicWriteMethod}, UuidExt};
-use futures::FutureExt;
+use bluer::{adv::Advertisement, UuidExt, AdapterEvent, DeviceEvent, DeviceProperty};
+use bluer::gatt::local::{Application, Service, Characteristic, CharacteristicNotify, CharacteristicRead, CharacteristicWrite, CharacteristicWriteMethod};
+use futures::{FutureExt, pin_mut, stream::SelectAll, StreamExt};
 use tokio::sync::{mpsc, broadcast};
 use uuid::Uuid;
 
@@ -67,6 +68,15 @@ fn test_create_server_event_request() -> Vec<u8> {
     let server_data = vec![0xff, 0xee, 0xdd, 0xcc];
     let icce = carkey_icce::create_icce_vehicle_to_server_event_request(&server_data);
     icce.serialize()
+}
+
+const MEASURED_BASE: f32 = 10.0;
+const MEASURED_POWER: f32 = -69.0;
+const MEASURED_N: f32 = 3.0;
+fn calculate_distance_by_rssi(rssi: i16) -> f32 {
+    let exponent = (MEASURED_POWER - rssi as f32) / (10 as f32 * MEASURED_N);
+    let distance = MEASURED_BASE.powf(exponent);
+    distance
 }
 
 #[tokio::main]
@@ -163,6 +173,10 @@ async fn main() -> bluer::Result<()> {
     };
     let app_handle = adapter.serve_gatt_application(app).await?;
 
+    let device_events = adapter.discover_devices().await?;
+    pin_mut!(device_events);
+    let mut all_change_events = SelectAll::new();
+
     //test code for sending message from vehicle to mobile by notification
     tokio::spawn(async move {
         let mut index = 0;
@@ -209,6 +223,22 @@ async fn main() -> bluer::Result<()> {
     println!("Server ready. Press ctrl-c to quit");
     loop {
         tokio::select! {
+            Some(device_event) = device_events.next() => {
+                match device_event {
+                    AdapterEvent::DeviceAdded(addr) => {
+                        let device = adapter.device(addr)?;
+                        if device.is_trusted().await? {
+                            let change_events = device.events().await?.map(move |evt| (addr, evt));
+                            all_change_events.push(change_events);
+                        }
+                    },
+                    _ => (),
+                }
+            },
+            Some((addr, DeviceEvent::PropertyChanged(DeviceProperty::Rssi(rssi)))) = all_change_events.next() => {
+                println!("Device changed: {}", addr);
+                println!("\t distance: {}m", calculate_distance_by_rssi(rssi));
+            },
             Some(icce_package) = bt_write_rx.recv() => {
                 println!("GOT ICCE Package from Mobile = {:02X?}", icce_package);
                 if let Ok(mut icce_object) = carkey_icce::ICCE::deserialize(&icce_package) {
