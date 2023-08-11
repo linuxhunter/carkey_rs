@@ -1,5 +1,12 @@
-use super::objects::{ICCOA, Header, Mark, Body, MessageData, create_iccoa_header, create_iccoa_body_message_data, create_iccoa_body, create_iccoa};
+use super::objects::{ICCOA, Mark, create_iccoa_header, create_iccoa_body_message_data, create_iccoa_body, create_iccoa};
 use super::errors::*;
+
+lazy_static! {
+    static ref SPAKE2_PLUS_P_B_LENGTH: usize = 0x41;
+    static ref SPAKE2_PLUS_P_A_LENGTH: usize = 0x41;
+    static ref SPAKE2_PLUS_C_A_LENGTH: usize = 0x12;
+    static ref SPAKE2_PLUS_C_B_LENGTH: usize = 0x12;
+}
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Scrypt {
@@ -82,7 +89,7 @@ pub fn get_mobile_device_certificate() -> Vec<u8> {
 }
 
 pub fn create_iccoa_pairing_data_request(transaction_id: u16, scrypt: &Scrypt, p_b: &[u8]) -> Result<ICCOA> {
-    if p_b.len() != 0x41 {
+    if p_b.len() != *SPAKE2_PLUS_P_B_LENGTH {
         return Err(ErrorKind::ICCOAPairingError("pB length is not correct!".to_string()).into());
     }
     let header = create_iccoa_header(
@@ -127,7 +134,7 @@ pub fn create_iccoa_pairing_data_request(transaction_id: u16, scrypt: &Scrypt, p
 }
 
 pub fn create_iccoa_pairing_data_response(transaction_id: u16, status: u16, p_a: &[u8]) -> Result<ICCOA> {
-    if p_a.len() != 0x41 {
+    if p_a.len() != *SPAKE2_PLUS_P_A_LENGTH {
         return Err(ErrorKind::ICCOAPairingError("pA length is not correct!".to_string()).into());
     }
     let header = create_iccoa_header(
@@ -160,7 +167,7 @@ pub fn create_iccoa_pairing_data_response(transaction_id: u16, status: u16, p_a:
 }
 
 pub fn create_iccoa_paring_auth_request(transaction_id: u16, c_b: &[u8]) -> Result<ICCOA> {
-    if c_b.len() != 0x12 {
+    if c_b.len() != *SPAKE2_PLUS_C_B_LENGTH {
         return Err(ErrorKind::ICCOAPairingError("cB length is not correct!".to_string()).into());
     }
     let header = create_iccoa_header(
@@ -189,7 +196,7 @@ pub fn create_iccoa_paring_auth_request(transaction_id: u16, c_b: &[u8]) -> Resu
 }
 
 pub fn create_iccoa_pairing_auth_response(transaction_id: u16, status: u16, c_a: &[u8]) -> Result<ICCOA> {
-    if c_a.len() != 0x12 {
+    if c_a.len() != *SPAKE2_PLUS_C_A_LENGTH {
         return Err(ErrorKind::ICCOAPairingError("cA length is not correct!".to_string()).into());
     }
     let header = create_iccoa_header(
@@ -323,6 +330,8 @@ pub fn create_iccoa_pairing_certificate_read_response(transaction_id: u16, statu
 
 #[cfg(test)]
 mod tests {
+    use crate::iccoa::objects::{Header, Body, MessageData};
+
     use super::*;
 
     #[test]
