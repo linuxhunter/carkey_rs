@@ -5,6 +5,7 @@ mod bluetooth_agent;
 mod bluetooth_uuid;
 mod carkey_icce;
 mod carkey_icce_aes128;
+mod iccoa;
 
 use bluer::{adv::Advertisement, UuidExt, AdapterEvent, DeviceEvent, DeviceProperty};
 use bluer::gatt::local::{Application, Service, Characteristic, CharacteristicNotify, CharacteristicRead, CharacteristicWrite, CharacteristicWriteMethod};

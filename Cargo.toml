@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 bluer = { version = "0.15.7", features = ["full"] }
 crc16 = "0.4.0"
+error-chain = "0.12.4"
 futures = "0.3.28"
 lazy_static = "1.4.0"
 openssl = "0.10.55"
