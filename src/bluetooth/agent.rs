@@ -2,7 +2,7 @@ use bluer::{agent::{ReqResult, ReqError, RequestPinCode, DisplayPinCode, Request
 use futures::FutureExt;
 use tokio::{sync::oneshot, io::AsyncBufReadExt};
 
-use crate::bluetooth_uuid::UuidOrShort;
+use crate::bluetooth::uuid::UuidOrShort;
 
 async fn get_line() -> String {
     let (done_tx, done_rx) = oneshot::channel();

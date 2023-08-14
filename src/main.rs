@@ -1,8 +1,7 @@
 #[macro_use]
 extern crate lazy_static;
 
-mod bluetooth_agent;
-mod bluetooth_uuid;
+mod bluetooth;
 mod icce;
 mod iccoa;
 
@@ -12,7 +11,7 @@ use futures::{FutureExt, pin_mut, stream::SelectAll, StreamExt};
 use tokio::sync::{mpsc, broadcast};
 use uuid::Uuid;
 
-use crate::bluetooth_agent::register_agent;
+use crate::bluetooth::agent::register_agent;
 
 lazy_static! {
     static ref SERVICE_UUID: Uuid = Uuid::from_u16(0xFCD1);
