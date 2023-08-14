@@ -2,7 +2,7 @@ use std::sync::Mutex;
 
 use crc16::CCITT_FALSE;
 
-use crate::carkey_icce_aes128;
+use crate::icce::aes128;
 
 type Result<T> = std::result::Result<T, String>;
 
@@ -381,7 +381,7 @@ impl ICCE {
             //handle body encrypt
             let mut plain_text = Vec::new();
             plain_text.append(&mut self.body.serialize(frag_flag));
-            let encrypted_text = carkey_icce_aes128::encrypt_with_session_key(
+            let encrypted_text = aes128::encrypt_with_session_key(
                 &SESSION_KEY.lock().unwrap().to_vec(),
                 &SESSION_IV.lock().unwrap().to_vec(),
                 &plain_text).unwrap();
@@ -417,7 +417,7 @@ impl ICCE {
             new_header.set_fsn(icce.get_header().get_fsn());
 
             let encrypted_text = &byte_stream[5..byte_stream.len()-2];
-            let plain_text = carkey_icce_aes128::decrypt_with_session_key(
+            let plain_text = aes128::decrypt_with_session_key(
                 &SESSION_KEY.lock().unwrap().to_vec(),
                 &SESSION_IV.lock().unwrap().to_vec(),
                 encrypted_text)?;
@@ -574,11 +574,11 @@ pub fn handle_auth_get_process_data_response_payload(payload: &[u8], reader_rnd:
                 println!("Cannot calculate session IV and session Key");
                 return Err("Cannot calculate session IV or session Key".to_string());
             }
-            session_iv = carkey_icce_aes128::calculate_session_iv(reader_rnd, &card_rnd);
-            let dkey = carkey_icce_aes128::calculate_dkey(&card_seid, &card_id);
-            let card_iv = carkey_icce_aes128::get_card_iv();
-            session_key = carkey_icce_aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter)?;
-            let decrypted_text = carkey_icce_aes128::decrypt_with_session_key(&session_key, &session_iv, &encrypted_text)?;
+            session_iv = aes128::calculate_session_iv(reader_rnd, &card_rnd);
+            let dkey = aes128::calculate_dkey(&card_seid, &card_id);
+            let card_iv = aes128::get_card_iv();
+            session_key = aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter)?;
+            let decrypted_text = aes128::decrypt_with_session_key(&session_key, &session_iv, &encrypted_text)?;
             index = 0;
             while index < decrypted_text.len() {
                 if decrypted_text[index] == 0x9F && decrypted_text[index+1] == 0x36 {
@@ -626,7 +626,7 @@ pub fn create_auth_auth_payload(card_atc: &[u8], reader_auth_parameter: &[u8], c
     data_domain.push(0x3E);
     data_domain.push(card_rnd.len() as u8);
     data_domain.append(&mut card_rnd.clone().to_vec());
-    let encrypt_data = carkey_icce_aes128::encrypt_with_session_key(session_key, session_iv, &data_domain)?;
+    let encrypt_data = aes128::encrypt_with_session_key(session_key, session_iv, &data_domain)?;
 
     payload.push(1 + encrypt_data.len() as u8);      //Lc
     payload.push(0x77);
@@ -643,7 +643,7 @@ pub fn handle_auth_auth_response_payload(payload: &[u8], _reader_rnd: &[u8], ses
     let mut reader_auth_parameter = Vec::new();
     if sw1 == 0x90 && sw2 == 0x00 {
         if payload[0] == 0x77 {
-            let decrypted_text = carkey_icce_aes128::decrypt_with_session_key(session_key, session_iv, &payload[1..payload.len()-2])?;
+            let decrypted_text = aes128::decrypt_with_session_key(session_key, session_iv, &payload[1..payload.len()-2])?;
             let mut index = 0;
             while index < decrypted_text.len() {
                 if decrypted_text[index] == 0x9F && decrypted_text[index+1] == 0x31 {
@@ -693,10 +693,10 @@ pub fn create_icce_auth_request(apdu: &[u8]) -> ICCE {
 }
 
 pub fn create_icce_auth_get_process_data_request() -> ICCE {
-    let reader_type = carkey_icce_aes128::get_reader_type();
-    let reader_id = carkey_icce_aes128::get_reader_id();
-    let reader_rnd = carkey_icce_aes128::get_reader_rnd();
-    let reader_key_parameter = carkey_icce_aes128::get_reader_key_parameter();
+    let reader_type = aes128::get_reader_type();
+    let reader_id = aes128::get_reader_id();
+    let reader_rnd = aes128::get_reader_rnd();
+    let reader_key_parameter = aes128::get_reader_key_parameter();
     let get_process_data_apdu = create_auth_get_process_data_payload(&reader_type, &reader_id, &reader_rnd, &reader_key_parameter);
     create_icce_auth_request(&get_process_data_apdu)
 }
@@ -1206,9 +1206,9 @@ pub fn handle_icce_mobile_request(icce_object: &ICCE) -> Result<Vec<u8>> {
 }
 
 fn handle_icce_auth_response(body: &Body) -> Result<Vec<u8>> {
-    let reader_rnd = carkey_icce_aes128::get_reader_rnd();
-    let reader_key_parameter = carkey_icce_aes128::get_reader_key_parameter();
-    let reader_auth_parameter = carkey_icce_aes128::get_reader_auth_parameter();
+    let reader_rnd = aes128::get_reader_rnd();
+    let reader_key_parameter = aes128::get_reader_key_parameter();
+    let reader_auth_parameter = aes128::get_reader_auth_parameter();
     let mut response = Vec::new();
     for payload in body.get_payloads() {
         if payload.get_payload_type() == 0x00 {
@@ -1920,56 +1920,56 @@ mod tests {
     }
     #[test]
     fn test_calculate_dkey() {
-        let card_seid = carkey_icce_aes128::get_card_seid();
-        let card_id = carkey_icce_aes128::get_card_id();
-        let dkey = carkey_icce_aes128::calculate_dkey(&card_seid, &card_id);
+        let card_seid = aes128::get_card_seid();
+        let card_id = aes128::get_card_id();
+        let dkey = aes128::calculate_dkey(&card_seid, &card_id);
         assert_eq!(dkey, vec![0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]);
     }
     #[test]
     fn test_get_card_iv() {
-        let card_iv = carkey_icce_aes128::get_card_iv();
+        let card_iv = aes128::get_card_iv();
         assert_eq!(card_iv, vec![0x00; 16]);
     }
     #[test]
     fn test_calculate_session_iv() {
-        let reader_rnd = carkey_icce_aes128::get_reader_rnd();
-        let card_rnd = carkey_icce_aes128::get_card_rnd();
-        let session_iv = carkey_icce_aes128::calculate_session_iv(&reader_rnd, &card_rnd);
+        let reader_rnd = aes128::get_reader_rnd();
+        let card_rnd = aes128::get_card_rnd();
+        let session_iv = aes128::calculate_session_iv(&reader_rnd, &card_rnd);
         assert_eq!(session_iv, vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01]);
     }
     #[test]
     fn test_calculate_session_key() {
-        let reader_rnd = carkey_icce_aes128::get_reader_rnd();
-        let card_rnd = carkey_icce_aes128::get_card_rnd();
-        let card_seid = carkey_icce_aes128::get_card_seid();
-        let card_id = carkey_icce_aes128::get_card_id();
-        let reader_key_parameter = carkey_icce_aes128::get_reader_key_parameter();
+        let reader_rnd = aes128::get_reader_rnd();
+        let card_rnd = aes128::get_card_rnd();
+        let card_seid = aes128::get_card_seid();
+        let card_id = aes128::get_card_id();
+        let reader_key_parameter = aes128::get_reader_key_parameter();
 
-        let session_iv = carkey_icce_aes128::calculate_session_iv(&reader_rnd, &card_rnd);
-        let dkey = carkey_icce_aes128::calculate_dkey(&card_seid, &card_id);
-        let card_iv = carkey_icce_aes128::get_card_iv();
+        let session_iv = aes128::calculate_session_iv(&reader_rnd, &card_rnd);
+        let dkey = aes128::calculate_dkey(&card_seid, &card_id);
+        let card_iv = aes128::get_card_iv();
 
-        let session_key = carkey_icce_aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
+        let session_key = aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
         assert_eq!(session_key.len(), 16);
         println!("session_key = {:02X?}", session_key);
     }
     #[test]
     fn test_encrypt_and_decrypt_with_session_key() {
-        let reader_rnd = carkey_icce_aes128::get_reader_rnd();
-        let card_rnd = carkey_icce_aes128::get_card_rnd();
-        let card_seid = carkey_icce_aes128::get_card_seid();
-        let card_id = carkey_icce_aes128::get_card_id();
-        let reader_key_parameter = carkey_icce_aes128::get_reader_key_parameter();
+        let reader_rnd = aes128::get_reader_rnd();
+        let card_rnd = aes128::get_card_rnd();
+        let card_seid = aes128::get_card_seid();
+        let card_id = aes128::get_card_id();
+        let reader_key_parameter = aes128::get_reader_key_parameter();
 
-        let session_iv = carkey_icce_aes128::calculate_session_iv(&reader_rnd, &card_rnd);
-        let dkey = carkey_icce_aes128::calculate_dkey(&card_seid, &card_id);
-        let card_iv = carkey_icce_aes128::get_card_iv();
+        let session_iv = aes128::calculate_session_iv(&reader_rnd, &card_rnd);
+        let dkey = aes128::calculate_dkey(&card_seid, &card_id);
+        let card_iv = aes128::get_card_iv();
 
-        let session_key = carkey_icce_aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
+        let session_key = aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
 
         let plain_text = b"Hello,World";
-        let encrypt_text = carkey_icce_aes128::encrypt_with_session_key(&session_key, &session_iv, plain_text).unwrap();
-        let decrypt_text = carkey_icce_aes128::decrypt_with_session_key(&session_key, &session_iv, &encrypt_text).unwrap();
+        let encrypt_text = aes128::encrypt_with_session_key(&session_key, &session_iv, plain_text).unwrap();
+        let decrypt_text = aes128::decrypt_with_session_key(&session_key, &session_iv, &encrypt_text).unwrap();
         assert_eq!(decrypt_text, plain_text);
     }
     #[test]
@@ -2030,10 +2030,10 @@ mod tests {
     }
     #[test]
     fn test_auth_get_process_data_payload() {
-        let reader_type = carkey_icce_aes128::get_reader_type();
-        let reader_id = carkey_icce_aes128::get_reader_id();
-        let reader_rnd = carkey_icce_aes128::get_reader_rnd();
-        let reader_key_parameter = carkey_icce_aes128::get_reader_key_parameter();
+        let reader_type = aes128::get_reader_type();
+        let reader_id = aes128::get_reader_id();
+        let reader_rnd = aes128::get_reader_rnd();
+        let reader_key_parameter = aes128::get_reader_key_parameter();
 
         let auth_get_process_data_payload = create_auth_get_process_data_payload(&reader_type, &reader_id, &reader_rnd, &reader_key_parameter);
 
@@ -2043,18 +2043,18 @@ mod tests {
     }
     #[test]
     fn test_auth_handle_get_process_data_reponse_payload() {
-        let card_seid = carkey_icce_aes128::get_card_seid();
-        let card_id = carkey_icce_aes128::get_card_id();
-        let card_rnd = carkey_icce_aes128::get_card_rnd();
-        let card_info1 = carkey_icce_aes128::get_card_info1();
-        let card_atc = carkey_icce_aes128::get_card_atc();
-        let reader_rnd = carkey_icce_aes128::get_reader_rnd();
-        let reader_key_parameter = carkey_icce_aes128::get_reader_key_parameter();
+        let card_seid = aes128::get_card_seid();
+        let card_id = aes128::get_card_id();
+        let card_rnd = aes128::get_card_rnd();
+        let card_info1 = aes128::get_card_info1();
+        let card_atc = aes128::get_card_atc();
+        let reader_rnd = aes128::get_reader_rnd();
+        let reader_key_parameter = aes128::get_reader_key_parameter();
 
-        let session_iv = carkey_icce_aes128::calculate_session_iv(&reader_rnd, &card_rnd);
-        let dkey = carkey_icce_aes128::calculate_dkey(&card_seid, &card_id);
-        let card_iv = carkey_icce_aes128::get_card_iv();
-        let session_key = carkey_icce_aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
+        let session_iv = aes128::calculate_session_iv(&reader_rnd, &card_rnd);
+        let dkey = aes128::calculate_dkey(&card_seid, &card_id);
+        let card_iv = aes128::get_card_iv();
+        let session_key = aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
 
         let mut payload = Vec::new();
         payload.push(0x77);
@@ -2084,7 +2084,7 @@ mod tests {
         plain_text.push(0x37);
         plain_text.push(reader_rnd.len() as u8);
         plain_text.append(&mut reader_rnd.clone().to_vec());
-        let encrypted_text = carkey_icce_aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let encrypted_text = aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
 
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
@@ -2105,35 +2105,35 @@ mod tests {
     }
     #[test]
     fn test_auth_auth_payload() {
-        let reader_rnd = carkey_icce_aes128::get_reader_rnd();
-        let reader_key_parameter = carkey_icce_aes128::get_reader_key_parameter();
-        let reader_auth_parameter = carkey_icce_aes128::get_reader_auth_parameter();
-        let card_seid = carkey_icce_aes128::get_card_seid();
-        let card_id = carkey_icce_aes128::get_card_id();
-        let card_rnd = carkey_icce_aes128::get_card_rnd();
-        let card_atc = carkey_icce_aes128::get_card_atc();
+        let reader_rnd = aes128::get_reader_rnd();
+        let reader_key_parameter = aes128::get_reader_key_parameter();
+        let reader_auth_parameter = aes128::get_reader_auth_parameter();
+        let card_seid = aes128::get_card_seid();
+        let card_id = aes128::get_card_id();
+        let card_rnd = aes128::get_card_rnd();
+        let card_atc = aes128::get_card_atc();
 
-        let session_iv = carkey_icce_aes128::calculate_session_iv(&reader_rnd, &card_rnd);
-        let dkey = carkey_icce_aes128::calculate_dkey(&card_seid, &card_id);
-        let card_iv = carkey_icce_aes128::get_card_iv();
-        let session_key = carkey_icce_aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
+        let session_iv = aes128::calculate_session_iv(&reader_rnd, &card_rnd);
+        let dkey = aes128::calculate_dkey(&card_seid, &card_id);
+        let card_iv = aes128::get_card_iv();
+        let session_key = aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
 
         let _payload = create_auth_auth_payload(&card_atc, &reader_auth_parameter, &card_rnd, &session_key, &session_iv).unwrap();
     }
     #[test]
     fn test_auth_auth_response_payload() {
-        let card_seid = carkey_icce_aes128::get_card_seid();
-        let card_id = carkey_icce_aes128::get_card_id();
-        let card_rnd = carkey_icce_aes128::get_card_rnd();
-        let card_auth_parameter = carkey_icce_aes128::get_card_auth_parameter();
-        let reader_rnd = carkey_icce_aes128::get_reader_rnd();
-        let reader_key_parameter = carkey_icce_aes128::get_reader_key_parameter();
-        let reader_auth_parameter = carkey_icce_aes128::get_reader_auth_parameter();
+        let card_seid = aes128::get_card_seid();
+        let card_id = aes128::get_card_id();
+        let card_rnd = aes128::get_card_rnd();
+        let card_auth_parameter = aes128::get_card_auth_parameter();
+        let reader_rnd = aes128::get_reader_rnd();
+        let reader_key_parameter = aes128::get_reader_key_parameter();
+        let reader_auth_parameter = aes128::get_reader_auth_parameter();
 
-        let session_iv = carkey_icce_aes128::calculate_session_iv(&reader_rnd, &card_rnd);
-        let dkey = carkey_icce_aes128::calculate_dkey(&card_seid, &card_id);
-        let card_iv = carkey_icce_aes128::get_card_iv();
-        let session_key = carkey_icce_aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
+        let session_iv = aes128::calculate_session_iv(&reader_rnd, &card_rnd);
+        let dkey = aes128::calculate_dkey(&card_seid, &card_id);
+        let card_iv = aes128::get_card_iv();
+        let session_key = aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
 
         let mut payload = Vec::new();
         payload.push(0x77);
@@ -2151,7 +2151,7 @@ mod tests {
         plain_text.push(0x37);
         plain_text.push(reader_rnd.len() as u8);
         plain_text.append(&mut reader_rnd.clone().to_vec());
-        let encrypted_text = carkey_icce_aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let encrypted_text = aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
 
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
@@ -2170,18 +2170,18 @@ mod tests {
     }
     #[test]
     fn test_create_auth_get_process_data_response_payload() {
-        let card_seid = carkey_icce_aes128::get_card_seid();
-        let card_id = carkey_icce_aes128::get_card_id();
-        let card_rnd = carkey_icce_aes128::get_card_rnd();
-        let card_info1 = carkey_icce_aes128::get_card_info1();
-        let card_atc = carkey_icce_aes128::get_card_atc();
-        let reader_rnd = carkey_icce_aes128::get_reader_rnd();
-        let reader_key_parameter = carkey_icce_aes128::get_reader_key_parameter();
+        let card_seid = aes128::get_card_seid();
+        let card_id = aes128::get_card_id();
+        let card_rnd = aes128::get_card_rnd();
+        let card_info1 = aes128::get_card_info1();
+        let card_atc = aes128::get_card_atc();
+        let reader_rnd = aes128::get_reader_rnd();
+        let reader_key_parameter = aes128::get_reader_key_parameter();
 
-        let session_iv = carkey_icce_aes128::calculate_session_iv(&reader_rnd, &card_rnd);
-        let dkey = carkey_icce_aes128::calculate_dkey(&card_seid, &card_id);
-        let card_iv = carkey_icce_aes128::get_card_iv();
-        let session_key = carkey_icce_aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
+        let session_iv = aes128::calculate_session_iv(&reader_rnd, &card_rnd);
+        let dkey = aes128::calculate_dkey(&card_seid, &card_id);
+        let card_iv = aes128::get_card_iv();
+        let session_key = aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
 
         let mut payload = Vec::new();
         payload.push(0x77);
@@ -2211,7 +2211,7 @@ mod tests {
         plain_text.push(0x37);
         plain_text.push(reader_rnd.len() as u8);
         plain_text.append(&mut reader_rnd.clone().to_vec());
-        let encrypted_text = carkey_icce_aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let encrypted_text = aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
 
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
@@ -2221,18 +2221,18 @@ mod tests {
     }
     #[test]
     fn test_create_auth_auth_response_payload() {
-        let card_seid = carkey_icce_aes128::get_card_seid();
-        let card_id = carkey_icce_aes128::get_card_id();
-        let card_rnd = carkey_icce_aes128::get_card_rnd();
-        let card_auth_parameter = carkey_icce_aes128::get_card_auth_parameter();
-        let reader_rnd = carkey_icce_aes128::get_reader_rnd();
-        let reader_key_parameter = carkey_icce_aes128::get_reader_key_parameter();
-        let reader_auth_parameter = carkey_icce_aes128::get_reader_auth_parameter();
+        let card_seid = aes128::get_card_seid();
+        let card_id = aes128::get_card_id();
+        let card_rnd = aes128::get_card_rnd();
+        let card_auth_parameter = aes128::get_card_auth_parameter();
+        let reader_rnd = aes128::get_reader_rnd();
+        let reader_key_parameter = aes128::get_reader_key_parameter();
+        let reader_auth_parameter = aes128::get_reader_auth_parameter();
 
-        let session_iv = carkey_icce_aes128::calculate_session_iv(&reader_rnd, &card_rnd);
-        let dkey = carkey_icce_aes128::calculate_dkey(&card_seid, &card_id);
-        let card_iv = carkey_icce_aes128::get_card_iv();
-        let session_key = carkey_icce_aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
+        let session_iv = aes128::calculate_session_iv(&reader_rnd, &card_rnd);
+        let dkey = aes128::calculate_dkey(&card_seid, &card_id);
+        let card_iv = aes128::get_card_iv();
+        let session_key = aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
 
         let mut payload = Vec::new();
         payload.push(0x77);
@@ -2250,7 +2250,7 @@ mod tests {
         plain_text.push(0x37);
         plain_text.push(reader_rnd.len() as u8);
         plain_text.append(&mut reader_rnd.clone().to_vec());
-        let encrypted_text = carkey_icce_aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let encrypted_text = aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
 
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
@@ -2276,20 +2276,20 @@ mod tests {
 
     #[test]
     fn test_encrypted_with_session_key_and_session_iv() {
-        let card_seid = carkey_icce_aes128::get_card_seid();
-        let card_id = carkey_icce_aes128::get_card_id();
-        let card_rnd = carkey_icce_aes128::get_card_rnd();
-        let card_info1 = carkey_icce_aes128::get_card_info1();
-        let card_auth_parameter = carkey_icce_aes128::get_card_auth_parameter();
-        let card_atc = carkey_icce_aes128::get_card_atc();
-        let reader_rnd = carkey_icce_aes128::get_reader_rnd();
-        let reader_key_parameter = carkey_icce_aes128::get_reader_key_parameter();
-        let reader_auth_parameter = carkey_icce_aes128::get_reader_auth_parameter();
+        let card_seid = aes128::get_card_seid();
+        let card_id = aes128::get_card_id();
+        let card_rnd = aes128::get_card_rnd();
+        let card_info1 = aes128::get_card_info1();
+        let card_auth_parameter = aes128::get_card_auth_parameter();
+        let card_atc = aes128::get_card_atc();
+        let reader_rnd = aes128::get_reader_rnd();
+        let reader_key_parameter = aes128::get_reader_key_parameter();
+        let reader_auth_parameter = aes128::get_reader_auth_parameter();
 
-        let session_iv = carkey_icce_aes128::calculate_session_iv(&reader_rnd, &card_rnd);
-        let dkey = carkey_icce_aes128::calculate_dkey(&card_seid, &card_id);
-        let card_iv = carkey_icce_aes128::get_card_iv();
-        let session_key = carkey_icce_aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
+        let session_iv = aes128::calculate_session_iv(&reader_rnd, &card_rnd);
+        let dkey = aes128::calculate_dkey(&card_seid, &card_id);
+        let card_iv = aes128::get_card_iv();
+        let session_key = aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
 
         //emulate auth get process data response package from mobile
         let mut payload = Vec::new();
@@ -2320,7 +2320,7 @@ mod tests {
         plain_text.push(0x37);
         plain_text.push(reader_rnd.len() as u8);
         plain_text.append(&mut reader_rnd.clone().to_vec());
-        let encrypted_text = carkey_icce_aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let encrypted_text = aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
         payload.push(0x00);
@@ -2347,7 +2347,7 @@ mod tests {
         plain_text.push(0x37);
         plain_text.push(reader_rnd.len() as u8);
         plain_text.append(&mut reader_rnd.clone().to_vec());
-        let encrypted_text = carkey_icce_aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let encrypted_text = aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
         payload.push(0x00);
@@ -2451,20 +2451,20 @@ mod tests {
     }
     #[test]
     fn test_encrypt_and_decrypt_with_session_key_iv() {
-        let card_seid = carkey_icce_aes128::get_card_seid();
-        let card_id = carkey_icce_aes128::get_card_id();
-        let card_rnd = carkey_icce_aes128::get_card_rnd();
-        let card_info1 = carkey_icce_aes128::get_card_info1();
-        let card_auth_parameter = carkey_icce_aes128::get_card_auth_parameter();
-        let card_atc = carkey_icce_aes128::get_card_atc();
-        let reader_rnd = carkey_icce_aes128::get_reader_rnd();
-        let reader_key_parameter = carkey_icce_aes128::get_reader_key_parameter();
-        let reader_auth_parameter = carkey_icce_aes128::get_reader_auth_parameter();
+        let card_seid = aes128::get_card_seid();
+        let card_id = aes128::get_card_id();
+        let card_rnd = aes128::get_card_rnd();
+        let card_info1 = aes128::get_card_info1();
+        let card_auth_parameter = aes128::get_card_auth_parameter();
+        let card_atc = aes128::get_card_atc();
+        let reader_rnd = aes128::get_reader_rnd();
+        let reader_key_parameter = aes128::get_reader_key_parameter();
+        let reader_auth_parameter = aes128::get_reader_auth_parameter();
 
-        let session_iv = carkey_icce_aes128::calculate_session_iv(&reader_rnd, &card_rnd);
-        let dkey = carkey_icce_aes128::calculate_dkey(&card_seid, &card_id);
-        let card_iv = carkey_icce_aes128::get_card_iv();
-        let session_key = carkey_icce_aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
+        let session_iv = aes128::calculate_session_iv(&reader_rnd, &card_rnd);
+        let dkey = aes128::calculate_dkey(&card_seid, &card_id);
+        let card_iv = aes128::get_card_iv();
+        let session_key = aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
 
         //emulate auth get process data response package from mobile
         let mut payload = Vec::new();
@@ -2495,7 +2495,7 @@ mod tests {
         plain_text.push(0x37);
         plain_text.push(reader_rnd.len() as u8);
         plain_text.append(&mut reader_rnd.clone().to_vec());
-        let encrypted_text = carkey_icce_aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let encrypted_text = aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
         payload.push(0x00);
@@ -2521,7 +2521,7 @@ mod tests {
         plain_text.push(0x37);
         plain_text.push(reader_rnd.len() as u8);
         plain_text.append(&mut reader_rnd.clone().to_vec());
-        let encrypted_text = carkey_icce_aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let encrypted_text = aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
         payload.push(0x00);
@@ -2542,8 +2542,8 @@ mod tests {
         let session_key = SESSION_KEY.lock().unwrap().to_vec();
         let session_iv = SESSION_IV.lock().unwrap().to_vec();
         let plain_text: Vec<u8> = vec![0x5A, 0x0C, 0x00, 0x10, 0x00, 0x01, 0x02, 0x01, 0x06, 0x01, 0x02, 0x03, 0x04, 0x5, 0x06];
-        let encrypted_text = carkey_icce_aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
-        let decrypted_text = carkey_icce_aes128::decrypt_with_session_key(&session_key, &session_iv, &encrypted_text).unwrap();
+        let encrypted_text = aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let decrypted_text = aes128::decrypt_with_session_key(&session_key, &session_iv, &encrypted_text).unwrap();
         println!("session_key = {:02X?}", session_key);
         println!("sesion_iv = {:02X?}", session_iv);
         println!("plain_text = {:02X?}", plain_text);

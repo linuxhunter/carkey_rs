@@ -3,8 +3,7 @@ extern crate lazy_static;
 
 mod bluetooth_agent;
 mod bluetooth_uuid;
-mod carkey_icce;
-mod carkey_icce_aes128;
+mod icce;
 mod iccoa;
 
 use bluer::{adv::Advertisement, UuidExt, AdapterEvent, DeviceEvent, DeviceProperty};
@@ -23,31 +22,31 @@ lazy_static! {
 
 fn test_create_measure_request() -> Vec<u8> {
     let measure_type = 0x01;
-    let icce = carkey_icce::create_icce_measure_request(measure_type);
+    let icce = icce::objects::create_icce_measure_request(measure_type);
     icce.serialize()
 }
 
 fn test_craate_anti_relay_request() -> Vec<u8> {
     let measure_type = 0x01;
     let vehicle_info = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06];
-    let icce = carkey_icce::create_icce_anti_relay_request(measure_type, &vehicle_info);
+    let icce = icce::objects::create_icce_anti_relay_request(measure_type, &vehicle_info);
     icce.serialize()
 }
 
 fn test_create_mobile_info_request() -> Vec<u8> {
     let request_type = 0x01;
-    let icce = carkey_icce::create_icce_get_mobile_info_request(request_type);
+    let icce = icce::objects::create_icce_get_mobile_info_request(request_type);
     icce.serialize()
 }
 
 fn test_create_calbriate_time_request() -> Vec<u8> {
-    let icce = carkey_icce::create_icce_calibrate_clock_request();
+    let icce = icce::objects::create_icce_calibrate_clock_request();
     icce.serialize()
 }
 
 fn test_create_protocol_request() -> Vec<u8> {
     let vehicle_protocol = vec![0x01, 0x02, 0x03, 0x04];
-    let icce = carkey_icce::create_icce_get_protocol_request(&vehicle_protocol);
+    let icce = icce::objects::create_icce_get_protocol_request(&vehicle_protocol);
     icce.serialize()
 }
 
@@ -55,19 +54,19 @@ fn test_create_vehicle_event_request() -> Vec<u8> {
     let vehicle_event = 0x00;
     let async_result = vec![0x11, 0x22, 0x33, 0x44];
     let vehicle_state = vec![0x55, 0x66, 0x77, 0x88];
-    let icce = carkey_icce::create_icce_vehicle_state_event_request(vehicle_event, &async_result, &vehicle_state);
+    let icce = icce::objects::create_icce_vehicle_state_event_request(vehicle_event, &async_result, &vehicle_state);
     icce.serialize()
 }
 
 fn test_create_app_event_request() -> Vec<u8> {
     let app_data = vec![0xaa, 0xbb, 0xcc, 0xdd];
-    let icce = carkey_icce::create_icce_vehicle_to_app_event_request(&app_data);
+    let icce = icce::objects::create_icce_vehicle_to_app_event_request(&app_data);
     icce.serialize()
 }
 
 fn test_create_server_event_request() -> Vec<u8> {
     let server_data = vec![0xff, 0xee, 0xdd, 0xcc];
-    let icce = carkey_icce::create_icce_vehicle_to_server_event_request(&server_data);
+    let icce = icce::objects::create_icce_vehicle_to_server_event_request(&server_data);
     icce.serialize()
 }
 
@@ -149,7 +148,7 @@ async fn main() -> bluer::Result<()> {
                         async move {
                             tokio::spawn(async move {
                                 if notifier.is_stopped() == false {
-                                    let icce = carkey_icce::create_icce_auth_get_process_data_request();
+                                    let icce = icce::objects::create_icce_auth_get_process_data_request();
                                     if let Err(err) = notifier.notify(icce.serialize()).await {
                                         println!("Notification error when setting get process data request: {}", err);
                                     }
@@ -183,7 +182,7 @@ async fn main() -> bluer::Result<()> {
         let mut index = 0;
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-            if carkey_icce::is_session_key_valid() == false {
+            if icce::objects::is_session_key_valid() == false {
                 continue;
             }
             let icce_package = match index {
@@ -242,25 +241,25 @@ async fn main() -> bluer::Result<()> {
             },
             Some(icce_package) = bt_write_rx.recv() => {
                 println!("GOT ICCE Package from Mobile = {:02X?}", icce_package);
-                if let Ok(mut icce_object) = carkey_icce::ICCE::deserialize(&icce_package) {
+                if let Ok(mut icce_object) = icce::objects::ICCE::deserialize(&icce_package) {
                     println!("icce_object is {:?}", icce_object);
                     let icce_header_control = icce_object.get_header().get_control();
                     if icce_header_control.is_first_frag() || icce_header_control.is_conti_frag() {
-                        carkey_icce::collect_icce_fragments(icce_object);
+                        icce::objects::collect_icce_fragments(icce_object);
                         continue;
                     }
                     if icce_header_control.is_last_frag() {
-                        carkey_icce::collect_icce_fragments(icce_object);
-                        icce_object = carkey_icce::reassemble_icce_fragments();
+                        icce::objects::collect_icce_fragments(icce_object);
+                        icce_object = icce::objects::reassemble_icce_fragments();
                     }
                     if icce_header_control.is_request() {
-                        if let Ok(response) = carkey_icce::handle_icce_mobile_request(&icce_object) {
+                        if let Ok(response) = icce::objects::handle_icce_mobile_request(&icce_object) {
                             if response.len() > 1 {
                                 let _ = bt_notify_tx.send(response);
                             }
                         }
                     } else {
-                        if let Ok(response) = carkey_icce::handle_icce_mobile_response(&icce_object) {
+                        if let Ok(response) = icce::objects::handle_icce_mobile_response(&icce_object) {
                             if response.len() > 0 {
                                 let _ = bt_notify_tx.send(response);
                             }
