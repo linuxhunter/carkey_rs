@@ -1,4 +1,4 @@
-use crate::iccoa::objects::{ICCOA, create_iccoa_header, Mark, create_iccoa_body_message_data, create_iccoa_body, MessageType, create_iccoa};
+use crate::iccoa::{objects::{ICCOA, create_iccoa_header, Mark, create_iccoa_body_message_data, create_iccoa_body, MessageType, create_iccoa}, status::StatusBuilder};
 
 use super::super::errors::*;
 
@@ -199,7 +199,7 @@ pub fn create_iccoa_senseless_control_event_notification(transaction_id: u16, ev
     );
     let message_data = create_iccoa_body_message_data(
         false,
-        0x0000,
+        StatusBuilder::new().success().build(),
         0x02,
         &event.serialize(),
     );

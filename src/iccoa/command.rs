@@ -1,4 +1,4 @@
-use super::{errors::*, objects::{ICCOA, create_iccoa_header, Mark, create_iccoa_body_message_data, MessageType, create_iccoa_body, create_iccoa}};
+use super::{errors::*, objects::{ICCOA, create_iccoa_header, Mark, create_iccoa_body_message_data, MessageType, create_iccoa_body, create_iccoa}, status::{StatusBuilder, Status}};
 
 lazy_static! {
     static ref RKE_COMMAND_REQUEST_DATA_LENGTH: usize = 5;
@@ -125,7 +125,7 @@ fn create_iccoa_rke_command_request(transaction_id: u16, request: RKECommandRequ
     );
     let message_data = create_iccoa_body_message_data(
         false,
-        0x0000,
+        StatusBuilder::new().success().build(),
         0x01,
         &serialized_request,
     );
@@ -137,7 +137,7 @@ fn create_iccoa_rke_command_request(transaction_id: u16, request: RKECommandRequ
     Ok(create_iccoa(header, body))
 }
 
-fn create_iccoa_rke_command_response(transaction_id: u16, status: u16, response: RKECommandResponse) -> Result<ICCOA> {
+fn create_iccoa_rke_command_response(transaction_id: u16, status: Status, response: RKECommandResponse) -> Result<ICCOA> {
     let serialized_response = response.serialize();
     let header = create_iccoa_header(
         super::objects::PacketType::REPLY_PACKET,
@@ -219,7 +219,7 @@ pub fn create_iccoa_rke_honking_and_flashing_search_car_request(transaction_id: 
     create_iccoa_rke_request(transaction_id, event_id, 0x1000, 0x03)
 }
 
-pub fn create_iccoa_rke_response(transaction_id: u16, status: u16, event_id: u16, tag: u8, value: &[u8]) -> Result<ICCOA> {
+pub fn create_iccoa_rke_response(transaction_id: u16, status: Status, event_id: u16, tag: u8, value: &[u8]) -> Result<ICCOA> {
     let mut response = RKECommandResponse::new();
     response.set_event_id(event_id);
     response.set_tag(tag);
@@ -244,7 +244,7 @@ pub fn create_iccoa_start_ranging_request(transaction_id: u16, ranging_type: u8)
     ranging_data.push(ranging_type);
     let message_data = create_iccoa_body_message_data(
         false,
-        0x0000,
+        StatusBuilder::new().success().build(),
         0x02,
         &ranging_data,
     );
@@ -273,7 +273,7 @@ pub fn create_iccoa_end_ranging_request(transaction_id: u16) -> Result<ICCOA> {
     ranging_data.push(0x00);
     let message_data = create_iccoa_body_message_data(
         false,
-        0x0000,
+        StatusBuilder::new().success().build(),
         0x02,
         &ranging_data,
     );
@@ -306,7 +306,7 @@ pub fn create_iccoa_ranging_response(transaction_id: u16, status: u16, ranging_v
     ranging_data.push(ranging_value);
     let message_data = create_iccoa_body_message_data(
         true,
-        0x0000,
+        StatusBuilder::new().success().build(),
         0x02,
         &ranging_data,
     );
@@ -688,7 +688,7 @@ mod tests {
     fn test_rke_command_response() {
         let transaction_id = 0x000D;
         let event_id = 0xFFFF;
-        let status = 0x0000;
+        let status = StatusBuilder::new().success().build();
         let tag = 0x00;
         let value = vec![0x00];
         let iccoa = create_iccoa_rke_response(transaction_id, status, event_id, tag, &value).unwrap();
@@ -707,7 +707,7 @@ mod tests {
             body: Body {
                 message_type: MessageType::COMMAND,
                 message_data: MessageData {
-                    status: 0x0000,
+                    status: StatusBuilder::new().success().build(),
                     tag: 0x01,
                     value: vec![
                         0xFF, 0xFF, 0x00, 0x01, 0x00
@@ -797,7 +797,7 @@ mod tests {
             body: Body {
                 message_type: MessageType::COMMAND,
                 message_data: MessageData {
-                    status: 0x0000,
+                    status: StatusBuilder::new().success().build(),
                     tag: 0x02,
                     value: vec![
                         0x00, 0x01, 0x00

@@ -1,5 +1,6 @@
 use super::objects::{ICCOA, Mark, PacketType, MessageType, EncryptType, create_iccoa_header, create_iccoa_body_message_data, create_iccoa_body, create_iccoa};
 use super::errors::*;
+use super::status::{StatusBuilder, Status};
 
 lazy_static! {
     static ref VEHICLE_TEMP_PUBKEY_LENGTH: usize = 65;
@@ -38,7 +39,7 @@ pub fn create_iccoa_standard_auth_pubkey_exchange_request(transaction_id: u16, v
     pubkey_exchange_data.append(&mut vehicle_id.to_vec());
     let message_data = create_iccoa_body_message_data(
         false,
-        0x0000,
+        StatusBuilder::new().success().build(),
         0x01,
         &pubkey_exchange_data,
     );
@@ -50,7 +51,7 @@ pub fn create_iccoa_standard_auth_pubkey_exchange_request(transaction_id: u16, v
     Ok(create_iccoa(header, body))
 }
 
-pub fn create_iccoa_standard_auth_pubkey_exchange_response(transaction_id: u16, status: u16, mobile_temp_pubkey: &[u8], mobile_id: &[u8]) -> Result<ICCOA> {
+pub fn create_iccoa_standard_auth_pubkey_exchange_response(transaction_id: u16, status: Status, mobile_temp_pubkey: &[u8], mobile_id: &[u8]) -> Result<ICCOA> {
     if mobile_temp_pubkey.len() != *MOBILE_TEMP_PUBKEY_LENGTH {
         return Err(ErrorKind::ICCOAAuthError("mobile temp pubkey length error".to_string()).into());
     }
@@ -110,7 +111,7 @@ pub fn create_iccoa_standard_auth_request(transaction_id: u16, vehicle_signature
     auth_data.append(&mut vehicle_signature.to_vec());
     let message_data = create_iccoa_body_message_data(
         false,
-        0x0000,
+        StatusBuilder::new().success().build(),
         0x02,
         &auth_data,
     );
@@ -122,7 +123,7 @@ pub fn create_iccoa_standard_auth_request(transaction_id: u16, vehicle_signature
     Ok(create_iccoa(header, body))
 }
 
-pub fn create_iccoa_standard_auth_response(transaction_id: u16, status: u16, mobile_signature: &[u8]) -> Result<ICCOA> {
+pub fn create_iccoa_standard_auth_response(transaction_id: u16, status: Status, mobile_signature: &[u8]) -> Result<ICCOA> {
     if mobile_signature.len() != *MOBILE_SIGNATURE_LENGTH {
         return Err(ErrorKind::ICCOAAuthError("mobile signature length error".to_string()).into());
     }
@@ -173,7 +174,7 @@ pub fn create_iccoa_standard_auth_friend_request(transaction_id: u16, friend_key
     friend_key_data.append(&mut friend_key_data_request.to_vec());
     let message_data = create_iccoa_body_message_data(
         false,
-        0x0000,
+        StatusBuilder::new().success().build(),
         0x03,
         &friend_key_data,
     );
@@ -185,7 +186,7 @@ pub fn create_iccoa_standard_auth_friend_request(transaction_id: u16, friend_key
     Ok(create_iccoa(header, body))
 }
 
-pub fn create_iccoa_standard_auth_friend_response(transaction_id: u16, status: u16, friend_key_shared_info: &[u8]) -> Result<ICCOA> {
+pub fn create_iccoa_standard_auth_friend_response(transaction_id: u16, status: Status, friend_key_shared_info: &[u8]) -> Result<ICCOA> {
     let header = create_iccoa_header(
         PacketType::REPLY_PACKET,
         transaction_id,
@@ -233,7 +234,7 @@ pub fn create_iccoa_standard_auth_write_request(transaction_id: u16, tag: u8, wr
     auth_write_data.append(&mut write_data.to_vec());
     let message_data = create_iccoa_body_message_data(
         false,
-        0x0000,
+        StatusBuilder::new().success().build(),
         0x04,
         &auth_write_data,
     );
@@ -245,7 +246,7 @@ pub fn create_iccoa_standard_auth_write_request(transaction_id: u16, tag: u8, wr
     Ok(create_iccoa(header, body))
 }
 
-pub fn create_iccoa_standard_auth_write_response(transaction_id: u16, status: u16) -> Result<ICCOA> {
+pub fn create_iccoa_standard_auth_write_response(transaction_id: u16, status: Status) -> Result<ICCOA> {
     let header = create_iccoa_header(
         PacketType::REPLY_PACKET,
         transaction_id,
@@ -289,7 +290,7 @@ pub fn create_iccoa_standard_auth_read_request(transaction_id: u16, tag: u8, rea
     read_data.append(&mut read_list.to_vec());
     let message_data = create_iccoa_body_message_data(
         false,
-        0x0000,
+        StatusBuilder::new().success().build(),
         0x05,
         &read_data,
     );
@@ -301,7 +302,7 @@ pub fn create_iccoa_standard_auth_read_request(transaction_id: u16, tag: u8, rea
     Ok(create_iccoa(header, body))
 }
 
-pub fn create_iccoa_standard_auth_read_response(transaction_id: u16, status: u16, tag: u8, read_data: &[u8]) -> Result<ICCOA> {
+pub fn create_iccoa_standard_auth_read_response(transaction_id: u16, status: Status, tag: u8, read_data: &[u8]) -> Result<ICCOA> {
     let header = create_iccoa_header(
         PacketType::REPLY_PACKET,
         transaction_id,
@@ -358,7 +359,7 @@ pub fn create_iccoa_fast_auth_pubkey_exchange_request(transaction_id: u16, vehic
     pubkey_exchange_data.append(&mut vehicle_id.to_vec());
     let message_data = create_iccoa_body_message_data(
         false,
-        0x0000,
+        StatusBuilder::new().success().build(),
         0xC1,
         &pubkey_exchange_data,
     );
@@ -370,7 +371,7 @@ pub fn create_iccoa_fast_auth_pubkey_exchange_request(transaction_id: u16, vehic
     Ok(create_iccoa(header, body))
 }
 
-pub fn create_iccoa_fast_auth_pubkey_exchange_response(transaction_id: u16, status: u16, mobile_temp_pubkey: &[u8], mobile_id: &[u8]) -> Result<ICCOA> {
+pub fn create_iccoa_fast_auth_pubkey_exchange_response(transaction_id: u16, status: Status, mobile_temp_pubkey: &[u8], mobile_id: &[u8]) -> Result<ICCOA> {
     if mobile_temp_pubkey.len() != *MOBILE_TEMP_PUBKEY_LENGTH {
         return Err(ErrorKind::ICCOAAuthError("mobile temp pubkey length error".to_string()).into());
     }
@@ -429,7 +430,7 @@ pub fn create_iccoa_fast_auth_request(transaction_id: u16, vehicle_fast_auth_dat
     fast_auth_data.append(&mut vehicle_fast_auth_data.to_vec());
     let message_data = create_iccoa_body_message_data(
         false,
-        0x0000,
+        StatusBuilder::new().success().build(),
         0xC2,
         &fast_auth_data,
     );
@@ -441,7 +442,7 @@ pub fn create_iccoa_fast_auth_request(transaction_id: u16, vehicle_fast_auth_dat
     Ok(create_iccoa(header, body))
 }
 
-pub fn create_iccoa_fast_auth_response(transaction_id: u16, status: u16) -> Result<ICCOA> {
+pub fn create_iccoa_fast_auth_response(transaction_id: u16, status: Status) -> Result<ICCOA> {
     let header = create_iccoa_header(
         PacketType::REPLY_PACKET,
         transaction_id,
@@ -515,7 +516,7 @@ mod tests {
     #[test]
     fn test_standard_auth_data_exchange_response() {
         let transaction_id = 0x0001;
-        let status = 0x0000;
+        let status = StatusBuilder::new().success().build();
         let mobile_temp_pubkey = [0x02; 65];
         let mobile_id = [0x20; 16];
         let iccoa = create_iccoa_standard_auth_pubkey_exchange_response(transaction_id, status, &mobile_temp_pubkey, &mobile_id).unwrap();
@@ -534,7 +535,7 @@ mod tests {
             body: Body {
                 message_type: MessageType::AUTH,
                 message_data: MessageData {
-                    status: 0x0000,
+                    status: StatusBuilder::new().success().build(),
                     tag: 0x01,
                     value: vec![
                         132, 67, 2, 2, 2, 2, 2, 2,
@@ -595,7 +596,7 @@ mod tests {
     #[test]
     fn test_standard_auth_response() {
         let transaction_id = 0x0002;
-        let status = 0x0000;
+        let status = StatusBuilder::new().success().build();
         let mobile_signature = [0x30; 64];
         let iccoa = create_iccoa_standard_auth_response(transaction_id, status, &mobile_signature).unwrap();
         assert_eq!(iccoa, ICCOA {
@@ -613,7 +614,7 @@ mod tests {
             body: Body {
                 message_type: MessageType::AUTH,
                 message_data: MessageData {
-                    status: 0x0000,
+                    status: StatusBuilder::new().success().build(),
                     tag: 0x02,
                     value: vec![
                         135, 64, 48, 48, 48, 48, 48, 48,
@@ -672,7 +673,7 @@ mod tests {
     #[test]
     fn test_friend_key_data_response() {
         let transaction_id = 0x0003;
-        let status = 0x0000;
+        let status = StatusBuilder::new().success().build();
         let friend_key_shared_info = [0x40; 64];
         let iccoa = create_iccoa_standard_auth_friend_response(transaction_id, status, &friend_key_shared_info).unwrap();
         assert_eq!(iccoa, ICCOA {
@@ -690,7 +691,7 @@ mod tests {
             body: Body {
                 message_type: MessageType::AUTH,
                 message_data: MessageData {
-                    status: 0x0000,
+                    status: StatusBuilder::new().success().build(),
                     tag: 0x03,
                     value: vec![
                         113, 64, 64, 64, 64, 64, 64, 64,
@@ -746,7 +747,7 @@ mod tests {
     #[test]
     fn test_write_response() {
         let transaction_id = 0x0004;
-        let status = 0x0000;
+        let status = StatusBuilder::new().success().build();
         let iccoa = create_iccoa_standard_auth_write_response(transaction_id, status).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
@@ -763,7 +764,7 @@ mod tests {
             body: Body {
                 message_type: MessageType::AUTH,
                 message_data: MessageData {
-                    status: 0x0000,
+                    status: StatusBuilder::new().success().build(),
                     tag: 0x04,
                     value: vec![],
                 },
@@ -805,7 +806,7 @@ mod tests {
     #[test]
     fn test_read_response() {
         let transaction_id = 0x0005;
-        let status = 0x0000;
+        let status = StatusBuilder::new().success().build();
         let tag = 0x01;
         let read_data = [0x50; 32];
         let iccoa = create_iccoa_standard_auth_read_response(transaction_id, status, tag, &read_data).unwrap();
@@ -824,7 +825,7 @@ mod tests {
             body: Body {
                 message_type: MessageType::AUTH,
                 message_data: MessageData {
-                    status: 0x0000,
+                    status: StatusBuilder::new().success().build(),
                     tag: 0x05,
                     value: vec![
                         1, 32, 80, 80, 80, 80, 80, 80,
@@ -882,7 +883,7 @@ mod tests {
     #[test]
     fn test_fast_auth_data_exchange_response() {
         let transaction_id = 0x0006;
-        let status = 0x0000;
+        let status = StatusBuilder::new().success().build();
         let mobile_temp_pubkey = [0x07; 65];
         let mobile_id = [0x70; 16];
         let iccoa = create_iccoa_fast_auth_pubkey_exchange_response(transaction_id, status, &mobile_temp_pubkey, &mobile_id).unwrap();
@@ -901,7 +902,7 @@ mod tests {
             body: Body {
                 message_type: MessageType::AUTH,
                 message_data: MessageData {
-                    status: 0x0000,
+                    status: StatusBuilder::new().success().build(),
                     tag: 0xC1,
                     value: vec![
                         132, 67, 7, 7, 7, 7, 7, 7,
@@ -956,7 +957,7 @@ mod tests {
     #[test]
     fn test_fast_auth_response() {
         let transaction_id = 0x0007;
-        let status = 0x0000;
+        let status = StatusBuilder::new().success().build();
         let iccoa = create_iccoa_fast_auth_response(transaction_id, status).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
@@ -973,7 +974,7 @@ mod tests {
             body: Body {
                 message_type: MessageType::AUTH,
                 message_data: MessageData {
-                    status: 0x0000,
+                    status: StatusBuilder::new().success().build(),
                     tag: 0xC2,
                     value: vec![],
                 },

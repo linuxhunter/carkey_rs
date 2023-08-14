@@ -2,6 +2,7 @@
 
 use error_chain::error_chain;
 
+mod status;
 mod objects;
 mod pairing;
 mod auth;

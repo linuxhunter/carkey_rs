@@ -1,4 +1,4 @@
-use crate::iccoa::objects::{create_iccoa_header, Mark, create_iccoa_body_message_data, create_iccoa_body, create_iccoa, ICCOA, MessageType};
+use crate::iccoa::{objects::{create_iccoa_header, Mark, create_iccoa_body_message_data, create_iccoa_body, create_iccoa, ICCOA, MessageType}, status::StatusBuilder};
 
 use super::{super::errors::*, CarDoorLockStatus, CarDoorStatus, CarDoorWindowStatus};
 
@@ -139,7 +139,7 @@ pub fn create_iccoa_vehicle_status_notification(transaction_id: u16, vehicle_sta
     );
     let message_data = create_iccoa_body_message_data(
         false,
-        0x0000,
+        StatusBuilder::new().success().build(),
         0x01,
         &vehicle_status_serialized_data,
     );

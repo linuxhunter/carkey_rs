@@ -1,4 +1,4 @@
-use crate::iccoa::objects::{ICCOA, create_iccoa_header, Mark, create_iccoa_body_message_data, create_iccoa_body, MessageType, create_iccoa};
+use crate::iccoa::{objects::{ICCOA, create_iccoa_header, Mark, create_iccoa_body_message_data, create_iccoa_body, MessageType, create_iccoa}, status::StatusBuilder};
 
 use super::{super::errors::*, CarDoorWindowStatus, CarDoorStatus, CarDoorLockStatus};
 
@@ -128,7 +128,7 @@ pub fn create_iccoa_vehicle_unsafe_event_notification(transaction_id: u16, event
     );
     let message_data = create_iccoa_body_message_data(
         false,
-        0x0000,
+        StatusBuilder::new().success().build(),
         0x03,
         &event.serialize()
     );

@@ -1,5 +1,6 @@
 use super::objects::{ICCOA, Mark, create_iccoa_header, create_iccoa_body_message_data, create_iccoa_body, create_iccoa};
 use super::errors::*;
+use super::status::{StatusBuilder, Status};
 
 lazy_static! {
     static ref SPAKE2_PLUS_P_B_LENGTH: usize = 0x41;
@@ -121,7 +122,7 @@ pub fn create_iccoa_pairing_data_request(transaction_id: u16, scrypt: &Scrypt, p
     spake2_plus_data.append(&mut scrypt.get_p().to_vec());
     let message_data = create_iccoa_body_message_data(
         false,
-        0x0000,
+        StatusBuilder::new().success().build(),
         0x02,
         &spake2_plus_data,
     );
@@ -133,7 +134,7 @@ pub fn create_iccoa_pairing_data_request(transaction_id: u16, scrypt: &Scrypt, p
     Ok(create_iccoa(header, body))
 }
 
-pub fn create_iccoa_pairing_data_response(transaction_id: u16, status: u16, p_a: &[u8]) -> Result<ICCOA> {
+pub fn create_iccoa_pairing_data_response(transaction_id: u16, status: Status, p_a: &[u8]) -> Result<ICCOA> {
     if p_a.len() != *SPAKE2_PLUS_P_A_LENGTH {
         return Err(ErrorKind::ICCOAPairingError("pA length is not correct!".to_string()).into());
     }
@@ -183,7 +184,7 @@ pub fn create_iccoa_paring_auth_request(transaction_id: u16, c_b: &[u8]) -> Resu
 
     let message_data = create_iccoa_body_message_data(
         false,
-        0x0000,
+        StatusBuilder::new().success().build(),
         0x03,
         c_b,
     );
@@ -195,7 +196,7 @@ pub fn create_iccoa_paring_auth_request(transaction_id: u16, c_b: &[u8]) -> Resu
     Ok(create_iccoa(header, body))
 }
 
-pub fn create_iccoa_pairing_auth_response(transaction_id: u16, status: u16, c_a: &[u8]) -> Result<ICCOA> {
+pub fn create_iccoa_pairing_auth_response(transaction_id: u16, status: Status, c_a: &[u8]) -> Result<ICCOA> {
     if c_a.len() != *SPAKE2_PLUS_C_A_LENGTH {
         return Err(ErrorKind::ICCOAPairingError("cA length is not correct!".to_string()).into());
     }
@@ -238,7 +239,7 @@ pub fn create_iccoa_pairing_certificate_write_request(transaction_id: u16, vehic
 
     let message_data = create_iccoa_body_message_data(
         false,
-        0x0000,
+        StatusBuilder::new().success().build(),
         0x04,
         vehicle_pub_cert,
     );
@@ -250,7 +251,7 @@ pub fn create_iccoa_pairing_certificate_write_request(transaction_id: u16, vehic
     Ok(create_iccoa(header, body))
 }
 
-pub fn create_iccoa_pairing_certificate_write_response(transaction_id: u16, status: u16) -> Result<ICCOA> {
+pub fn create_iccoa_pairing_certificate_write_response(transaction_id: u16, status: Status) -> Result<ICCOA> {
     let header = create_iccoa_header(
         super::objects::PacketType::REPLY_PACKET,
         transaction_id,
@@ -290,7 +291,7 @@ pub fn create_iccoa_pairing_certificate_read_request(transaction_id: u16, cert_t
 
     let message_data = create_iccoa_body_message_data(
         false,
-        0x0000,
+        StatusBuilder::new().success().build(),
         0x05,
         cert_type_list,
     );
@@ -302,7 +303,7 @@ pub fn create_iccoa_pairing_certificate_read_request(transaction_id: u16, cert_t
     Ok(create_iccoa(header, body))
 }
 
-pub fn create_iccoa_pairing_certificate_read_response(transaction_id: u16, status: u16, cert: &[u8]) -> Result<ICCOA> {
+pub fn create_iccoa_pairing_certificate_read_response(transaction_id: u16, status: Status, cert: &[u8]) -> Result<ICCOA> {
     let header = create_iccoa_header(
         super::objects::PacketType::REPLY_PACKET,
         transaction_id,
@@ -383,7 +384,7 @@ mod tests {
     #[test]
     fn test_spake2_plus_data_response() {
         let transaction_id = 0x0002;
-        let status = 0x0000;
+        let status = StatusBuilder::new().success().build();
         let p_a = calculate_pA();
         let iccoa = create_iccoa_pairing_data_response(transaction_id, status, &p_a).unwrap();
         assert_eq!(iccoa, ICCOA {
@@ -401,7 +402,7 @@ mod tests {
             body: Body {
                 message_type: crate::iccoa::objects::MessageType::VEHICLE_PAIRING,
                 message_data: MessageData {
-                    status: 0x0000,
+                    status: StatusBuilder::new().success().build(),
                     tag: 0x02,
                     value: vec![
                         82, 65, 0, 0, 0, 0, 0, 0,
@@ -452,7 +453,7 @@ mod tests {
     fn test_spake2_plus_auth_response() {
         let transaction_id= 0x0003;
         let c_a = calculate_cA();
-        let status = 0x0000;
+        let status = StatusBuilder::new().success().build();
         let iccoa = create_iccoa_pairing_auth_response(transaction_id, status, &c_a).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
@@ -469,7 +470,7 @@ mod tests {
             body: Body {
                 message_type: crate::iccoa::objects::MessageType::VEHICLE_PAIRING,
                 message_data: MessageData {
-                    status: 0x0000,
+                    status: StatusBuilder::new().success().build(),
                     tag: 0x03,
                     value: [0x00; 18].to_vec(),
                 },
@@ -508,7 +509,7 @@ mod tests {
     #[test]
     fn test_spake2_plus_certificate_write_response() {
         let transaction_id = 0x0004;
-        let status = 0x0000;
+        let status = StatusBuilder::new().success().build();
         let iccoa = create_iccoa_pairing_certificate_write_response(transaction_id, status).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
@@ -525,7 +526,7 @@ mod tests {
             body: Body {
                 message_type: crate::iccoa::objects::MessageType::VEHICLE_PAIRING,
                 message_data: MessageData {
-                    status: 0x0000,
+                    status: StatusBuilder::new().success().build(),
                     tag: 0x04,
                     ..Default::default()
                 },
@@ -564,7 +565,7 @@ mod tests {
     #[test]
     fn test_spake2_plus_certificate_read_response() {
         let transaction_id = 0x0005;
-        let status = 0x0000;
+        let status = StatusBuilder::new().success().build();
         let mobile_device_certificate = get_mobile_device_certificate();
         let iccoa = create_iccoa_pairing_certificate_read_response(transaction_id, status, &mobile_device_certificate).unwrap();
         assert_eq!(iccoa, ICCOA {
@@ -582,7 +583,7 @@ mod tests {
             body: Body {
                 message_type: crate::iccoa::objects::MessageType::VEHICLE_PAIRING,
                 message_data: MessageData {
-                    status: 0x0000,
+                    status: StatusBuilder::new().success().build(),
                     tag: 0x05,
                     value: [0x02; 1024].to_vec(),
                 },

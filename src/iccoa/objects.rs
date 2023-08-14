@@ -1,4 +1,4 @@
-use super::errors::*;
+use super::{errors::*, status::{Status, StatusTag, StatusBuilder}};
 
 lazy_static! {
     static ref ICCOA_HEADER_LENGTH: usize = 12;
@@ -282,7 +282,7 @@ impl From<MessageType> for u8 {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct MessageData {
-    pub status: u16,
+    pub status: Status,
     pub tag: u8,
     pub value: Vec<u8>,
 }
@@ -291,10 +291,10 @@ impl MessageData {
     pub fn new() -> Self {
         Default::default()
     }
-    pub fn set_status(&mut self, status: u16) {
+    pub fn set_status(&mut self, status: Status) {
         self.status = status
     }
-    pub fn get_status(&self) -> u16 {
+    pub fn get_status(&self) -> Status {
         self.status
     }
     pub fn set_tag(&mut self, tag: u8) {
@@ -313,7 +313,7 @@ impl MessageData {
         let mut buffer = Vec::new();
         if fragment == false {
             if request == false {
-                buffer.append(&mut self.status.to_be_bytes().to_vec());
+                buffer.append(&mut self.status.serialize());
             }
             buffer.push(self.tag);
             let length = self.value.len() as u16;
@@ -327,7 +327,16 @@ impl MessageData {
         let mut index = 0;
         if fragment == false {
             if request == false {
-                let status = u16::from_be_bytes(buffer[index..index+2].try_into().map_err(|_| ErrorKind::ICCOAObjectError("deserialize MessageData status error".to_string()))?);
+                let status_tag = StatusTag::from(buffer[index]);
+                let status_code = buffer[index+1];
+                let status = match status_tag {
+                    StatusTag::SUCCESS => StatusBuilder::new().success().build(),
+                    StatusTag::COMMUNICATION_PROTOCOL_ERROR => StatusBuilder::new().communication_protocol_error(status_code).build(),
+                    StatusTag::DATA_ERROR => StatusBuilder::new().data_error(status_code).build(),
+                    StatusTag::REQUEST_ERROR => StatusBuilder::new().request_error(status_code).build(),
+                    StatusTag::BUSINESS_ERROR => StatusBuilder::new().business_error(status_code).build(),
+                    StatusTag::RFU => StatusBuilder::new().rfu().build(),
+                };
                 message_data.set_status(status);
                 index += 2;
             }
@@ -467,7 +476,7 @@ pub fn create_iccoa_header(packet_type: PacketType, transaction_id: u16, body_le
     header
 }
 
-pub fn create_iccoa_body_message_data(response: bool, status: u16, tag: u8, value: &[u8]) -> MessageData {
+pub fn create_iccoa_body_message_data(response: bool, status: Status, tag: u8, value: &[u8]) -> MessageData {
     let mut message_data = MessageData::new();
     if response {
         message_data.set_status(status);
@@ -497,6 +506,8 @@ pub fn create_iccoa(header: Header, body: Body) -> ICCOA {
 
 #[cfg(test)]
 mod tests {
+    use crate::iccoa::status::StatusBuilder;
+
     use super::*;
 
     #[test]
@@ -588,7 +599,7 @@ mod tests {
         assert_eq!(body, Body {
             message_type: MessageType::RFU,
             message_data: MessageData {
-                status: 0x0000,
+                status: StatusBuilder::new().success().build(),
                 tag: 0x00,
                 value: vec![],
             }
@@ -597,7 +608,7 @@ mod tests {
     #[test]
     fn test_iccoa_body_with_value() {
         let mut message_data = MessageData::new();
-        message_data.set_status(0x0101);
+        message_data.set_status(StatusBuilder::new().success().build());
         message_data.set_tag(0x02);
         message_data.set_value(&vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff]);
         let mut body = Body::new();
@@ -606,7 +617,7 @@ mod tests {
         assert_eq!(body, Body {
             message_type: MessageType::VEHICLE_PAIRING,
             message_data: MessageData {
-                status: 0x0101,
+                status: StatusBuilder::new().success().build(),
                 tag: 0x02,
                 value: vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff],
             }
@@ -615,7 +626,7 @@ mod tests {
     #[test]
     fn test_iccoa_body_serialize() {
         let mut message_data = MessageData::new();
-        message_data.set_status(0x0101);
+        message_data.set_status(StatusBuilder::new().communication_protocol_error(0x01).build());
         message_data.set_tag(0x02);
         message_data.set_value(&vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff]);
         let mut body = Body::new();
@@ -660,7 +671,7 @@ mod tests {
         assert_eq!(response_body, Body {
             message_type: MessageType::VEHICLE_PAIRING,
             message_data: MessageData {
-                status: 0x0101,
+                status: StatusBuilder::new().communication_protocol_error(0x01).build(),
                 tag: 0x02,
                 value: vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff],
             }
@@ -800,7 +811,7 @@ mod tests {
             fragment_offset: 0x0000,
         });
         let mut message_data = MessageData::new();
-        message_data.set_status(0x0101);
+        message_data.set_status(StatusBuilder::new().success().build());
         message_data.set_tag(0x02);
         message_data.set_value(&vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff]);
         let mut body = Body::new();
@@ -828,7 +839,7 @@ mod tests {
             body: Body {
                 message_type: MessageType::VEHICLE_PAIRING,
                 message_data: MessageData {
-                    status: 0x0101,
+                    status: StatusBuilder::new().success().build(),
                     tag: 0x02,
                     value: vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff],
                 }
@@ -956,7 +967,7 @@ mod tests {
             fragment_offset: 0x0000,
         });
         let mut message_data = MessageData::new();
-        message_data.set_status(0x0101);
+        message_data.set_status(StatusBuilder::new().communication_protocol_error(0x01).build());
         message_data.set_tag(0x02);
         message_data.set_value(&vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff]);
         let mut body = Body::new();
@@ -1081,7 +1092,7 @@ mod tests {
             body: Body {
                 message_type: MessageType::VEHICLE_PAIRING,
                 message_data: MessageData {
-                    status: 0x0101,
+                    status: StatusBuilder::new().communication_protocol_error(0x01).build(),
                     tag: 0x02,
                     value: vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff],
                 }
