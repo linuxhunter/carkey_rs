@@ -6,6 +6,7 @@ mod objects;
 mod pairing;
 mod auth;
 mod command;
+mod notification;
 
 mod errors {
     use super::*;
@@ -19,6 +20,7 @@ mod errors {
             ICCOAPairingError(t: String)
             ICCOAAuthError(t: String)
             ICCOACommandError(t: String)
+            ICCOANotificationError(t: String)
         }
     }
 }
