@@ -1,5 +1,5 @@
-use super::objects::{ICCOA, Mark, PacketType, MessageType, EncryptType, create_iccoa_header, create_iccoa_body_message_data, create_iccoa_body, create_iccoa};
-use super::errors::*;
+use super::objects::{ICCOA, Mark, create_iccoa_header, create_iccoa_body_message_data, create_iccoa_body, create_iccoa};
+use super::{errors::*, TLVPayload};
 use super::status::{StatusBuilder, Status};
 
 lazy_static! {
@@ -10,466 +10,135 @@ lazy_static! {
     static ref VEHICLE_SIGNATURE_LENGTH: usize = 64;
     static ref MOBILE_SIGNATURE_LENGTH: usize = 64;
     static ref VEHICLE_FAST_AUTH_DATA_LENGTH: usize = 16;
+    static ref AUTH_PAYLOAD_LENGTH_MINIMUM: usize = 2;
 }
 
-pub fn create_iccoa_standard_auth_pubkey_exchange_request(transaction_id: u16, vehicle_temp_pubkey: &[u8], vehicle_id: &[u8]) -> Result<ICCOA> {
-    if vehicle_temp_pubkey.len() != *VEHICLE_TEMP_PUBKEY_LENGTH {
-        return Err(ErrorKind::ICCOAAuthError("vehicle temp pubkey length error".to_string()).into());
-    }
-    if vehicle_id.len() != *VEHICLE_ID_LENGTH {
-        return Err(ErrorKind::ICCOAAuthError("vehicle id length error".to_string()).into());
-    }
+fn create_iccoa_auth_request(transaction_id: u16, tag: u8, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    let mut payload_data= Vec::new();
+    let mut payload_length = 0x00;
+    payloads.iter().for_each(|p| {
+        payload_length += 2+p.value.len();
+        payload_data.append(&mut p.serialize());
+    });
+
     let header = create_iccoa_header(
-        PacketType::REQUEST_PACKET,
+        super::objects::PacketType::REQUEST_PACKET,
         transaction_id,
-        1+88,
-        Mark {
-            encrypt_type: EncryptType::ENCRYPT_BEFORE_AUTH,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
-    );
-
-    let mut pubkey_exchange_data = Vec::new();
-    pubkey_exchange_data.push(0x81);
-    pubkey_exchange_data.push(0x43);
-    pubkey_exchange_data.append(&mut vehicle_temp_pubkey.to_vec());
-    pubkey_exchange_data.push(0x83);
-    pubkey_exchange_data.push(0x10);
-    pubkey_exchange_data.append(&mut vehicle_id.to_vec());
-    let message_data = create_iccoa_body_message_data(
-        false,
-        StatusBuilder::new().success().build(),
-        0x01,
-        &pubkey_exchange_data,
-    );
-    let body = create_iccoa_body(
-        MessageType::AUTH,
-        message_data,
-    );
-
-    Ok(create_iccoa(header, body))
-}
-
-pub fn create_iccoa_standard_auth_pubkey_exchange_response(transaction_id: u16, status: Status, mobile_temp_pubkey: &[u8], mobile_id: &[u8]) -> Result<ICCOA> {
-    if mobile_temp_pubkey.len() != *MOBILE_TEMP_PUBKEY_LENGTH {
-        return Err(ErrorKind::ICCOAAuthError("mobile temp pubkey length error".to_string()).into());
-    }
-    if mobile_id.len() != *MOBILE_ID_LENGTH {
-        return Err(ErrorKind::ICCOAAuthError("mobile id length error".to_string()).into());
-    }
-    let header = create_iccoa_header(
-        PacketType::REPLY_PACKET,
-        transaction_id,
-        1+2+88,
-        Mark {
-            encrypt_type: EncryptType::ENCRYPT_BEFORE_AUTH,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
-    );
-
-    let mut pubkey_exchange_data = Vec::new();
-    pubkey_exchange_data.push(0x84);
-    pubkey_exchange_data.push(0x43);
-    pubkey_exchange_data.append(&mut mobile_temp_pubkey.to_vec());
-    pubkey_exchange_data.push(0x89);
-    pubkey_exchange_data.push(0x10);
-    pubkey_exchange_data.append(&mut mobile_id.to_vec());
-    let message_data = create_iccoa_body_message_data(
-        true,
-        status,
-        0x01,
-        &pubkey_exchange_data,
-    );
-    let body = create_iccoa_body(
-        MessageType::AUTH,
-        message_data,
-    );
-
-    Ok(create_iccoa(header, body))
-}
-
-pub fn create_iccoa_standard_auth_request(transaction_id: u16, vehicle_signature: &[u8]) -> Result<ICCOA> {
-    if vehicle_signature.len() != *VEHICLE_SIGNATURE_LENGTH {
-        return Err(ErrorKind::ICCOAAuthError("vehicle signature length error".to_string()).into());
-    }
-    let header = create_iccoa_header(
-        PacketType::REQUEST_PACKET,
-        transaction_id,
-        1+69,
-        Mark {
-            encrypt_type: EncryptType::ENCRYPT_BEFORE_AUTH,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
-    );
-
-    let mut auth_data = Vec::new();
-    auth_data.push(0x86);
-    auth_data.push(0x40);
-    auth_data.append(&mut vehicle_signature.to_vec());
-    let message_data = create_iccoa_body_message_data(
-        false,
-        StatusBuilder::new().success().build(),
-        0x02,
-        &auth_data,
-    );
-    let body = create_iccoa_body(
-        MessageType::AUTH,
-        message_data,
-    );
-
-    Ok(create_iccoa(header, body))
-}
-
-pub fn create_iccoa_standard_auth_response(transaction_id: u16, status: Status, mobile_signature: &[u8]) -> Result<ICCOA> {
-    if mobile_signature.len() != *MOBILE_SIGNATURE_LENGTH {
-        return Err(ErrorKind::ICCOAAuthError("mobile signature length error".to_string()).into());
-    }
-    let header = create_iccoa_header(
-        PacketType::REPLY_PACKET,
-        transaction_id,
-        1+2+69,
-        Mark {
-            encrypt_type: EncryptType::ENCRYPT_BEFORE_AUTH,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
-    );
-
-    let mut auth_data = Vec::new();
-    auth_data.push(0x87);
-    auth_data.push(0x40);
-    auth_data.append(&mut mobile_signature.to_vec());
-    let message_data = create_iccoa_body_message_data(
-        true,
-        status,
-        0x02,
-        &auth_data,
-    );
-    let body = create_iccoa_body(
-        MessageType::AUTH,
-        message_data,
-    );
-
-    Ok(create_iccoa(header, body))
-}
-
-pub fn create_iccoa_standard_auth_friend_request(transaction_id: u16, friend_key_data_request: &[u8]) -> Result<ICCOA> {
-    let header = create_iccoa_header(
-        PacketType::REQUEST_PACKET,
-        transaction_id,
-        1+3+friend_key_data_request.len() as u16,
-        Mark {
-            encrypt_type: EncryptType::ENCRYPT_BEFORE_AUTH,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
-    );
-
-    let mut friend_key_data = Vec::new();
-    friend_key_data.push(0x71);
-    friend_key_data.push(friend_key_data_request.len() as u8);
-    friend_key_data.append(&mut friend_key_data_request.to_vec());
-    let message_data = create_iccoa_body_message_data(
-        false,
-        StatusBuilder::new().success().build(),
-        0x03,
-        &friend_key_data,
-    );
-    let body = create_iccoa_body(
-        MessageType::AUTH,
-        message_data,
-    );
-
-    Ok(create_iccoa(header, body))
-}
-
-pub fn create_iccoa_standard_auth_friend_response(transaction_id: u16, status: Status, friend_key_shared_info: &[u8]) -> Result<ICCOA> {
-    let header = create_iccoa_header(
-        PacketType::REPLY_PACKET,
-        transaction_id,
-        1+2+3+friend_key_shared_info.len() as u16,
-        Mark {
-            encrypt_type: EncryptType::ENCRYPT_BEFORE_AUTH,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
-    );
-
-    let mut friend_key_data = Vec::new();
-    friend_key_data.push(0x71);
-    friend_key_data.push(friend_key_shared_info.len() as u8);
-    friend_key_data.append(&mut friend_key_shared_info.to_vec());
-    let message_data = create_iccoa_body_message_data(
-        true,
-        status,
-        0x03,
-        &friend_key_data,
-    );
-    let body = create_iccoa_body(
-        MessageType::AUTH,
-        message_data,
-    );
-
-    Ok(create_iccoa(header, body))
-}
-
-pub fn create_iccoa_standard_auth_write_request(transaction_id: u16, tag: u8, write_data: &[u8]) -> Result<ICCOA> {
-    let header = create_iccoa_header(
-        PacketType::REQUEST_PACKET,
-        transaction_id,
-        1+3+write_data.len() as u16,
-        Mark {
-            encrypt_type: EncryptType::ENCRYPT_BEFORE_AUTH,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
-    );
-
-    let mut auth_write_data = Vec::new();
-    auth_write_data.push(tag);
-    auth_write_data.push(write_data.len() as u8);
-    auth_write_data.append(&mut write_data.to_vec());
-    let message_data = create_iccoa_body_message_data(
-        false,
-        StatusBuilder::new().success().build(),
-        0x04,
-        &auth_write_data,
-    );
-    let body = create_iccoa_body(
-        MessageType::AUTH,
-        message_data,
-    );
-
-    Ok(create_iccoa(header, body))
-}
-
-pub fn create_iccoa_standard_auth_write_response(transaction_id: u16, status: Status) -> Result<ICCOA> {
-    let header = create_iccoa_header(
-        PacketType::REPLY_PACKET,
-        transaction_id,
-        1+2+3,
-        Mark {
-            encrypt_type: EncryptType::ENCRYPT_BEFORE_AUTH,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
-    );
-
-    let message_data = create_iccoa_body_message_data(
-        true,
-        status,
-        0x04,
-        &[],
-    );
-    let body = create_iccoa_body(
-        MessageType::AUTH,
-        message_data,
-    );
-
-    Ok(create_iccoa(header, body))
-}
-
-pub fn create_iccoa_standard_auth_read_request(transaction_id: u16, tag: u8, read_list: &[u8]) -> Result<ICCOA> {
-    let header = create_iccoa_header(
-        PacketType::REQUEST_PACKET,
-        transaction_id,
-        1+3+read_list.len() as u16,
-        Mark {
-            encrypt_type: EncryptType::ENCRYPT_BEFORE_AUTH,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
-    );
-
-    let mut read_data = Vec::new();
-    read_data.push(tag);
-    read_data.push(read_list.len() as u8);
-    read_data.append(&mut read_list.to_vec());
-    let message_data = create_iccoa_body_message_data(
-        false,
-        StatusBuilder::new().success().build(),
-        0x05,
-        &read_data,
-    );
-    let body = create_iccoa_body(
-        MessageType::AUTH,
-        message_data,
-    );
-
-    Ok(create_iccoa(header, body))
-}
-
-pub fn create_iccoa_standard_auth_read_response(transaction_id: u16, status: Status, tag: u8, read_data: &[u8]) -> Result<ICCOA> {
-    let header = create_iccoa_header(
-        PacketType::REPLY_PACKET,
-        transaction_id,
-        1+2+3+read_data.len() as u16,
-        Mark {
-            encrypt_type: EncryptType::ENCRYPT_BEFORE_AUTH,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
-    );
-
-    let mut read_data_buffer = Vec::new();
-    read_data_buffer.push(tag);
-    read_data_buffer.push(read_data.len() as u8);
-    read_data_buffer.append(&mut read_data.to_vec());
-    let message_data = create_iccoa_body_message_data(
-        true,
-        status,
-        0x05,
-        &read_data_buffer,
-    );
-    let body = create_iccoa_body(
-        MessageType::AUTH,
-        message_data,
-    );
-
-    Ok(create_iccoa(header, body))
-}
-
-pub fn create_iccoa_fast_auth_pubkey_exchange_request(transaction_id: u16, vehicle_temp_pubkey: &[u8], vehicle_id: &[u8]) -> Result<ICCOA> {
-    if vehicle_temp_pubkey.len() != *VEHICLE_TEMP_PUBKEY_LENGTH {
-        return Err(ErrorKind::ICCOAAuthError("vehicle temp pubkey length error".to_string()).into());
-    }
-    if vehicle_id.len() != *VEHICLE_ID_LENGTH {
-        return Err(ErrorKind::ICCOAAuthError("vehicle id length error".to_string()).into());
-    }
-    let header = create_iccoa_header(
-        PacketType::REQUEST_PACKET,
-        transaction_id,
-        1+88,
+        1+3+payload_length as u16,
         Mark {
             encrypt_type: super::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
             more_fragment: false,
             fragment_offset: 0x0000,
-        },
+        }
     );
 
-    let mut pubkey_exchange_data = Vec::new();
-    pubkey_exchange_data.push(0x81);
-    pubkey_exchange_data.push(0x41);
-    pubkey_exchange_data.append(&mut vehicle_temp_pubkey.to_vec());
-    pubkey_exchange_data.push(0x83);
-    pubkey_exchange_data.push(0x10);
-    pubkey_exchange_data.append(&mut vehicle_id.to_vec());
     let message_data = create_iccoa_body_message_data(
         false,
         StatusBuilder::new().success().build(),
-        0xC1,
-        &pubkey_exchange_data,
+        tag,
+        &payload_data,
     );
     let body = create_iccoa_body(
-        MessageType::AUTH,
+        super::objects::MessageType::AUTH,
         message_data,
     );
 
     Ok(create_iccoa(header, body))
 }
 
-pub fn create_iccoa_fast_auth_pubkey_exchange_response(transaction_id: u16, status: Status, mobile_temp_pubkey: &[u8], mobile_id: &[u8]) -> Result<ICCOA> {
-    if mobile_temp_pubkey.len() != *MOBILE_TEMP_PUBKEY_LENGTH {
-        return Err(ErrorKind::ICCOAAuthError("mobile temp pubkey length error".to_string()).into());
-    }
-    if mobile_id.len() != *MOBILE_ID_LENGTH {
-        return Err(ErrorKind::ICCOAAuthError("mobile id length error".to_string()).into());
-    }
+fn create_iccoa_auth_response(transaction_id: u16, status: Status, tag: u8, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    let mut payload_data= Vec::new();
+    let mut payload_length = 0x00;
+    payloads.iter().for_each(|p| {
+        payload_length += 2+p.value.len();
+        payload_data.append(&mut p.serialize());
+    });
+
     let header = create_iccoa_header(
-        PacketType::REPLY_PACKET,
+        super::objects::PacketType::REPLY_PACKET,
         transaction_id,
-        1+2+88,
+        1+2+3+payload_length as u16,
         Mark {
-            encrypt_type: EncryptType::ENCRYPT_BEFORE_AUTH,
+            encrypt_type: super::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
             more_fragment: false,
             fragment_offset: 0x0000,
         }
     );
 
-    let mut pubkey_exchange_data = Vec::new();
-    pubkey_exchange_data.push(0x84);
-    pubkey_exchange_data.push(0x43);
-    pubkey_exchange_data.append(&mut mobile_temp_pubkey.to_vec());
-    pubkey_exchange_data.push(0x89);
-    pubkey_exchange_data.push(0x10);
-    pubkey_exchange_data.append(&mut mobile_id.to_vec());
     let message_data = create_iccoa_body_message_data(
         true,
         status,
-        0xC1,
-        &pubkey_exchange_data,
+        tag,
+        &payload_data,
     );
     let body = create_iccoa_body(
-        MessageType::AUTH,
+        super::objects::MessageType::AUTH,
         message_data,
     );
 
     Ok(create_iccoa(header, body))
 }
 
-pub fn create_iccoa_fast_auth_request(transaction_id: u16, vehicle_fast_auth_data: &[u8]) -> Result<ICCOA> {
-    if vehicle_fast_auth_data.len() != *VEHICLE_FAST_AUTH_DATA_LENGTH {
-        return Err(ErrorKind::ICCOAAuthError("fast auth data length error".to_string()).into());
-    }
-    let header = create_iccoa_header(
-        PacketType::REQUEST_PACKET,
-        transaction_id,
-        1+19,
-        Mark {
-            encrypt_type: EncryptType::ENCRYPT_BEFORE_AUTH,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
-    );
-    let mut fast_auth_data = Vec::new();
-    fast_auth_data.push(0x88);
-    fast_auth_data.push(vehicle_fast_auth_data.len() as u8);
-    fast_auth_data.append(&mut vehicle_fast_auth_data.to_vec());
-    let message_data = create_iccoa_body_message_data(
-        false,
-        StatusBuilder::new().success().build(),
-        0xC2,
-        &fast_auth_data,
-    );
-    let body = create_iccoa_body(
-        MessageType::AUTH,
-        message_data,
-    );
 
-    Ok(create_iccoa(header, body))
+pub fn create_iccoa_standard_auth_pubkey_exchange_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    return create_iccoa_auth_request(transaction_id, 0x01, payloads)
+}
+
+pub fn create_iccoa_standard_auth_pubkey_exchange_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    return create_iccoa_auth_response(transaction_id, status, 0x01, payloads)
+}
+
+pub fn create_iccoa_standard_auth_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    return create_iccoa_auth_request(transaction_id, 0x02, payloads)
+}
+
+pub fn create_iccoa_standard_auth_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    return create_iccoa_auth_response(transaction_id, status, 0x02, payloads)
+}
+
+pub fn create_iccoa_standard_auth_friend_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    return create_iccoa_auth_request(transaction_id, 0x03, payloads)
+}
+
+pub fn create_iccoa_standard_auth_friend_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    return create_iccoa_auth_response(transaction_id, status, 0x03, payloads)
+}
+
+pub fn create_iccoa_standard_auth_write_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    return create_iccoa_auth_request(transaction_id, 0x04, payloads)
+}
+
+pub fn create_iccoa_standard_auth_write_response(transaction_id: u16, status: Status) -> Result<ICCOA> {
+    return create_iccoa_auth_response(transaction_id, status, 0x04, &[])
+}
+
+pub fn create_iccoa_standard_auth_read_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    return create_iccoa_auth_request(transaction_id, 0x05, payloads)
+}
+
+pub fn create_iccoa_standard_auth_read_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    return create_iccoa_auth_response(transaction_id, status, 0x05, payloads)
+}
+
+pub fn create_iccoa_fast_auth_pubkey_exchange_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    return create_iccoa_auth_request(transaction_id, 0xC1, payloads)
+}
+
+pub fn create_iccoa_fast_auth_pubkey_exchange_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    return create_iccoa_auth_response(transaction_id, status, 0xC1, payloads)
+}
+
+pub fn create_iccoa_fast_auth_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    return create_iccoa_auth_request(transaction_id, 0xC2, payloads)
 }
 
 pub fn create_iccoa_fast_auth_response(transaction_id: u16, status: Status) -> Result<ICCOA> {
-    let header = create_iccoa_header(
-        PacketType::REPLY_PACKET,
-        transaction_id,
-        1+2+3,
-        Mark {
-            encrypt_type: EncryptType::ENCRYPT_BEFORE_AUTH,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
-    );
-    let message_data = create_iccoa_body_message_data(
-        true,
-        status,
-        0xC2,
-        &[],
-    );
-    let body = create_iccoa_body(
-        MessageType::AUTH,
-        message_data,
-    );
-    
-    Ok(create_iccoa(header, body))
+    return create_iccoa_auth_response(transaction_id, status, 0xC2, &[])
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::iccoa::objects::{Header, Body, MessageData};
+    use crate::iccoa::{objects::{Header, Body, MessageData, PacketType, EncryptType, MessageType}, TLVPayloadBuilder};
     use super::*;
 
     #[test]
@@ -477,7 +146,9 @@ mod tests {
         let transaction_id = 0x0001;
         let vehicle_temp_pubkey = [0x01; 65];
         let vehicle_id = [0x10; 16];
-        let iccoa = create_iccoa_standard_auth_pubkey_exchange_request(transaction_id, &vehicle_temp_pubkey, &vehicle_id).unwrap();
+        let vehicle_temp_pubkey_payload = TLVPayloadBuilder::new().set_tag(0x81).set_value(&vehicle_temp_pubkey).build();
+        let vehicle_id_payload = TLVPayloadBuilder::new().set_tag(0x83).set_value(&vehicle_id).build();
+        let iccoa = create_iccoa_standard_auth_pubkey_exchange_request(transaction_id, &[vehicle_temp_pubkey_payload, vehicle_id_payload]).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: PacketType::REQUEST_PACKET,
@@ -495,17 +166,19 @@ mod tests {
                 message_data: MessageData {
                     tag: 0x01,
                     value: vec![
-                        129, 67, 1, 1, 1, 1, 1, 1,
-                        1, 1, 1, 1, 1, 1, 1, 1,
-                        1, 1, 1, 1, 1, 1, 1, 1,
-                        1, 1, 1, 1, 1, 1, 1, 1,
-                        1, 1, 1, 1, 1, 1, 1, 1,
-                        1, 1, 1, 1, 1, 1, 1, 1,
-                        1, 1, 1, 1, 1, 1, 1, 1,
-                        1, 1, 1, 1, 1, 1, 1, 1,
-                        1, 1, 1, 131, 16, 16, 16, 16,
-                        16, 16, 16, 16, 16, 16, 16, 16,
-                        16, 16, 16, 16, 16
+                        0x81, 0x41,
+                        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                        0x01,
+                        0x83, 0x10,
+                        0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
+                        0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10
                     ],
                     ..Default::default()
                 },
@@ -519,7 +192,9 @@ mod tests {
         let status = StatusBuilder::new().success().build();
         let mobile_temp_pubkey = [0x02; 65];
         let mobile_id = [0x20; 16];
-        let iccoa = create_iccoa_standard_auth_pubkey_exchange_response(transaction_id, status, &mobile_temp_pubkey, &mobile_id).unwrap();
+        let mobile_temp_pubkey_payload = TLVPayloadBuilder::new().set_tag(0x84).set_value(&mobile_temp_pubkey).build();
+        let mobile_id_payload = TLVPayloadBuilder::new().set_tag(0x89).set_value(&mobile_id).build();
+        let iccoa = create_iccoa_standard_auth_pubkey_exchange_response(transaction_id, status, &[mobile_temp_pubkey_payload, mobile_id_payload]).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: PacketType::REPLY_PACKET,
@@ -538,17 +213,19 @@ mod tests {
                     status: StatusBuilder::new().success().build(),
                     tag: 0x01,
                     value: vec![
-                        132, 67, 2, 2, 2, 2, 2, 2,
-                        2, 2, 2, 2, 2, 2, 2, 2,
-                        2, 2, 2, 2, 2, 2, 2, 2,
-                        2, 2, 2, 2, 2, 2, 2, 2,
-                        2, 2, 2, 2, 2, 2, 2, 2,
-                        2, 2, 2, 2, 2, 2, 2, 2,
-                        2, 2, 2, 2, 2, 2, 2, 2,
-                        2, 2, 2, 2, 2, 2, 2, 2,
-                        2, 2, 2, 137, 16, 32, 32, 32,
-                        32, 32, 32, 32, 32, 32, 32, 32,
-                        32, 32, 32, 32, 32
+                        0x84, 0x41,
+                        0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                        0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                        0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                        0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                        0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                        0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                        0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                        0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                        0x02,
+                        0x89, 0x10,
+                        0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
+                        0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20
                     ],
                 },
             },
@@ -559,7 +236,8 @@ mod tests {
     fn test_standard_auth_request() {
         let transaction_id = 0x0002;
         let vehicle_signature = [0x03; 64];
-        let iccoa = create_iccoa_standard_auth_request(transaction_id, &vehicle_signature).unwrap();
+        let vehicle_signature_payload = TLVPayloadBuilder::new().set_tag(0x86).set_value(&vehicle_signature).build();
+        let iccoa = create_iccoa_standard_auth_request(transaction_id, &[vehicle_signature_payload]).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: PacketType::REQUEST_PACKET,
@@ -577,15 +255,15 @@ mod tests {
                 message_data: MessageData {
                     tag: 0x02,
                     value: vec![
-                        134, 64, 3, 3, 3, 3, 3, 3,
-                        3, 3, 3, 3, 3, 3, 3, 3,
-                        3, 3, 3, 3, 3, 3, 3, 3,
-                        3, 3, 3, 3, 3, 3, 3, 3,
-                        3, 3, 3, 3, 3, 3, 3, 3,
-                        3, 3, 3, 3, 3, 3, 3, 3,
-                        3, 3, 3, 3, 3, 3, 3, 3,
-                        3, 3, 3, 3, 3, 3, 3, 3,
-                        3, 3
+                        0x86, 0x40,
+                        0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                        0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                        0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                        0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                        0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                        0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                        0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                        0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03
                     ],
                     ..Default::default()
                 },
@@ -598,7 +276,8 @@ mod tests {
         let transaction_id = 0x0002;
         let status = StatusBuilder::new().success().build();
         let mobile_signature = [0x30; 64];
-        let iccoa = create_iccoa_standard_auth_response(transaction_id, status, &mobile_signature).unwrap();
+        let mobile_signature_payload = TLVPayloadBuilder::new().set_tag(0x87).set_value(&mobile_signature).build();
+        let iccoa = create_iccoa_standard_auth_response(transaction_id, status, &[mobile_signature_payload]).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: PacketType::REPLY_PACKET,
@@ -617,15 +296,15 @@ mod tests {
                     status: StatusBuilder::new().success().build(),
                     tag: 0x02,
                     value: vec![
-                        135, 64, 48, 48, 48, 48, 48, 48,
-                        48, 48, 48, 48, 48, 48, 48, 48,
-                        48, 48, 48, 48, 48, 48, 48, 48,
-                        48, 48, 48, 48, 48, 48, 48, 48,
-                        48, 48, 48, 48, 48, 48, 48, 48,
-                        48, 48, 48, 48, 48, 48, 48, 48,
-                        48, 48, 48, 48, 48, 48, 48, 48,
-                        48, 48, 48, 48, 48, 48, 48, 48,
-                        48, 48
+                        0x87, 0x40,
+                        0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
+                        0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
+                        0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
+                        0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
+                        0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
+                        0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
+                        0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
+                        0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30
                     ],
                 },
             },
@@ -636,12 +315,13 @@ mod tests {
     fn test_friend_key_data_request() {
         let transaction_id = 0x0003;
         let friend_key_data = [0x04; 64];
-        let iccoa = create_iccoa_standard_auth_friend_request(transaction_id, &friend_key_data).unwrap();
+        let friend_key_data_payload = TLVPayloadBuilder::new().set_tag(0x71).set_value(&friend_key_data).build();
+        let iccoa = create_iccoa_standard_auth_friend_request(transaction_id, &[friend_key_data_payload]).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: PacketType::REQUEST_PACKET,
                 dest_transaction_id: 0x0003,
-                pdu_length: 12+1+3+friend_key_data.len() as u16+8,
+                pdu_length: 12+1+3+2+friend_key_data.len() as u16+8,
                 mark: Mark {
                     encrypt_type: EncryptType::ENCRYPT_BEFORE_AUTH,
                     more_fragment: false,
@@ -654,15 +334,15 @@ mod tests {
                 message_data: MessageData {
                     tag: 0x03,
                     value: vec![
-                        113, 64, 4, 4, 4, 4, 4, 4,
-                        4, 4, 4, 4, 4, 4, 4, 4,
-                        4, 4, 4, 4, 4, 4, 4, 4,
-                        4, 4, 4, 4, 4, 4, 4, 4,
-                        4, 4, 4, 4, 4, 4, 4, 4,
-                        4, 4, 4, 4, 4, 4, 4, 4,
-                        4, 4, 4, 4, 4, 4, 4, 4,
-                        4, 4, 4, 4, 4, 4, 4, 4,
-                        4, 4
+                        0x71, 0x40,
+                        0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                        0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                        0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                        0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                        0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                        0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                        0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                        0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04
                     ],
                     ..Default::default()
                 }
@@ -675,12 +355,13 @@ mod tests {
         let transaction_id = 0x0003;
         let status = StatusBuilder::new().success().build();
         let friend_key_shared_info = [0x40; 64];
-        let iccoa = create_iccoa_standard_auth_friend_response(transaction_id, status, &friend_key_shared_info).unwrap();
+        let friend_key_shared_info_payload = TLVPayloadBuilder::new().set_tag(0x71).set_value(&friend_key_shared_info).build();
+        let iccoa = create_iccoa_standard_auth_friend_response(transaction_id, status, &[friend_key_shared_info_payload]).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: PacketType::REPLY_PACKET,
                 source_transaction_id: 0x0003,
-                pdu_length: 12+1+2+3+friend_key_shared_info.len() as u16+8,
+                pdu_length: 12+1+2+3+2+friend_key_shared_info.len() as u16+8,
                 mark: Mark {
                     encrypt_type: EncryptType::ENCRYPT_BEFORE_AUTH,
                     more_fragment: false,
@@ -694,15 +375,15 @@ mod tests {
                     status: StatusBuilder::new().success().build(),
                     tag: 0x03,
                     value: vec![
-                        113, 64, 64, 64, 64, 64, 64, 64,
-                        64, 64, 64, 64, 64, 64, 64, 64,
-                        64, 64, 64, 64, 64, 64, 64, 64,
-                        64, 64, 64, 64, 64, 64, 64, 64,
-                        64, 64, 64, 64, 64, 64, 64, 64,
-                        64, 64, 64, 64, 64, 64, 64, 64,
-                        64, 64, 64, 64, 64, 64, 64, 64,
-                        64, 64, 64, 64, 64, 64, 64, 64,
-                        64, 64
+                        0x71, 0x40,
+                        0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
+                        0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
+                        0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
+                        0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
+                        0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
+                        0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
+                        0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
+                        0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40
                     ],
                 },
             },
@@ -712,14 +393,14 @@ mod tests {
     #[test]
     fn test_write_request() {
         let transaction_id = 0x0004;
-        let tag = 0x01;
         let write_data = [0x05; 32];
-        let iccoa = create_iccoa_standard_auth_write_request(transaction_id, tag, &write_data).unwrap();
+        let write_data_payload = TLVPayloadBuilder::new().set_tag(0x72).set_value(&write_data).build();
+        let iccoa = create_iccoa_standard_auth_write_request(transaction_id, &[write_data_payload]).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: PacketType::REQUEST_PACKET,
                 dest_transaction_id: 0x0004,
-                pdu_length: 12+1+3+write_data.len() as u16+8,
+                pdu_length: 12+1+3+2+write_data.len() as u16+8,
                 mark: Mark {
                     encrypt_type: EncryptType::ENCRYPT_BEFORE_AUTH,
                     more_fragment: false,
@@ -732,11 +413,11 @@ mod tests {
                 message_data: MessageData {
                     tag: 0x04,
                     value: vec![
-                        1, 32, 5, 5, 5, 5, 5, 5,
-                        5, 5, 5, 5, 5, 5, 5, 5,
-                        5, 5, 5, 5, 5, 5, 5, 5,
-                        5, 5, 5, 5, 5, 5, 5, 5,
-                        5, 5
+                        0x72, 0x20,
+                        0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+                        0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+                        0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+                        0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05
                     ],
                     ..Default::default()
                 }
@@ -775,14 +456,16 @@ mod tests {
     #[test]
     fn test_read_request() {
         let transaction_id = 0x0005;
-        let tag = 0x01;
         let read_list = vec![0x01, 0x02, 0x03];
-        let iccoa = create_iccoa_standard_auth_read_request(transaction_id, tag, &read_list).unwrap();
+        let payload1 = TLVPayloadBuilder::new().set_tag(0x01).build();
+        let payload2 = TLVPayloadBuilder::new().set_tag(0x02).build();
+        let payload3 = TLVPayloadBuilder::new().set_tag(0x03).build();
+        let iccoa = create_iccoa_standard_auth_read_request(transaction_id, &[payload1, payload2, payload3]).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: PacketType::REQUEST_PACKET,
                 dest_transaction_id: 0x0005,
-                pdu_length: 12+1+3+read_list.len() as u16+8,
+                pdu_length: 12+1+3+2*3+8,
                 mark: Mark {
                     encrypt_type: EncryptType::ENCRYPT_BEFORE_AUTH,
                     more_fragment: false,
@@ -795,7 +478,9 @@ mod tests {
                 message_data: MessageData {
                     tag: 0x05,
                     value: vec![
-                        1, 3, 1, 2, 3
+                        0x01, 0x00,
+                        0x02, 0x00,
+                        0x03, 0x00
                     ],
                     ..Default::default()
                 }
@@ -807,14 +492,18 @@ mod tests {
     fn test_read_response() {
         let transaction_id = 0x0005;
         let status = StatusBuilder::new().success().build();
-        let tag = 0x01;
-        let read_data = [0x50; 32];
-        let iccoa = create_iccoa_standard_auth_read_response(transaction_id, status, tag, &read_data).unwrap();
+        let data1 = [0x50; 16];
+        let data2 = [0x60; 16];
+        let data3 = [0x70; 16];
+        let payload1 = TLVPayloadBuilder::new().set_tag(0x01).set_value(&data1).build();
+        let payload2 = TLVPayloadBuilder::new().set_tag(0x02).set_value(&data2).build();
+        let payload3 = TLVPayloadBuilder::new().set_tag(0x03).set_value(&data3).build();
+        let iccoa = create_iccoa_standard_auth_read_response(transaction_id, status, &[payload1, payload2, payload3]).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: PacketType::REPLY_PACKET,
                 source_transaction_id: 0x0005,
-                pdu_length: 12+1+2+3+read_data.len() as u16+8,
+                pdu_length: 12+1+2+3+18*3+8,
                 mark: Mark {
                     encrypt_type: EncryptType::ENCRYPT_BEFORE_AUTH,
                     more_fragment: false,
@@ -828,11 +517,15 @@ mod tests {
                     status: StatusBuilder::new().success().build(),
                     tag: 0x05,
                     value: vec![
-                        1, 32, 80, 80, 80, 80, 80, 80,
-                        80, 80, 80, 80, 80, 80, 80, 80,
-                        80, 80, 80, 80, 80, 80, 80, 80,
-                        80, 80, 80, 80, 80, 80, 80, 80,
-                        80, 80
+                        0x01, 0x10,
+                        0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50,
+                        0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50,
+                        0x02, 0x10,
+                        0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60,
+                        0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60,
+                        0x03, 0x10,
+                        0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70,
+                        0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70
                     ],
                 },
             },
@@ -844,12 +537,14 @@ mod tests {
         let transaction_id = 0x0006;
         let vehicle_temp_pubkey = [0x06; 65];
         let vehicle_id = [0x60; 16];
-        let iccoa = create_iccoa_fast_auth_pubkey_exchange_request(transaction_id, &vehicle_temp_pubkey, &vehicle_id).unwrap();
+        let vehicle_temp_pubkey_payload = TLVPayloadBuilder::new().set_tag(0x81).set_value(&vehicle_temp_pubkey).build();
+        let vehicle_id_payload = TLVPayloadBuilder::new().set_tag(0x83).set_value(&vehicle_id).build();
+        let iccoa = create_iccoa_fast_auth_pubkey_exchange_request(transaction_id, &[vehicle_temp_pubkey_payload, vehicle_id_payload]).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: PacketType::REQUEST_PACKET,
                 dest_transaction_id: 0x0006,
-                pdu_length: 12+1+88+8,
+                pdu_length: 12+1+3+67+18+8,
                 mark: Mark {
                     encrypt_type: EncryptType::ENCRYPT_BEFORE_AUTH,
                     more_fragment: false,
@@ -862,17 +557,19 @@ mod tests {
                 message_data: MessageData {
                     tag: 0xC1,
                     value: vec![
-                        129, 65, 6, 6, 6, 6, 6, 6,
-                        6, 6, 6, 6, 6, 6, 6, 6,
-                        6, 6, 6, 6, 6, 6, 6, 6,
-                        6, 6, 6, 6, 6, 6, 6, 6,
-                        6, 6, 6, 6, 6, 6, 6, 6,
-                        6, 6, 6, 6, 6, 6, 6, 6,
-                        6, 6, 6, 6, 6, 6, 6, 6,
-                        6, 6, 6, 6, 6, 6, 6, 6, 
-                        6, 6, 6, 131, 16, 96, 96, 96,
-                        96, 96, 96, 96, 96, 96, 96, 96,
-                        96, 96, 96, 96, 96
+                        0x81, 0x41,
+                        0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06,
+                        0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06,
+                        0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06,
+                        0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06,
+                        0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06,
+                        0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06,
+                        0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06,
+                        0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06,
+                        0x06,
+                        0x83, 0x10,
+                        0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60,
+                        0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60
                     ],
                     ..Default::default()
                 }
@@ -886,12 +583,14 @@ mod tests {
         let status = StatusBuilder::new().success().build();
         let mobile_temp_pubkey = [0x07; 65];
         let mobile_id = [0x70; 16];
-        let iccoa = create_iccoa_fast_auth_pubkey_exchange_response(transaction_id, status, &mobile_temp_pubkey, &mobile_id).unwrap();
+        let mobile_temp_pubkey_payload = TLVPayloadBuilder::new().set_tag(0x84).set_value(&mobile_temp_pubkey).build();
+        let mobile_id_payload = TLVPayloadBuilder::new().set_tag(0x89).set_value(&mobile_id).build();
+        let iccoa = create_iccoa_fast_auth_pubkey_exchange_response(transaction_id, status, &[mobile_temp_pubkey_payload, mobile_id_payload]).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: PacketType::REPLY_PACKET,
                 source_transaction_id: 0x0006,
-                pdu_length: 12+1+2+88+8,
+                pdu_length: 12+1+2+3+67+18+8,
                 mark: Mark {
                     encrypt_type: EncryptType::ENCRYPT_BEFORE_AUTH,
                     more_fragment: false,
@@ -905,17 +604,19 @@ mod tests {
                     status: StatusBuilder::new().success().build(),
                     tag: 0xC1,
                     value: vec![
-                        132, 67, 7, 7, 7, 7, 7, 7,
-                        7, 7, 7, 7, 7, 7, 7, 7,
-                        7, 7, 7, 7, 7, 7, 7, 7,
-                        7, 7, 7, 7, 7, 7, 7, 7,
-                        7, 7, 7, 7, 7, 7, 7, 7,
-                        7, 7, 7, 7, 7, 7, 7, 7,
-                        7, 7, 7, 7, 7, 7, 7, 7,
-                        7, 7, 7, 7, 7, 7, 7, 7,
-                        7, 7, 7, 137, 16, 112, 112, 112,
-                        112, 112, 112, 112, 112, 112, 112, 112,
-                        112, 112, 112, 112, 112
+                        0x84, 0x41,
+                        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
+                        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
+                        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
+                        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
+                        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
+                        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
+                        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
+                        0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
+                        0x07,
+                        0x89, 0x10,
+                        0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70,
+                        0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70
                     ],
                 },
             },
@@ -926,12 +627,13 @@ mod tests {
     fn test_fast_auth_request() {
         let transaction_id = 0x0007;
         let vehicle_fast_auth_data = [0x08; 16];
-        let iccoa = create_iccoa_fast_auth_request(transaction_id, &vehicle_fast_auth_data).unwrap();
+        let vehicle_fast_auth_data_payload = TLVPayloadBuilder::new().set_tag(0x88).set_value(&vehicle_fast_auth_data).build();
+        let iccoa = create_iccoa_fast_auth_request(transaction_id, &[vehicle_fast_auth_data_payload]).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: PacketType::REQUEST_PACKET,
                 dest_transaction_id: 0x0007,
-                pdu_length: 12+1+19+8,
+                pdu_length: 12+1+3+18+8,
                 mark: Mark {
                     encrypt_type: EncryptType::ENCRYPT_BEFORE_AUTH,
                     more_fragment: false,
@@ -944,9 +646,9 @@ mod tests {
                 message_data: MessageData {
                     tag: 0xC2,
                     value: vec![
-                        136, 16, 8, 8, 8, 8, 8, 8,
-                        8, 8, 8, 8, 8, 8, 8, 8,
-                        8, 8
+                        0x88, 0x10,
+                        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
+                        0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08
                     ],
                     ..Default::default()
                 },

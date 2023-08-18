@@ -1,68 +1,12 @@
 use super::objects::{ICCOA, Mark, create_iccoa_header, create_iccoa_body_message_data, create_iccoa_body, create_iccoa};
-use super::errors::*;
+use super::{errors::*, TLVPayload};
 use super::status::{StatusBuilder, Status};
 
 lazy_static! {
-    static ref SPAKE2_PLUS_P_B_LENGTH: usize = 0x41;
     static ref SPAKE2_PLUS_P_A_LENGTH: usize = 0x41;
     static ref SPAKE2_PLUS_C_A_LENGTH: usize = 0x12;
     static ref SPAKE2_PLUS_C_B_LENGTH: usize = 0x12;
-}
-
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct Scrypt {
-    salt: [u8; 16],
-    nscrypt: [u8; 4],
-    r: [u8; 2],
-    p: [u8; 2],
-}
-
-impl Scrypt {
-    pub fn new() -> Self {
-        Scrypt {
-            ..Default::default()
-        }
-    }
-    pub fn set_salt(&mut self, salt: &[u8]) -> Result<()> {
-        if salt.len() != 16 {
-            return Err(ErrorKind::ICCOAPairingError("salt length error".to_string()).into());
-        }
-        self.salt = salt.try_into().map_err(|_| String::from("get salt value error"))?;
-        Ok(())
-    }
-    pub fn get_salt(&self) -> &[u8] {
-        &self.salt
-    }
-    pub fn set_nscrypt(&mut self, nscrypt: &[u8]) -> Result<()> {
-        if nscrypt.len() != 4 {
-            return Err(ErrorKind::ICCOAPairingError("nscrypt length error".to_string()).into());
-        }
-        self.nscrypt = nscrypt.try_into().map_err(|_| ErrorKind::ICCOAPairingError("get nscrypt value error".to_string()))?;
-        Ok(())
-    }
-    pub fn get_nscrypt(&self) -> &[u8] {
-        &self.nscrypt
-    }
-    pub fn set_r(&mut self, r: &[u8]) -> Result<()> {
-        if r.len() != 2 {
-            return Err(ErrorKind::ICCOAPairingError("r length error".to_string()).into());
-        }
-        self.r = r.try_into().map_err(|_| ErrorKind::ICCOAPairingError("get r value error".to_string()))?;
-        Ok(())
-    }
-    pub fn get_r(&self) -> &[u8] {
-        &self.r
-    }
-    pub fn set_p(&mut self, p: &[u8]) -> Result<()> {
-        if p.len() != 2 {
-            return Err(ErrorKind::ICCOAPairingError("p length error".to_string()).into());
-        }
-        self.p = p.try_into().map_err(|_| ErrorKind::ICCOAPairingError("get p value error".to_string()))?;
-        Ok(())
-    }
-    pub fn get_p(&self) -> &[u8] {
-        &self.p
-    }
+    static ref PAIRING_PAYLOAD_LENGTH_MINIMUM: usize = 0x02;
 }
 
 pub fn calculate_pB() -> [u8; 65] {
@@ -73,108 +17,42 @@ pub fn calculate_pA() -> [u8; 65] {
     [0x00; 65]
 }
 
-pub fn calculate_cB() -> [u8; 18] {
-    [0x00; 18]
+pub fn calculate_cB() -> [u8; 16] {
+    [0x00; 16]
 }
 
-pub fn calculate_cA() -> [u8; 18] {
-    [0x00; 18]
+pub fn calculate_cA() -> [u8; 16] {
+    [0x00; 16]
 }
 
 pub fn get_vehicle_certificate() -> Vec<u8> {
-    [0x01; 1024].to_vec()
+    [0x01; 16].to_vec()
 }
 
-pub fn get_mobile_device_certificate() -> Vec<u8> {
-    [0x02; 1024].to_vec()
+pub fn get_mobile_device_server_ca_certificate() -> Vec<u8> {
+    [0x02; 16].to_vec()
 }
 
-pub fn create_iccoa_pairing_data_request(transaction_id: u16, scrypt: &Scrypt, p_b: &[u8]) -> Result<ICCOA> {
-    if p_b.len() != *SPAKE2_PLUS_P_B_LENGTH {
-        return Err(ErrorKind::ICCOAPairingError("pB length is not correct!".to_string()).into());
-    }
+pub fn get_mobile_device_tee_ca_certificate() -> Vec<u8> {
+    [0x03; 16].to_vec()
+}
+
+pub fn get_carkey_certificate() -> Vec<u8> {
+    [0x04; 16].to_vec()
+}
+
+fn create_iccoa_pairing_request(transaction_id: u16, tag: u8, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    let mut payload_data= Vec::new();
+    let mut payload_length = 0x00;
+    payloads.iter().for_each(|p| {
+        payload_length += 2+p.value.len();
+        payload_data.append(&mut p.serialize());
+    });
+
     let header = create_iccoa_header(
         super::objects::PacketType::REQUEST_PACKET,
         transaction_id,
-        1+102,
-        Mark {
-            encrypt_type: super::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
-    );
-
-    let mut spake2_plus_data = Vec::new();
-    spake2_plus_data.push(0x51);
-    spake2_plus_data.push(0x41);
-    spake2_plus_data.append(&mut p_b.to_vec());
-    spake2_plus_data.push(0xC0);
-    spake2_plus_data.push(0x10);
-    spake2_plus_data.append(&mut scrypt.get_salt().to_vec());
-    spake2_plus_data.push(0xC1);
-    spake2_plus_data.push(0x04);
-    spake2_plus_data.append(&mut scrypt.get_nscrypt().to_vec());
-    spake2_plus_data.push(0xC2);
-    spake2_plus_data.push(0x02);
-    spake2_plus_data.append(&mut scrypt.get_r().to_vec());
-    spake2_plus_data.push(0xC3);
-    spake2_plus_data.push(0x02);
-    spake2_plus_data.append(&mut scrypt.get_p().to_vec());
-    let message_data = create_iccoa_body_message_data(
-        false,
-        StatusBuilder::new().success().build(),
-        0x02,
-        &spake2_plus_data,
-    );
-    let body = create_iccoa_body(
-        super::objects::MessageType::VEHICLE_PAIRING,
-        message_data,
-    );
-
-    Ok(create_iccoa(header, body))
-}
-
-pub fn create_iccoa_pairing_data_response(transaction_id: u16, status: Status, p_a: &[u8]) -> Result<ICCOA> {
-    if p_a.len() != *SPAKE2_PLUS_P_A_LENGTH {
-        return Err(ErrorKind::ICCOAPairingError("pA length is not correct!".to_string()).into());
-    }
-    let header = create_iccoa_header(
-        super::objects::PacketType::REPLY_PACKET,
-        transaction_id,
-        1+73,
-        Mark {
-            encrypt_type: super::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
-    );
-
-    let mut spack2_plus_data = Vec::new();
-    spack2_plus_data.push(0x52);
-    spack2_plus_data.push(0x41);
-    spack2_plus_data.append(&mut p_a.to_vec());
-    let message_data = create_iccoa_body_message_data(
-        true,
-        status,
-        0x02,
-        &spack2_plus_data,
-    );
-    let body = create_iccoa_body(
-        super::objects::MessageType::VEHICLE_PAIRING,
-        message_data,
-    );
-
-    Ok(create_iccoa(header, body))
-}
-
-pub fn create_iccoa_paring_auth_request(transaction_id: u16, c_b: &[u8]) -> Result<ICCOA> {
-    if c_b.len() != *SPAKE2_PLUS_C_B_LENGTH {
-        return Err(ErrorKind::ICCOAPairingError("cB length is not correct!".to_string()).into());
-    }
-    let header = create_iccoa_header(
-        super::objects::PacketType::REQUEST_PACKET,
-        transaction_id,
-        1+21,
+        1+3+payload_length as u16,
         Mark {
             encrypt_type: super::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
             more_fragment: false,
@@ -185,8 +63,8 @@ pub fn create_iccoa_paring_auth_request(transaction_id: u16, c_b: &[u8]) -> Resu
     let message_data = create_iccoa_body_message_data(
         false,
         StatusBuilder::new().success().build(),
-        0x03,
-        c_b,
+        tag,
+        &payload_data,
     );
     let body = create_iccoa_body(
         super::objects::MessageType::VEHICLE_PAIRING,
@@ -196,14 +74,18 @@ pub fn create_iccoa_paring_auth_request(transaction_id: u16, c_b: &[u8]) -> Resu
     Ok(create_iccoa(header, body))
 }
 
-pub fn create_iccoa_pairing_auth_response(transaction_id: u16, status: Status, c_a: &[u8]) -> Result<ICCOA> {
-    if c_a.len() != *SPAKE2_PLUS_C_A_LENGTH {
-        return Err(ErrorKind::ICCOAPairingError("cA length is not correct!".to_string()).into());
-    }
+fn create_iccoa_pairing_response(transaction_id: u16, status: Status, tag: u8, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    let mut payload_data= Vec::new();
+    let mut payload_length = 0x00;
+    payloads.iter().for_each(|p| {
+        payload_length += 2+p.value.len();
+        payload_data.append(&mut p.serialize());
+    });
+
     let header = create_iccoa_header(
         super::objects::PacketType::REPLY_PACKET,
         transaction_id,
-        1+23,
+        1+2+3+payload_length as u16,
         Mark {
             encrypt_type: super::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
             more_fragment: false,
@@ -214,8 +96,8 @@ pub fn create_iccoa_pairing_auth_response(transaction_id: u16, status: Status, c
     let message_data = create_iccoa_body_message_data(
         true,
         status,
-        0x03,
-        c_a,
+        tag,
+        &payload_data,
     );
     let body = create_iccoa_body(
         super::objects::MessageType::VEHICLE_PAIRING,
@@ -225,126 +107,58 @@ pub fn create_iccoa_pairing_auth_response(transaction_id: u16, status: Status, c
     Ok(create_iccoa(header, body))
 }
 
-pub fn create_iccoa_pairing_certificate_write_request(transaction_id: u16, vehicle_pub_cert: &[u8]) -> Result<ICCOA> {
-    let header = create_iccoa_header(
-        super::objects::PacketType::REQUEST_PACKET,
-        transaction_id,
-        1+3+vehicle_pub_cert.len() as u16,
-        Mark {
-            encrypt_type: super::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
-    );
+pub fn create_iccoa_pairing_data_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    return create_iccoa_pairing_request(transaction_id, 0x02, payloads)
+}
 
-    let message_data = create_iccoa_body_message_data(
-        false,
-        StatusBuilder::new().success().build(),
-        0x04,
-        vehicle_pub_cert,
-    );
-    let body = create_iccoa_body(
-        super::objects::MessageType::VEHICLE_PAIRING,
-        message_data,
-    );
+pub fn create_iccoa_pairing_data_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    return create_iccoa_pairing_response(transaction_id, status, 0x02, payloads)
+}
 
-    Ok(create_iccoa(header, body))
+pub fn create_iccoa_paring_auth_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    return create_iccoa_pairing_request(transaction_id, 0x03, payloads)
+}
+
+pub fn create_iccoa_pairing_auth_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    return create_iccoa_pairing_response(transaction_id, status, 0x03, payloads)
+}
+
+pub fn create_iccoa_pairing_certificate_write_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    return create_iccoa_pairing_request(transaction_id, 0x04, payloads)
 }
 
 pub fn create_iccoa_pairing_certificate_write_response(transaction_id: u16, status: Status) -> Result<ICCOA> {
-    let header = create_iccoa_header(
-        super::objects::PacketType::REPLY_PACKET,
-        transaction_id,
-        1+5,
-        Mark {
-            encrypt_type: super::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
-    );
-
-    let message_data = create_iccoa_body_message_data(
-        true,
-        status,
-        0x04,
-        &[],
-    );
-    let body = create_iccoa_body(
-        super::objects::MessageType::VEHICLE_PAIRING,
-        message_data,
-    );
-
-    Ok(create_iccoa(header, body))
+    return create_iccoa_pairing_response(transaction_id, status, 0x04, &[])
 }
 
-pub fn create_iccoa_pairing_certificate_read_request(transaction_id: u16, cert_type_list: &[u8]) -> Result<ICCOA> {
-    let header = create_iccoa_header(
-        super::objects::PacketType::REQUEST_PACKET,
-        transaction_id,
-        1+3+cert_type_list.len() as u16,
-        Mark {
-            encrypt_type: super::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
-    );
-
-    let message_data = create_iccoa_body_message_data(
-        false,
-        StatusBuilder::new().success().build(),
-        0x05,
-        cert_type_list,
-    );
-    let body = create_iccoa_body(
-        super::objects::MessageType::VEHICLE_PAIRING,
-        message_data,
-    );
-
-    Ok(create_iccoa(header, body))
+pub fn create_iccoa_pairing_certificate_read_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    return create_iccoa_pairing_request(transaction_id, 0x05, payloads)
 }
 
-pub fn create_iccoa_pairing_certificate_read_response(transaction_id: u16, status: Status, cert: &[u8]) -> Result<ICCOA> {
-    let header = create_iccoa_header(
-        super::objects::PacketType::REPLY_PACKET,
-        transaction_id,
-        1+5+cert.len() as u16,
-        Mark {
-            encrypt_type: super::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
-    );
-
-    let message_data = create_iccoa_body_message_data(
-        true,
-        status,
-        0x05,
-        cert,
-    );
-    let body = create_iccoa_body(
-        super::objects::MessageType::VEHICLE_PAIRING,
-        message_data,
-    );
-
-    Ok(create_iccoa(header, body))
+pub fn create_iccoa_pairing_certificate_read_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
+    return create_iccoa_pairing_response(transaction_id, status, 0x05, payloads)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::iccoa::objects::{Header, Body, MessageData};
+    use crate::iccoa::{objects::{Header, Body, MessageData}, TLVPayloadBuilder};
 
     use super::*;
 
     #[test]
     fn test_spake2_plus_data_request() {
         let transaction_id = 0x0001;
-        let mut scrypt = Scrypt::new();
-        scrypt.set_nscrypt(&[0x01, 0x02, 0x03, 0x04]).unwrap();
-        scrypt.set_salt(&[0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]).unwrap();
-        scrypt.set_r(&[0x01, 0x02]).unwrap();
-        scrypt.set_p(&[0x02, 0x01]).unwrap();
         let p_b = calculate_pB();
-        let iccoa = create_iccoa_pairing_data_request(transaction_id, &scrypt, &p_b).unwrap();
+        let p_b_payload = TLVPayloadBuilder::new().set_tag(0x51).set_value(&p_b).build();
+        let salt = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f];
+        let salt_payload = TLVPayloadBuilder::new().set_tag(0xC0).set_value(&salt).build();
+        let nscrypt = [0x01, 0x02, 0x03, 0x04];
+        let nscrypt_payload = TLVPayloadBuilder::new().set_tag(0xC1).set_value(&nscrypt).build();
+        let r = [0x01, 0x02];
+        let r_payload = TLVPayloadBuilder::new().set_tag(0xC2).set_value(&r).build();
+        let p = [0x02, 0x01];
+        let p_payload = TLVPayloadBuilder::new().set_tag(0xC3).set_value(&p).build();
+        let iccoa = create_iccoa_pairing_data_request(transaction_id, &[p_b_payload, salt_payload, nscrypt_payload, r_payload, p_payload]).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: crate::iccoa::objects::PacketType::REQUEST_PACKET,
@@ -386,12 +200,13 @@ mod tests {
         let transaction_id = 0x0002;
         let status = StatusBuilder::new().success().build();
         let p_a = calculate_pA();
-        let iccoa = create_iccoa_pairing_data_response(transaction_id, status, &p_a).unwrap();
+        let p_a_payload = TLVPayloadBuilder::new().set_tag(0x52).set_value(&p_a).build();
+        let iccoa = create_iccoa_pairing_data_response(transaction_id, status, &[p_a_payload]).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: crate::iccoa::objects::PacketType::REPLY_PACKET,
                 source_transaction_id: 0x0002,
-                pdu_length: 12+1+73+8,
+                pdu_length: 12+73+8,
                 mark: Mark {
                     encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
                     more_fragment: false,
@@ -424,7 +239,8 @@ mod tests {
     fn test_spake2_plus_auth_request() {
         let transaction_id = 0x0002;
         let c_b = calculate_cB();
-        let iccoa = create_iccoa_paring_auth_request(transaction_id, &c_b).unwrap();
+        let c_b_payload = TLVPayloadBuilder::new().set_tag(0x53).set_value(&c_b).build();
+        let iccoa = create_iccoa_paring_auth_request(transaction_id, &[c_b_payload]).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: crate::iccoa::objects::PacketType::REQUEST_PACKET,
@@ -441,7 +257,11 @@ mod tests {
                 message_type: crate::iccoa::objects::MessageType::VEHICLE_PAIRING,
                 message_data: MessageData {
                     tag: 0x03,
-                    value: [0x00; 18].to_vec(),
+                    value: vec![
+                        0x53, 0x10,
+                        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+                    ],
                     ..Default::default()
                 }
 
@@ -452,9 +272,10 @@ mod tests {
     #[test]
     fn test_spake2_plus_auth_response() {
         let transaction_id= 0x0003;
-        let c_a = calculate_cA();
         let status = StatusBuilder::new().success().build();
-        let iccoa = create_iccoa_pairing_auth_response(transaction_id, status, &c_a).unwrap();
+        let c_a = calculate_cA();
+        let c_a_payload = TLVPayloadBuilder::new().set_tag(0x54).set_value(&c_a).build();
+        let iccoa = create_iccoa_pairing_auth_response(transaction_id, status, &[c_a_payload]).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: crate::iccoa::objects::PacketType::REPLY_PACKET,
@@ -472,7 +293,11 @@ mod tests {
                 message_data: MessageData {
                     status: StatusBuilder::new().success().build(),
                     tag: 0x03,
-                    value: [0x00; 18].to_vec(),
+                    value: vec![
+                        0x54, 0x10,
+                        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+                    ],
                 },
             },
             mac: [0x00; 8],
@@ -482,12 +307,13 @@ mod tests {
     fn test_spake2_plus_certificate_write_request() {
         let transaction_id = 0x0004;
         let vehicle_certificate = get_vehicle_certificate();
-        let iccoa = create_iccoa_pairing_certificate_write_request(transaction_id, &vehicle_certificate).unwrap(); 
+        let vehicle_certificate_payload = TLVPayloadBuilder::new().set_tag(0x55).set_value(&vehicle_certificate).build();
+        let iccoa = create_iccoa_pairing_certificate_write_request(transaction_id, &[vehicle_certificate_payload]).unwrap(); 
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: crate::iccoa::objects::PacketType::REQUEST_PACKET,
                 dest_transaction_id: 0x0004,
-                pdu_length: 12+1+1027+8,
+                pdu_length: 12+1+21+8,
                 mark: Mark {
                     encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
                     more_fragment: false,
@@ -499,7 +325,11 @@ mod tests {
                 message_type: crate::iccoa::objects::MessageType::VEHICLE_PAIRING,
                 message_data: MessageData {
                     tag: 0x04,
-                    value: [0x01; 1024].to_vec(),
+                    value: vec![
+                        0x55, 0x10,
+                        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01
+                    ],
                     ..Default::default()
                 },
             },
@@ -537,13 +367,15 @@ mod tests {
     #[test]
     fn test_spake2_plus_certificate_read_request() {
         let transaction_id = 0x0005;
-        let cert_type_list = [0x01, 0x02, 0x03];
-        let iccoa = create_iccoa_pairing_certificate_read_request(transaction_id, &cert_type_list).unwrap();
+        let cert_type_payload1 = TLVPayloadBuilder::new().set_tag(0x01).build();
+        let cert_type_payload2 = TLVPayloadBuilder::new().set_tag(0x02).build();
+        let cert_type_payload3 = TLVPayloadBuilder::new().set_tag(0x03).build();
+        let iccoa = create_iccoa_pairing_certificate_read_request(transaction_id, &[cert_type_payload1, cert_type_payload2, cert_type_payload3]).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: crate::iccoa::objects::PacketType::REQUEST_PACKET,
                 dest_transaction_id: 0x0005,
-                pdu_length: 12+1+6+8,
+                pdu_length: 12+1+3+6+8,
                 mark: Mark {
                     encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
                     more_fragment: false,
@@ -555,7 +387,11 @@ mod tests {
                 message_type: crate::iccoa::objects::MessageType::VEHICLE_PAIRING,
                 message_data: MessageData {
                     tag: 0x05,
-                    value: [0x01, 0x02, 0x03].to_vec(),
+                    value: vec![
+                        0x01, 0x00,
+                        0x02, 0x00,
+                        0x03, 0x00
+                    ],
                     ..Default::default()
                 },
             },
@@ -566,13 +402,18 @@ mod tests {
     fn test_spake2_plus_certificate_read_response() {
         let transaction_id = 0x0005;
         let status = StatusBuilder::new().success().build();
-        let mobile_device_certificate = get_mobile_device_certificate();
-        let iccoa = create_iccoa_pairing_certificate_read_response(transaction_id, status, &mobile_device_certificate).unwrap();
+        let mobile_device_certificate = get_mobile_device_server_ca_certificate();
+        let mobile_tee_certificate = get_mobile_device_tee_ca_certificate();
+        let carkey_certificate = get_carkey_certificate();
+        let payload1 = TLVPayloadBuilder::new().set_tag(0x01).set_value(&mobile_device_certificate).build();
+        let payload2 = TLVPayloadBuilder::new().set_tag(0x02).set_value(&mobile_tee_certificate).build();
+        let payload3 = TLVPayloadBuilder::new().set_tag(0x03).set_value(&carkey_certificate).build();
+        let iccoa = create_iccoa_pairing_certificate_read_response(transaction_id, status, &[payload1, payload2, payload3]).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: crate::iccoa::objects::PacketType::REPLY_PACKET,
                 source_transaction_id: 0x0005,
-                pdu_length: 12+1+1029+8,
+                pdu_length: 12+1+2+3+18*3+8,
                 mark: Mark {
                     encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
                     more_fragment: false,
@@ -585,7 +426,17 @@ mod tests {
                 message_data: MessageData {
                     status: StatusBuilder::new().success().build(),
                     tag: 0x05,
-                    value: [0x02; 1024].to_vec(),
+                    value: vec![
+                        0x01, 0x10,
+                        0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                        0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                        0x02, 0x10,
+                        0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                        0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                        0x03, 0x10,
+                        0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                        0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04
+                    ],
                 },
             },
             mac: [0x00; 8],

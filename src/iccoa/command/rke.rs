@@ -1,4 +1,4 @@
-use super::{errors::*, objects::{ICCOA, create_iccoa_header, Mark, create_iccoa_body_message_data, MessageType, create_iccoa_body, create_iccoa}, status::{StatusBuilder, Status}};
+use super::super::{errors::*, objects, objects::{ICCOA, create_iccoa_header, Mark, create_iccoa_body_message_data, MessageType, create_iccoa_body, create_iccoa}, status::{StatusBuilder, Status}};
 
 lazy_static! {
     static ref RKE_COMMAND_REQUEST_DATA_LENGTH: usize = 5;
@@ -114,11 +114,11 @@ impl RKECommandResponse {
 fn create_iccoa_rke_command_request(transaction_id: u16, request: RKECommandRequest) -> Result<ICCOA> {
     let serialized_request = request.serialize();
     let header = create_iccoa_header(
-        super::objects::PacketType::REQUEST_PACKET,
+        objects::PacketType::REQUEST_PACKET,
         transaction_id,
         1+3+serialized_request.len() as u16,
         Mark {
-            encrypt_type: super::objects::EncryptType::ENCRYPT_AFTER_AUTH,
+            encrypt_type: objects::EncryptType::ENCRYPT_AFTER_AUTH,
             more_fragment: false,
             fragment_offset: 0x0000, 
         },
@@ -140,11 +140,11 @@ fn create_iccoa_rke_command_request(transaction_id: u16, request: RKECommandRequ
 fn create_iccoa_rke_command_response(transaction_id: u16, status: Status, response: RKECommandResponse) -> Result<ICCOA> {
     let serialized_response = response.serialize();
     let header = create_iccoa_header(
-        super::objects::PacketType::REPLY_PACKET,
+        objects::PacketType::REPLY_PACKET,
         transaction_id,
         1+2+3+serialized_response.len() as u16,
         Mark {
-            encrypt_type: super::objects::EncryptType::ENCRYPT_AFTER_AUTH,
+            encrypt_type: objects::EncryptType::ENCRYPT_AFTER_AUTH,
             more_fragment: false,
             fragment_offset: 0x0000,
         },
@@ -225,97 +225,6 @@ pub fn create_iccoa_rke_response(transaction_id: u16, status: Status, event_id: 
     response.set_tag(tag);
     response.set_value(value);
     create_iccoa_rke_command_response(transaction_id, status, response)
-}
-
-pub fn create_iccoa_start_ranging_request(transaction_id: u16, ranging_type: u8) -> Result<ICCOA> {
-    let header = create_iccoa_header(
-        super::objects::PacketType::REQUEST_PACKET,
-        transaction_id,
-        1+3+3,
-        Mark {
-            encrypt_type: super::objects::EncryptType::NO_ENCRYPT,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
-    );
-    let mut ranging_data = Vec::new();
-    ranging_data.push(0x01);
-    ranging_data.push(0x01);
-    ranging_data.push(ranging_type);
-    let message_data = create_iccoa_body_message_data(
-        false,
-        StatusBuilder::new().success().build(),
-        0x02,
-        &ranging_data,
-    );
-    let body = create_iccoa_body(
-        MessageType::COMMAND,
-        message_data,
-    );
-
-    Ok(create_iccoa(header, body))
-}
-
-pub fn create_iccoa_end_ranging_request(transaction_id: u16) -> Result<ICCOA> {
-    let header = create_iccoa_header(
-        super::objects::PacketType::REQUEST_PACKET,
-        transaction_id,
-        1+3+3,
-        Mark {
-            encrypt_type: super::objects::EncryptType::NO_ENCRYPT,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
-    );
-    let mut ranging_data = Vec::new();
-    ranging_data.push(0x02);
-    ranging_data.push(0x01);
-    ranging_data.push(0x00);
-    let message_data = create_iccoa_body_message_data(
-        false,
-        StatusBuilder::new().success().build(),
-        0x02,
-        &ranging_data,
-    );
-    let body = create_iccoa_body(
-        MessageType::COMMAND,
-        message_data,
-    );
-
-    Ok(create_iccoa(header, body))
-}
-
-pub fn create_iccoa_ranging_response(transaction_id: u16, status: u16, ranging_value: u8) -> Result<ICCOA> {
-    let header = create_iccoa_header(
-        super::objects::PacketType::REPLY_PACKET,
-        transaction_id,
-        1+2+3+3,
-        Mark {
-            encrypt_type: super::objects::EncryptType::NO_ENCRYPT,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
-    );
-    let mut ranging_data = Vec::new();
-    if ranging_value == 0x00 {
-        ranging_data.push(0x00);
-    } else {
-        ranging_data.push(0x01);
-    }
-    ranging_data.push(0x01);
-    ranging_data.push(ranging_value);
-    let message_data = create_iccoa_body_message_data(
-        true,
-        StatusBuilder::new().success().build(),
-        0x02,
-        &ranging_data,
-    );
-    let body = create_iccoa_body(
-        MessageType::COMMAND,
-        message_data,
-    );
-
-    Ok(create_iccoa(header, body))
 }
 
 #[cfg(test)]
@@ -711,96 +620,6 @@ mod tests {
                     tag: 0x01,
                     value: vec![
                         0xFF, 0xFF, 0x00, 0x01, 0x00
-                    ],
-                },
-            },
-            mac: [0x00; 8],
-        });
-    }
-    #[test]
-    fn test_start_ranging_request() {
-        let transaction_id = 0x000E;
-        let ranging_type = 0x01;
-        let iccoa = create_iccoa_start_ranging_request(transaction_id, ranging_type).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::REQUEST_PACKET,
-                dest_transaction_id: 0x000E,
-                pdu_length: 12+1+3+3+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::NO_ENCRYPT,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::COMMAND,
-                message_data: MessageData {
-                    tag: 0x02,
-                    value: vec![
-                        0x01, 0x01, 0x01
-                    ],
-                    ..Default::default()
-                },
-            },
-            mac: [0x00; 8],
-        });
-    }
-    #[test]
-    fn test_end_ranging_request() {
-        let transaction_id = 0x000F;
-        let iccoa = create_iccoa_end_ranging_request(transaction_id).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::REQUEST_PACKET,
-                dest_transaction_id: 0x000F,
-                pdu_length: 12+1+3+3+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::NO_ENCRYPT,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::COMMAND,
-                message_data: MessageData {
-                    tag: 0x02,
-                    value: vec![
-                        0x02, 0x01, 0x00
-                    ],
-                    ..Default::default()
-                },
-            },
-            mac: [0x00; 8],
-        });
-    }
-    #[test]
-    fn test_ranging_response() {
-        let transaction_id = 0x0010;
-        let status = 0x0000;
-        let ranging_value = 0x00;
-        let iccoa = create_iccoa_ranging_response(transaction_id, status, ranging_value).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::REPLY_PACKET,
-                source_transaction_id: 0x0010,
-                pdu_length: 12+1+2+3+3+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::NO_ENCRYPT,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::COMMAND,
-                message_data: MessageData {
-                    status: StatusBuilder::new().success().build(),
-                    tag: 0x02,
-                    value: vec![
-                        0x00, 0x01, 0x00
                     ],
                 },
             },
