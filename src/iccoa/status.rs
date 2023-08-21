@@ -66,6 +66,12 @@ impl Status {
     pub fn length(&self) -> usize {
         2
     }
+    pub fn get_tag(&self) -> StatusTag {
+        self.tag
+    }
+    pub fn get_code(&self) -> u8 {
+        self.code
+    }
     pub fn serialize(&self) -> Vec<u8> {
         let mut buffer = Vec::new();
         buffer.push(u8::from(self.tag));

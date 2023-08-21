@@ -8,6 +8,7 @@ mod pairing;
 mod auth;
 mod command;
 mod notification;
+mod bluetooth_io;
 
 mod errors {
     use super::*;
@@ -49,6 +50,9 @@ impl TLVPayload {
     }
     pub fn length(&self) -> usize {
         1+1+self.value.len()
+    }
+    pub fn get_tag(&self) -> u8 {
+        self.tag
     }
     pub fn serialize(&self) -> Vec<u8> {
         let mut buffer = Vec::new();

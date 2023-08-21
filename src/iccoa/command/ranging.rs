@@ -4,7 +4,7 @@ use super::super::status::{StatusBuilder, Status};
 use super::super::{TLVPayload, objects, objects::ICCOA};
 
 
-fn create_iccoa_ranging_request(transaction_id: u16, tag: u8, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_ranging_request(transaction_id: u16, tag: u8, payloads: &[TLVPayload]) -> Result<ICCOA> {
     let mut payload_data= Vec::new();
     let mut payload_length = 0x00;
     payloads.iter().for_each(|p| {
@@ -37,7 +37,7 @@ fn create_iccoa_ranging_request(transaction_id: u16, tag: u8, payloads: &[TLVPay
     Ok(create_iccoa(header, body))
 }
 
-fn create_iccoa_ranging_response(transaction_id: u16, status: Status, tag: u8, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_ranging_response(transaction_id: u16, status: Status, tag: u8, payloads: &[TLVPayload]) -> Result<ICCOA> {
     let mut payload_data= Vec::new();
     let mut payload_length = 0x00;
     payloads.iter().for_each(|p| {

@@ -6,7 +6,7 @@ lazy_static! {
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
-struct RKECommandRequest {
+pub struct RKECommandRequest {
     event_id: u16,
     function_id: u16,
     action_id: u8,
@@ -51,14 +51,14 @@ impl RKECommandRequest {
         let mut request = RKECommandRequest::new();
         request.event_id = u16::from_be_bytes(buffer[0..2].try_into().map_err(|_| ErrorKind::ICCOACommandError("deserialize event id error".to_string()))?);
         request.function_id = u16::from_be_bytes(buffer[2..4].try_into().map_err(|_| ErrorKind::ICCOACommandError("deserialize function id error".to_string()))?);
-        request.action_id = buffer[5];
+        request.action_id = buffer[4];
 
         Ok(request)
     }
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
-struct RKECommandResponse {
+pub struct RKECommandResponse {
     event_id: u16,
     tag: u8,
     value: Vec<u8>,

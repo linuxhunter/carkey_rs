@@ -115,7 +115,7 @@ impl VehicleUnsafeEventBuilder {
     }
 }
 
-pub fn create_iccoa_vehicle_unsafe_event_notification(transaction_id: u16, event: VehicleUnsafeEvent) -> Result<ICCOA> {
+pub fn create_iccoa_vehicle_unsafe_event_notification(transaction_id: u16, event: &VehicleUnsafeEvent) -> Result<ICCOA> {
     let header = create_iccoa_header(
         crate::iccoa::objects::PacketType::EVENT_PACKET,
         transaction_id,
@@ -151,7 +151,7 @@ mod tests {
         let transaction_id = 0x0001;
         let event = VehicleUnsafeEventBuilder::new().power_state(0x5A).build();
         let event_length = event.length() as u16;
-        let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, event).unwrap();
+        let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: PacketType::EVENT_PACKET,
@@ -187,7 +187,7 @@ mod tests {
             CarDoorLockStatus::BACK_RIGHT_UNLOCK
         ).build();
         let event_length = event.length() as u16;
-        let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, event).unwrap();
+        let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: PacketType::EVENT_PACKET,
@@ -223,7 +223,7 @@ mod tests {
             CarDoorStatus::BACK_RIGHT_OPEN
         ).build();
         let event_length = event.length() as u16;
-        let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, event).unwrap();
+        let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: PacketType::EVENT_PACKET,
@@ -259,7 +259,7 @@ mod tests {
             CarDoorWindowStatus::BACK_RIGHT_OPEN
         ).build();
         let event_length = event.length() as u16;
-        let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, event).unwrap();
+        let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: PacketType::EVENT_PACKET,
@@ -290,7 +290,7 @@ mod tests {
         let transaction_id = 0x0005;
         let event = VehicleUnsafeEventBuilder::new().front_hatch_status(0x01).build();
         let event_length = event.length() as u16;
-        let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, event).unwrap();
+        let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: PacketType::EVENT_PACKET,
@@ -321,7 +321,7 @@ mod tests {
         let transaction_id = 0x0006;
         let event = VehicleUnsafeEventBuilder::new().back_trunk_status(0x01).build();
         let event_length = event.length() as u16;
-        let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, event).unwrap();
+        let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: PacketType::EVENT_PACKET,
@@ -352,7 +352,7 @@ mod tests {
         let transaction_id = 0x0007;
         let event = VehicleUnsafeEventBuilder::new().sunroof_status(0x01).build();
         let event_length = event.length() as u16;
-        let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, event).unwrap();
+        let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: PacketType::EVENT_PACKET,
@@ -383,7 +383,7 @@ mod tests {
         let transaction_id = 0x0008;
         let event = VehicleUnsafeEventBuilder::new().headlights_status(0x01).build();
         let event_length = event.length() as u16;
-        let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, event).unwrap();
+        let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event).unwrap();
         assert_eq!(iccoa, ICCOA {
             header: Header {
                 packet_type: PacketType::EVENT_PACKET,

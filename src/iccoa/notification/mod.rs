@@ -1,6 +1,6 @@
-mod vehicle_status;
-mod senseless_control;
-mod vehicle_unsafe;
+pub mod vehicle_status;
+pub mod senseless_control;
+pub mod vehicle_unsafe;
 
 use bitflags::bitflags;
 

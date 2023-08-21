@@ -1,8 +1,17 @@
+use std::sync::Mutex;
+use aes::Aes128;
+use cmac::{Cmac, Mac};
+
 use super::{errors::*, status::{Status, StatusTag, StatusBuilder}};
 
 lazy_static! {
     static ref ICCOA_HEADER_LENGTH: usize = 12;
     static ref ICCOA_HEADER_MARK_LENGTH: usize = 2;
+    static ref ICCOA_REQUEST_TRANSACTION_ID: Mutex<u16> = Mutex::new(0x0000);
+    static ref ICCOA_RESPONSE_TRANSACTION_ID: Mutex<u16> = Mutex::new(0x0000);
+    static ref SHARED_KEY: Mutex<[u8; 32]> = Mutex::new([0x00; 32]);
+    static ref CMAC_KEY_VEHICLE: Mutex<[u8; 16]> = Mutex::new([0x00; 16]);
+    static ref CMAC_KEY_MOBILE: Mutex<[u8; 16]> = Mutex::new([0x00; 16]);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -181,11 +190,27 @@ impl Header {
     pub fn get_source_transaction_id(&self) -> u16 {
         self.source_transaction_id
     }
+    pub fn update_source_transaction_id(&mut self) {
+        let mut transaction_id = ICCOA_RESPONSE_TRANSACTION_ID.lock().unwrap();
+        *transaction_id += 1;
+        if *transaction_id == 0 {
+            *transaction_id += 1;
+        }
+        self.set_source_transaction_id(*transaction_id);
+    }
     pub fn set_dest_transaction_id(&mut self, tid: u16) {
         self.dest_transaction_id = tid;
     }
     pub fn get_dest_transaction_id(&self) -> u16 {
         self.dest_transaction_id
+    }
+    pub fn update_dest_transaction_id(&mut self) {
+        let mut transaction_id = ICCOA_REQUEST_TRANSACTION_ID.lock().unwrap();
+        *transaction_id += 1;
+        if *transaction_id == 0 {
+            *transaction_id += 1;
+        }
+        self.set_dest_transaction_id(*transaction_id);
     }
     pub fn set_pdu_length(&mut self, length: u16) {
         self.pdu_length = length;
@@ -195,6 +220,13 @@ impl Header {
     }
     pub fn set_mark(&mut self, mark: Mark) {
         self.mark = mark;
+    }
+    pub fn set_encrypt_mode(&mut self, encrypt_type: EncryptType) {
+        self.mark.set_encrypt_type(encrypt_type);
+    }
+    pub fn set_fragment_mode(&mut self, more_flag: bool, offset: u16) {
+        self.mark.set_more_fragment(more_flag);
+        self.mark.set_fragment_offset(offset);
     }
     pub fn get_mark(&self) -> Mark {
         self.mark
@@ -419,8 +451,43 @@ impl ICCOA {
         &self.body
     }
     pub fn calculate_mac(&mut self) {
-        //for testing
+        let key = CMAC_KEY_VEHICLE.lock().unwrap().to_vec();
+        let mut calculator = Cmac::<Aes128>::new_from_slice(&key).unwrap();
+        let mut message = Vec::new();
+        message.append(&mut self.header.serialize());
+        let request = match self.get_header().get_packet_type() {
+            PacketType::REQUEST_PACKET | PacketType::EVENT_PACKET => true,
+            _ => false,
+        };
+        let fragment = if self.get_header().get_mark().get_fragment_offset() != 0 {
+            true
+        } else {
+            false
+        };
+        message.append(&mut self.body.serialize(request, fragment));
+        calculator.update(&message);
+        let _result = calculator.finalize();
+        //println!("[cmac-aes-128] = {:02X?}", result.into_bytes());
         self.mac = [0x00; 8];
+    }
+    pub fn verify_mac(&mut self) -> bool {
+        let key = CMAC_KEY_MOBILE.lock().unwrap().to_vec();
+        let mut calculator = Cmac::<Aes128>::new_from_slice(&key).unwrap();
+        let mut message = Vec::new();
+        message.append(&mut self.header.serialize());
+        let request = match self.get_header().get_packet_type() {
+            PacketType::REQUEST_PACKET | PacketType::EVENT_PACKET => true,
+            _ => false,
+        };
+        let fragment = if self.get_header().get_mark().get_fragment_offset() != 0 {
+            true
+        } else {
+            false
+        };
+        message.append(&mut self.body.serialize(request, fragment));
+        calculator.update(&message);
+        let result = calculator.finalize();
+        result.into_bytes().to_vec().eq(&self.mac.to_vec())
     }
     pub fn get_mac(&self) -> &[u8; 8] {
         &self.mac
@@ -466,9 +533,17 @@ pub fn create_iccoa_header(packet_type: PacketType, transaction_id: u16, body_le
     let mut header = Header::new();
     header.set_packet_type(packet_type);
     if packet_type == PacketType::REQUEST_PACKET || packet_type == PacketType::EVENT_PACKET {
-        header.set_dest_transaction_id(transaction_id);
+        if transaction_id == 0x0000 {
+            header.update_dest_transaction_id();
+        } else {
+            header.set_dest_transaction_id(transaction_id);
+        }
     } else {
-        header.set_source_transaction_id(transaction_id);
+        if transaction_id == 0x0000 {
+            header.update_source_transaction_id();
+        } else {
+            header.set_source_transaction_id(transaction_id);
+        }
     }
     header.set_pdu_length(12+body_length+8);
     header.set_mark(mark);
@@ -502,6 +577,20 @@ pub fn create_iccoa(header: Header, body: Body) -> ICCOA {
     iccoa.calculate_mac();
 
     iccoa
+}
+
+pub fn update_cmac_key(key_type: &str, key: &[u8; 16]) {
+    let mut cmac_key = if key_type == "vehicle" {
+        CMAC_KEY_VEHICLE.lock().unwrap()
+    } else {
+        CMAC_KEY_MOBILE.lock().unwrap()
+    };
+    *cmac_key = *key;
+}
+
+pub fn update_shared_key(key: &[u8; 32]) {
+    let mut shared_key = SHARED_KEY.lock().unwrap();
+    *shared_key = *key;
 }
 
 #[cfg(test)]
@@ -1127,6 +1216,76 @@ mod tests {
                 },
             },
             mac: [0x00; 8],
+        });
+    }
+    #[test]
+    fn test_cmac_aes_128_for_iccoa() {
+        let serialized_iccoa = vec![0x01, 0x02, 0x02, 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00, 0x01, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+        let mut iccoa = ICCOA::deserialize(&serialized_iccoa).unwrap();
+        let cmac_key = [0x85, 0x7d, 0x0d, 0xb7, 0xf5, 0xe0, 0x63, 0x85, 0x85, 0x3b, 0xf4, 0xb8, 0xab, 0xd4, 0x3b, 0x5a];
+        println!("cmac key is {:02X?}", cmac_key);
+        update_cmac_key("vehicle", &cmac_key);
+        let message = [
+            0x04, 0xc0, 0x59, 0x53, 0xea, 0x9d, 0x1c, 0xd6,
+            0x24, 0x8b, 0x8c, 0x61, 0xbe, 0xcd, 0x7d, 0x55,
+            0xe4, 0x62, 0x37, 0x52, 0x6d, 0x8b, 0x1e, 0x23,
+            0x49, 0x5e, 0xa7, 0x56, 0x6b, 0x7f, 0x6b, 0xc2,
+            0x4b, 0x3d, 0xa1, 0xcf, 0xb2, 0xe8, 0x8a, 0x97,
+            0x5f, 0xcf, 0xb5, 0xdc, 0x4e, 0x72, 0xb5, 0xcb,
+            0xea, 0x50, 0x9b, 0x1c, 0xfd, 0xd1, 0xef, 0x8f,
+            0x81, 0x95, 0xfa, 0x8b, 0xf2, 0xbd, 0x5c, 0xa1,
+            0xe5
+        ];
+        //calculate_mac2(&message);
+    }
+    #[test]
+    fn test_auto_dest_transaction_id() {
+        let header = create_iccoa_header(
+            PacketType::REQUEST_PACKET,
+            0x0000,
+            0x000C,
+            Mark {
+                encrypt_type: EncryptType::NO_ENCRYPT,
+                more_fragment: false,
+                fragment_offset: 0x0000,
+            }
+        );
+        let dest_transaction_id = header.get_dest_transaction_id();
+        assert_eq!(header, Header {
+            packet_type: PacketType::REQUEST_PACKET,
+            dest_transaction_id: dest_transaction_id,
+            pdu_length: 12+12+8,
+            mark: Mark {
+                encrypt_type: EncryptType::NO_ENCRYPT,
+                more_fragment: false,
+                fragment_offset: 0x0000,
+            },
+            ..Default::default()
+        });
+    }
+    #[test]
+    fn test_auto_source_transaction_id() {
+        let header = create_iccoa_header(
+            PacketType::REPLY_PACKET,
+            0x0000,
+            0x000C,
+            Mark {
+                encrypt_type: EncryptType::NO_ENCRYPT,
+                more_fragment: false,
+                fragment_offset: 0x0000,
+            }
+        );
+        let source_transaction_id = header.get_source_transaction_id();
+        assert_eq!(header, Header {
+            packet_type: PacketType::REPLY_PACKET,
+            source_transaction_id: source_transaction_id,
+            pdu_length: 12+12+8,
+            mark: Mark {
+                encrypt_type: EncryptType::NO_ENCRYPT,
+                more_fragment: false,
+                fragment_offset: 0x0000,
+            },
+            ..Default::default()
         });
     }
 }
