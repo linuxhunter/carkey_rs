@@ -7,8 +7,8 @@ mod objects;
 mod pairing;
 mod auth;
 mod command;
-mod notification;
-mod bluetooth_io;
+pub mod notification;
+pub mod bluetooth_io;
 
 mod errors {
     use super::*;

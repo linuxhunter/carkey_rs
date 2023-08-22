@@ -151,6 +151,87 @@ pub fn create_iccoa_vehicle_status_notification(transaction_id: u16, vehicle_sta
     Ok(create_iccoa(header, body))
 }
 
+pub fn create_iccoa_total_mileage_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let vehicle_status = VehicleStatusBuilder::new().total_mileage(0x01).build();
+    create_iccoa_vehicle_status_notification(transaction_id, &[vehicle_status])
+}
+
+pub fn create_iccoa_rechange_mileage_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let vehicle_status = VehicleStatusBuilder::new().rechange_mileage(0x5A).build();
+    create_iccoa_vehicle_status_notification(transaction_id, &[vehicle_status])
+}
+
+pub fn create_iccoa_remaining_battery_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let vehicle_status = VehicleStatusBuilder::new().remaining_battery(90).build();
+    create_iccoa_vehicle_status_notification(transaction_id, &[vehicle_status])
+}
+
+pub fn create_iccoa_power_state_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let vehicle_status = VehicleStatusBuilder::new().power_state(0x01).build();
+    create_iccoa_vehicle_status_notification(transaction_id, &[vehicle_status])
+}
+
+pub fn create_iccoa_door_lock_status_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let vehicle_status = VehicleStatusBuilder::new().door_lock_status(
+        CarDoorLockStatus::FRONT_LEFT_UNLOCK |
+        CarDoorLockStatus::FRONT_RIGHT_UNLOCK |
+        CarDoorLockStatus::BACK_LEFT_UNLOCK |
+        CarDoorLockStatus::BACK_RIGHT_UNLOCK,
+    ).build();
+    create_iccoa_vehicle_status_notification(transaction_id, &[vehicle_status])
+}
+
+pub fn create_iccoa_door_open_status_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let vehicle_status = VehicleStatusBuilder::new().door_open_status(
+        CarDoorStatus::FRONT_LEFT_OPEN |
+        CarDoorStatus::FRONT_RIGHT_OPEN |
+        CarDoorStatus::BACK_LEFT_OPEN |
+        CarDoorStatus::BACK_RIGHT_OPEN,
+    ).build();
+    create_iccoa_vehicle_status_notification(transaction_id, &[vehicle_status])
+}
+
+pub fn create_iccoa_door_window_status_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let vehicle_status = VehicleStatusBuilder::new().door_window_status(
+        CarDoorWindowStatus::FRONT_LEFT_OPEN |
+        CarDoorWindowStatus::FRONT_RIGHT_OPEN |
+        CarDoorWindowStatus::BACK_LEFT_OPEN |
+        CarDoorWindowStatus::BACK_RIGHT_OPEN,
+    ).build();
+    create_iccoa_vehicle_status_notification(transaction_id, &[vehicle_status])
+}
+
+pub fn create_iccoa_front_hatch_status_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let vehicle_status = VehicleStatusBuilder::new().front_hatch_status(0x01).build();
+    create_iccoa_vehicle_status_notification(transaction_id, &[vehicle_status])
+}
+
+pub fn create_iccoa_back_trunk_status_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let vehicle_status = VehicleStatusBuilder::new().back_trunk_status(0x01).build();
+    create_iccoa_vehicle_status_notification(transaction_id, &[vehicle_status])
+}
+
+pub fn create_iccoa_sunroof_status_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let vehicle_status = VehicleStatusBuilder::new().sunroof_status(0x01).build();
+    create_iccoa_vehicle_status_notification(transaction_id, &[vehicle_status])
+}
+
+pub fn create_iccoa_headlight_status_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let vehicle_status = VehicleStatusBuilder::new().headlights_status(0x01).build();
+    create_iccoa_vehicle_status_notification(transaction_id, &[vehicle_status])
+}
+
 #[cfg(test)]
 mod tests {
     use crate::iccoa::objects::{Header, Body, MessageData};

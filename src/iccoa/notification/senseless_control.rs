@@ -211,6 +211,48 @@ pub fn create_iccoa_senseless_control_event_notification(transaction_id: u16, ev
     Ok(create_iccoa(header, body))
 }
 
+pub fn create_iccoa_senseless_control_passive_unlock_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let result = SenselessControlResultBuilder::new().success().build();
+    let event = SenselessControlEventBuilder::new().passive_unlock(result).build();
+    create_iccoa_senseless_control_event_notification(transaction_id, &event)
+}
+
+pub fn create_iccoa_senseless_control_passive_lock_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let result = SenselessControlResultBuilder::new().success().build();
+    let event = SenselessControlEventBuilder::new().passive_lock(result).build();
+    create_iccoa_senseless_control_event_notification(transaction_id, &event)
+}
+
+pub fn create_iccoa_senseless_control_near_auto_unlock_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let result = SenselessControlResultBuilder::new().success().build();
+    let event = SenselessControlEventBuilder::new().near_auto_unlock(result).build();
+    create_iccoa_senseless_control_event_notification(transaction_id, &event)
+}
+
+pub fn create_iccoa_senseless_control_far_auto_lock_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let result = SenselessControlResultBuilder::new().success().build();
+    let event = SenselessControlEventBuilder::new().near_auto_unlock(result).build();
+    create_iccoa_senseless_control_event_notification(transaction_id, &event)
+}
+
+pub fn create_iccoa_senseless_control_one_key_start_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let result = SenselessControlResultBuilder::new().success().build();
+    let event = SenselessControlEventBuilder::new().one_button_start(result).build();
+    create_iccoa_senseless_control_event_notification(transaction_id, &event)
+}
+
+pub fn create_iccoa_senseless_control_welcome_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let result = SenselessControlResultBuilder::new().success().build();
+    let event = SenselessControlEventBuilder::new().welcome(result).build();
+    create_iccoa_senseless_control_event_notification(transaction_id, &event)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::iccoa::objects::{Header, Body, PacketType, MessageData};

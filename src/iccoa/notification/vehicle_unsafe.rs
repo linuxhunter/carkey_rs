@@ -140,6 +140,77 @@ pub fn create_iccoa_vehicle_unsafe_event_notification(transaction_id: u16, event
     Ok(create_iccoa(header, body))
 }
 
+pub fn create_iccoa_vehicle_unsafe_power_state_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let event = VehicleUnsafeEventBuilder::new().power_state(0x5A).build();
+    let event_length = event.length() as u16;
+    create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
+}
+
+pub fn create_iccoa_vehicle_unsafe_door_lock_state_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let event = VehicleUnsafeEventBuilder::new().door_lock_status(
+        CarDoorLockStatus::FRONT_LEFT_UNLOCK |
+        CarDoorLockStatus::FRONT_RIGHT_UNLOCK |
+        CarDoorLockStatus::BACK_LEFT_UNLOCK |
+        CarDoorLockStatus::BACK_RIGHT_UNLOCK
+    ).build();
+    let event_length = event.length() as u16;
+    create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
+}
+
+pub fn create_iccoa_vehicle_unsafe_door_open_state_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let event = VehicleUnsafeEventBuilder::new().door_status(
+        CarDoorStatus::FRONT_LEFT_OPEN |
+        CarDoorStatus::FRONT_RIGHT_OPEN |
+        CarDoorStatus::BACK_LEFT_OPEN |
+        CarDoorStatus::BACK_RIGHT_OPEN
+    ).build();
+    let event_length = event.length() as u16;
+    create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
+}
+
+pub fn create_iccoa_vehicle_unsafe_door_window_state_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let event = VehicleUnsafeEventBuilder::new().door_window_status(
+        CarDoorWindowStatus::FRONT_LEFT_OPEN |
+        CarDoorWindowStatus::FRONT_RIGHT_OPEN |
+        CarDoorWindowStatus::BACK_LEFT_OPEN |
+        CarDoorWindowStatus::BACK_RIGHT_OPEN
+    ).build();
+    let event_length = event.length() as u16;
+    create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
+}
+
+pub fn create_iccoa_vehicle_unsafe_front_hatch_state_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let event = VehicleUnsafeEventBuilder::new().front_hatch_status(0x01).build();
+    let event_length = event.length() as u16;
+    create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
+}
+
+pub fn create_iccoa_vehicle_unsafe_back_trunk_state_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let event = VehicleUnsafeEventBuilder::new().back_trunk_status(0x01).build();
+    let event_length = event.length() as u16;
+    create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
+}
+
+pub fn create_iccoa_vehicle_unsafe_sunroof_state_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let event = VehicleUnsafeEventBuilder::new().sunroof_status(0x01).build();
+    let event_length = event.length() as u16;
+    create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
+}
+
+pub fn create_iccoa_vehicle_unsafe_headlight_state_notification() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let event = VehicleUnsafeEventBuilder::new().headlights_status(0x01).build();
+    let event_length = event.length() as u16;
+    create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::iccoa::objects::{Header, Body, PacketType, MessageData};

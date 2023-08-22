@@ -5,28 +5,58 @@ use super::notification::vehicle_status::{create_iccoa_vehicle_status_notificati
 use super::notification::vehicle_unsafe::{create_iccoa_vehicle_unsafe_event_notification, VehicleUnsafeEvent};
 use super::objects::{ICCOA, PacketType, MessageType};
 use super::status::{StatusTag, StatusBuilder, Status};
-use super::pairing::{create_iccoa_paring_auth_request, calculate_cB, get_vehicle_certificate, create_iccoa_pairing_certificate_write_request, create_iccoa_pairing_certificate_read_request, create_iccoa_pairing_data_request};
+use super::pairing::{create_iccoa_paring_auth_request, calculate_cB, get_vehicle_certificate, create_iccoa_pairing_certificate_write_request, create_iccoa_pairing_certificate_read_request, create_iccoa_pairing_data_request, calculate_pB};
 use super::{TLVPayloadBuilder, TLVPayload};
 use super::auth::{create_iccoa_standard_auth_request, create_iccoa_fast_auth_request, create_iccoa_standard_auth_pubkey_exchange_request, create_iccoa_fast_auth_pubkey_exchange_request};
 use super::command::rke::{create_iccoa_rke_response, RKECommandRequest};
 
-pub fn create_iccoa_pairing_data_request_package(transaction_id: u16, payloads: &[TLVPayload]) -> Result<Vec<u8>> {
-    let iccoa = create_iccoa_pairing_data_request(transaction_id, payloads)?;
+pub fn create_iccoa_pairing_data_request_package() -> Result<Vec<u8>> {
+    let transaction_id = 0x0000;
+    let p_b = calculate_pB();
+    let p_b_payload = TLVPayloadBuilder::new().set_tag(0x51).set_value(&p_b).build();
+    let salt = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f];
+    let salt_payload = TLVPayloadBuilder::new().set_tag(0xC0).set_value(&salt).build();
+    let nscrypt = [0x01, 0x02, 0x03, 0x04];
+    let nscrypt_payload = TLVPayloadBuilder::new().set_tag(0xC1).set_value(&nscrypt).build();
+    let r = [0x01, 0x02];
+    let r_payload = TLVPayloadBuilder::new().set_tag(0xC2).set_value(&r).build();
+    let p = [0x02, 0x01];
+    let p_payload = TLVPayloadBuilder::new().set_tag(0xC3).set_value(&p).build();
+    let iccoa = create_iccoa_pairing_data_request(
+        transaction_id,
+        &[p_b_payload, salt_payload, nscrypt_payload, r_payload, p_payload])?;
     Ok(iccoa.serialize())
 }
 
-pub fn create_iccoa_standard_auth_pubkey_exchange_request_package(transaction_id: u16, payloads: &[TLVPayload]) -> Result<Vec<u8>> {
-    let iccoa = create_iccoa_standard_auth_pubkey_exchange_request(transaction_id, payloads)?;
-    Ok(iccoa.serialize())
+pub fn create_iccoa_standard_auth_pubkey_exchange_request_package() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let vehicle_temp_pubkey = [0x01; 65];
+    let vehicle_id = [0x10; 16];
+    let vehicle_temp_pubkey_payload = TLVPayloadBuilder::new().set_tag(0x81).set_value(&vehicle_temp_pubkey).build();
+    let vehicle_id_payload = TLVPayloadBuilder::new().set_tag(0x83).set_value(&vehicle_id).build();
+    let iccoa = create_iccoa_standard_auth_pubkey_exchange_request(
+        transaction_id,
+        &[vehicle_temp_pubkey_payload, vehicle_id_payload])?;
+    Ok(iccoa)
 }
 
-pub fn create_iccoa_fast_auth_pubkey_exchange_request_package(transaction_id: u16, payloads: &[TLVPayload]) -> Result<Vec<u8>> {
-    let iccoa = create_iccoa_fast_auth_pubkey_exchange_request(transaction_id, payloads)?;
-    Ok(iccoa.serialize())
+pub fn create_iccoa_fast_auth_pubkey_exchange_request_package() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let vehicle_temp_pubkey = [0x06; 65];
+    let vehicle_id = [0x60; 16];
+    let vehicle_temp_pubkey_payload = TLVPayloadBuilder::new().set_tag(0x81).set_value(&vehicle_temp_pubkey).build();
+    let vehicle_id_payload = TLVPayloadBuilder::new().set_tag(0x83).set_value(&vehicle_id).build();
+    let iccoa = create_iccoa_fast_auth_pubkey_exchange_request(
+        transaction_id,
+        &[vehicle_temp_pubkey_payload, vehicle_id_payload])?;
+    Ok(iccoa)
 }
 
-pub fn create_iccoa_ranging_request_package(transaction_id: u16, payloads: &[TLVPayload]) -> Result<Vec<u8>> {
-    let iccoa = create_iccoa_ranging_request(transaction_id, 0x02, payloads)?;
+pub fn create_iccoa_ranging_request_package() -> Result<Vec<u8>> {
+    let transaction_id = 0x0000;
+    let ranging_type = 0x01;
+    let ranging_type_payload = TLVPayloadBuilder::new().set_tag(0x01).set_value(&[ranging_type]).build();
+    let iccoa = create_iccoa_ranging_request(transaction_id, 0x02, &[ranging_type_payload])?;
     Ok(iccoa.serialize())
 }
 
@@ -149,7 +179,10 @@ pub fn handle_iccoa_pairing_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA>
                     create_iccoa_pairing_certificate_read_request(transaction_id, &[carkey_pubkey_cert_payload])?
                 },
                 _ => {
-                    ICCOA::new()
+                    //test create standard auth request
+                    //create_iccoa_standard_auth_pubkey_exchange_request_package()?
+                    create_iccoa_fast_auth_pubkey_exchange_request_package()?
+                    //return Err(ErrorKind::ICCOAPairingError("Pairing Completed".to_string()).into());
                 }
             };
             Ok(response)
@@ -182,7 +215,7 @@ pub fn handle_iccoa_auth_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
         0x02 => {
             //handle standard auth response
             let _status = handle_iccoa_standard_auth_response_payload(iccoa);
-            Ok(ICCOA::new())
+            return Err(ErrorKind::ICCOAAuthError("standard auth completed".to_string()).into());
         },
         0xC1 => {
             //handle fast auth vehicle temp pubkey response
@@ -196,7 +229,7 @@ pub fn handle_iccoa_auth_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
         0xC2 => {
             //handle fast auth response
             let _status = handle_iccoa_fast_auth_response_payload(iccoa);
-            Ok(ICCOA::new())
+            return Err(ErrorKind::ICCOAAuthError("fast auth completed".to_string()).into());
         },
         _ => {
             return Err(ErrorKind::ICCOAPairingError("RFU is not implemented".to_string()).into());
@@ -205,14 +238,13 @@ pub fn handle_iccoa_auth_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
 }
 
 pub fn handle_iccoa_ranging_command_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
-    let response = ICCOA::new();
     let ranging_result= TLVPayload::deserialize(&iccoa.body.message_data.get_value())?;
     if ranging_result.get_tag() == 0x00 {
         println!("Ranging Success!");
     } else {
         println!("Ranging Failure");
     }
-    Ok(response)
+    return Err(ErrorKind::ICCOACommandError("Ranging Command completed".to_string()).into());
 }
 
 pub fn handle_iccoa_request_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
