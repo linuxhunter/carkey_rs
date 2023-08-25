@@ -1,3 +1,5 @@
+use std::io::Read;
+
 use super::objects::{ICCOA, Mark, create_iccoa_header, create_iccoa_body_message_data, create_iccoa_body, create_iccoa};
 use super::{errors::*, TLVPayload};
 use super::status::{StatusBuilder, Status};
@@ -26,15 +28,35 @@ pub fn calculate_cA() -> [u8; 16] {
 }
 
 pub fn get_vehicle_certificate() -> Vec<u8> {
-    [0x01; 16].to_vec()
+    let mut cert = Vec::new();
+    if let Ok(mut file) = std::fs::File::open("/etc/certs/vehicle_public.crt") {
+        let metadata = std::fs::metadata("/etc/certs/vehicle_public.crt").unwrap();
+        cert = vec![0; metadata.len() as usize];
+        file.read(&mut cert).unwrap();
+    } else {
+        cert = [0x01; 16].to_vec();
+    }
+    cert
 }
 
 pub fn get_mobile_device_server_ca_certificate() -> Vec<u8> {
-    [0x02; 16].to_vec()
+    let mut cert = Vec::new();
+    if let Ok(mut file) = std::fs::File::open("/etc/certs/mobile_server_ca.crt") {
+        file.read(&mut cert).unwrap();
+    } else {
+        cert = [0x02; 16].to_vec();
+    }
+    cert
 }
 
 pub fn get_mobile_device_tee_ca_certificate() -> Vec<u8> {
-    [0x03; 16].to_vec()
+    let mut cert = Vec::new();
+    if let Ok(mut file) = std::fs::File::open("/etc/certs/mobile_tee_ca.crt") {
+        file.read(&mut cert).unwrap();
+    } else {
+        cert = [0x03; 16].to_vec();
+    }
+    cert
 }
 
 pub fn get_carkey_certificate() -> Vec<u8> {

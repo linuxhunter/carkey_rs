@@ -2,11 +2,11 @@
 
 use error_chain::error_chain;
 
-mod status;
-mod objects;
-mod pairing;
-mod auth;
-mod command;
+pub mod status;
+pub mod objects;
+pub mod pairing;
+pub mod auth;
+pub mod command;
 pub mod notification;
 pub mod bluetooth_io;
 
@@ -70,9 +70,9 @@ impl TLVPayload {
         let mut index = 0x00;
         payload.tag = buffer[index];
         index += 1;
-        let length = buffer[index] as usize;
+        let _length = buffer[index] as usize;
         index += 1;
-        payload.value = buffer[index..index+length].to_vec();
+        payload.value = buffer[index..].to_vec();
 
         Ok(payload)
     }

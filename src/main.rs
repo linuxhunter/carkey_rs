@@ -11,7 +11,12 @@ use futures::{FutureExt, pin_mut, stream::SelectAll, StreamExt};
 use tokio::sync::{mpsc, broadcast};
 use uuid::Uuid;
 
-use crate::bluetooth::agent::register_agent;
+use crate::bluetooth::agent;
+use crate::iccoa::objects::ICCOA;
+use crate::iccoa::{bluetooth_io, objects};
+use crate::iccoa::notification::senseless_control;
+use crate::iccoa::notification::vehicle_status;
+use crate::iccoa::notification::vehicle_unsafe;
 
 lazy_static! {
     static ref SERVICE_UUID: Uuid = Uuid::from_u16(0xFCD1);
@@ -90,7 +95,7 @@ async fn main() -> bluer::Result<()> {
     let adapter = session.default_adapter().await?;
     adapter.set_powered(true).await?;
 
-    let agent_handle = register_agent(&session, true, true).await?;
+    let agent_handle = agent::register_agent(&session, true, true).await?;
 
     let le_advertisement = Advertisement {
         advertisement_type: bluer::adv::Type::Peripheral,
@@ -147,8 +152,15 @@ async fn main() -> bluer::Result<()> {
                         async move {
                             tokio::spawn(async move {
                                 if notifier.is_stopped() == false {
+                                    /*
                                     let icce = icce::objects::create_icce_auth_get_process_data_request();
                                     if let Err(err) = notifier.notify(icce.serialize()).await {
+                                        println!("Notification error when setting get process data request: {}", err);
+                                    }
+                                    */
+                                    let pairing_request = bluetooth_io::create_iccoa_pairing_data_request_package().unwrap();
+                                    println!("pairing request = {:02X?}", pairing_request);
+                                    if let Err(err) = notifier.notify(pairing_request).await {
                                         println!("Notification error when setting get process data request: {}", err);
                                     }
                                 }
@@ -175,7 +187,7 @@ async fn main() -> bluer::Result<()> {
     let device_events = adapter.discover_devices().await?;
     pin_mut!(device_events);
     let mut all_change_events = SelectAll::new();
-
+/*
     //test code for sending message from vehicle to mobile by notification
     tokio::spawn(async move {
         let mut index = 0;
@@ -218,6 +230,110 @@ async fn main() -> bluer::Result<()> {
             }
         }
     });
+*/
+
+    //test code for sending message from vehicle to mobile by notification
+    tokio::spawn(async move {
+        let mut index = 0;
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            let request = match index {
+                0x00 => {
+                    bluetooth_io::create_iccoa_ranging_request_package().unwrap()
+                },
+                0x01 => {
+                    vehicle_status::create_iccoa_total_mileage_notification().unwrap()
+                },
+                0x02 => {
+                    vehicle_status::create_iccoa_rechange_mileage_notification().unwrap()
+                },
+                0x03 => {
+                    vehicle_status::create_iccoa_remaining_battery_notification().unwrap()
+                },
+                0x04 => {
+                    vehicle_status::create_iccoa_power_state_notification().unwrap()
+                },
+                0x05 => {
+                    vehicle_status::create_iccoa_door_lock_status_notification().unwrap()
+                },
+                0x06 => {
+                    vehicle_status::create_iccoa_door_open_status_notification().unwrap()
+                },
+                0x07 => {
+                    vehicle_status::create_iccoa_door_window_status_notification().unwrap()
+                },
+                0x08 => {
+                    vehicle_status::create_iccoa_front_hatch_status_notification().unwrap()
+                },
+                0x09 => {
+                    vehicle_status::create_iccoa_back_trunk_status_notification().unwrap()
+                },
+                0x0A => {
+                    vehicle_status::create_iccoa_sunroof_status_notification().unwrap()
+                },
+                0x0B => {
+                    vehicle_status::create_iccoa_headlight_status_notification().unwrap()
+                },
+                0x0C => {
+                    senseless_control::create_iccoa_senseless_control_passive_unlock_notification().unwrap()
+                },
+                0x0D => {
+                    senseless_control::create_iccoa_senseless_control_passive_lock_notification().unwrap()
+                },
+                0x0E => {
+                    senseless_control::create_iccoa_senseless_control_near_auto_unlock_notification().unwrap()
+                },
+                0x0F => {
+                    senseless_control::create_iccoa_senseless_control_far_auto_lock_notification().unwrap()
+                },
+                0x10 => {
+                    senseless_control::create_iccoa_senseless_control_one_key_start_notification().unwrap()
+                },
+                0x11 => {
+                    senseless_control::create_iccoa_senseless_control_welcome_notification().unwrap()
+                },
+                0x12 => {
+                    vehicle_unsafe::create_iccoa_vehicle_unsafe_power_state_notification().unwrap()
+                },
+                0x13 => {
+                    vehicle_unsafe::create_iccoa_vehicle_unsafe_door_lock_state_notification().unwrap()
+                },
+                0x14 => {
+                    vehicle_unsafe::create_iccoa_vehicle_unsafe_door_open_state_notification().unwrap()
+                },
+                0x15 => {
+                    vehicle_unsafe::create_iccoa_vehicle_unsafe_door_window_state_notification().unwrap()
+                },
+                0x16 => {
+                    vehicle_unsafe::create_iccoa_vehicle_unsafe_front_hatch_state_notification().unwrap()
+                },
+                0x17 => {
+                    vehicle_unsafe::create_iccoa_vehicle_unsafe_back_trunk_state_notification().unwrap()
+                },
+                0x18 => {
+                    vehicle_unsafe::create_iccoa_vehicle_unsafe_sunroof_state_notification().unwrap()
+                },
+                0x19 => {
+                    vehicle_unsafe::create_iccoa_vehicle_unsafe_headlight_state_notification().unwrap()
+                },
+                _ => {
+                    ICCOA::new()
+                },
+            };
+            if index > 0x19 {
+                index = 0;
+                continue;
+            }
+            index += 1;
+            if let Some(splitted_request) = objects::split_iccoa(&request) {
+                for request in splitted_request {
+                    let _ = bt_send_package_tx.send(request.serialize()).await;
+                }
+            } else {
+                let _ = bt_send_package_tx.send(request.serialize()).await;
+            }
+        }
+    });
 
     println!("Server ready. Press ctrl-c to quit");
     loop {
@@ -238,7 +354,18 @@ async fn main() -> bluer::Result<()> {
                 println!("Device changed: {}", addr);
                 println!("\t distance: {}m", calculate_distance_by_rssi(rssi));
             },
-            Some(icce_package) = bt_write_rx.recv() => {
+            Some(data_package) = bt_write_rx.recv() => {
+                println!("GOT ICCOA Package from Mobile = {:02X?}", data_package);
+                if let Ok(response) = bluetooth_io::handle_data_package_from_mobile(&data_package) {
+                    if let Some(splitted_response) = objects::split_iccoa(&response) {
+                        for response in splitted_response {
+                            let _ = bt_notify_tx.send(response.serialize());
+                        }
+                    } else {
+                        let _ = bt_notify_tx.send(response.serialize());
+                    }
+                }
+                /*
                 println!("GOT ICCE Package from Mobile = {:02X?}", icce_package);
                 if let Ok(mut icce_object) = icce::objects::ICCE::deserialize(&icce_package) {
                     println!("icce_object is {:?}", icce_object);
@@ -267,6 +394,7 @@ async fn main() -> bluer::Result<()> {
                 } else {
                     println!("Error on ICCE deserialized");
                 }
+                */
             },
             Some(icce_package) = bt_send_package_rx.recv() => {
                 println!("GOT ICCE Package from Vehicle = {:02X?}", icce_package);

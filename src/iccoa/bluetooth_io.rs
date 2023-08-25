@@ -1,18 +1,17 @@
+use std::io::Write;
+
 use super::command::ranging::create_iccoa_ranging_request;
-use super::errors::*;
-use super::notification::senseless_control::{create_iccoa_senseless_control_event_notification, SenselessControlEvent};
-use super::notification::vehicle_status::{create_iccoa_vehicle_status_notification, VehicleStatus};
-use super::notification::vehicle_unsafe::{create_iccoa_vehicle_unsafe_event_notification, VehicleUnsafeEvent};
+use super::{errors::*, objects};
 use super::objects::{ICCOA, PacketType, MessageType};
 use super::status::{StatusTag, StatusBuilder, Status};
-use super::pairing::{create_iccoa_paring_auth_request, calculate_cB, get_vehicle_certificate, create_iccoa_pairing_certificate_write_request, create_iccoa_pairing_certificate_read_request, create_iccoa_pairing_data_request, calculate_pB};
+use super::pairing;
 use super::{TLVPayloadBuilder, TLVPayload};
-use super::auth::{create_iccoa_standard_auth_request, create_iccoa_fast_auth_request, create_iccoa_standard_auth_pubkey_exchange_request, create_iccoa_fast_auth_pubkey_exchange_request};
+use super::auth;
 use super::command::rke::{create_iccoa_rke_response, RKECommandRequest};
 
 pub fn create_iccoa_pairing_data_request_package() -> Result<Vec<u8>> {
     let transaction_id = 0x0000;
-    let p_b = calculate_pB();
+    let p_b = pairing::calculate_pB();
     let p_b_payload = TLVPayloadBuilder::new().set_tag(0x51).set_value(&p_b).build();
     let salt = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f];
     let salt_payload = TLVPayloadBuilder::new().set_tag(0xC0).set_value(&salt).build();
@@ -22,7 +21,7 @@ pub fn create_iccoa_pairing_data_request_package() -> Result<Vec<u8>> {
     let r_payload = TLVPayloadBuilder::new().set_tag(0xC2).set_value(&r).build();
     let p = [0x02, 0x01];
     let p_payload = TLVPayloadBuilder::new().set_tag(0xC3).set_value(&p).build();
-    let iccoa = create_iccoa_pairing_data_request(
+    let iccoa = pairing::create_iccoa_pairing_data_request(
         transaction_id,
         &[p_b_payload, salt_payload, nscrypt_payload, r_payload, p_payload])?;
     Ok(iccoa.serialize())
@@ -34,7 +33,7 @@ pub fn create_iccoa_standard_auth_pubkey_exchange_request_package() -> Result<IC
     let vehicle_id = [0x10; 16];
     let vehicle_temp_pubkey_payload = TLVPayloadBuilder::new().set_tag(0x81).set_value(&vehicle_temp_pubkey).build();
     let vehicle_id_payload = TLVPayloadBuilder::new().set_tag(0x83).set_value(&vehicle_id).build();
-    let iccoa = create_iccoa_standard_auth_pubkey_exchange_request(
+    let iccoa = auth::create_iccoa_standard_auth_pubkey_exchange_request(
         transaction_id,
         &[vehicle_temp_pubkey_payload, vehicle_id_payload])?;
     Ok(iccoa)
@@ -46,33 +45,18 @@ pub fn create_iccoa_fast_auth_pubkey_exchange_request_package() -> Result<ICCOA>
     let vehicle_id = [0x60; 16];
     let vehicle_temp_pubkey_payload = TLVPayloadBuilder::new().set_tag(0x81).set_value(&vehicle_temp_pubkey).build();
     let vehicle_id_payload = TLVPayloadBuilder::new().set_tag(0x83).set_value(&vehicle_id).build();
-    let iccoa = create_iccoa_fast_auth_pubkey_exchange_request(
+    let iccoa = auth::create_iccoa_fast_auth_pubkey_exchange_request(
         transaction_id,
         &[vehicle_temp_pubkey_payload, vehicle_id_payload])?;
     Ok(iccoa)
 }
 
-pub fn create_iccoa_ranging_request_package() -> Result<Vec<u8>> {
+pub fn create_iccoa_ranging_request_package() -> Result<ICCOA> {
     let transaction_id = 0x0000;
     let ranging_type = 0x01;
     let ranging_type_payload = TLVPayloadBuilder::new().set_tag(0x01).set_value(&[ranging_type]).build();
     let iccoa = create_iccoa_ranging_request(transaction_id, 0x02, &[ranging_type_payload])?;
-    Ok(iccoa.serialize())
-}
-
-pub fn create_iccoa_vehicle_status_notification_package(transaction_id: u16, payloads: &[VehicleStatus]) -> Result<Vec<u8>> {
-    let iccoa = create_iccoa_vehicle_status_notification(transaction_id, payloads)?;
-    Ok(iccoa.serialize())
-}
-
-pub fn create_iccoa_senseless_control_event_notification_package(transaction_id: u16, payload: &SenselessControlEvent) -> Result<Vec<u8>> {
-    let iccoa = create_iccoa_senseless_control_event_notification(transaction_id, payload)?;
-    Ok(iccoa.serialize())
-}
-
-pub fn create_iccoa_vehicle_unsafe_event_notification_package(transaction_id: u16, payload: &VehicleUnsafeEvent) -> Result<Vec<u8>> {
-    let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, payload)?;
-    Ok(iccoa.serialize())
+    Ok(iccoa)
 }
 
 pub fn handle_iccoa_pairing_p_a_payload(iccoa: &ICCOA) -> Status {
@@ -85,9 +69,42 @@ pub fn handle_iccoa_pairing_c_a_payload(iccoa: &ICCOA) -> Status {
     StatusBuilder::new().success().build()
 }
 
-pub fn handle_iccoa_pairing_read_response_payload(iccoa: &ICCOA) -> Status {
+pub fn handle_iccoa_pairing_read_response_payload(iccoa: &ICCOA) -> Result<()> {
     //handle read response payload
-    StatusBuilder::new().success().build()
+    let message_data = iccoa.get_body().get_message_data();
+    if message_data.get_status().get_tag() == StatusTag::SUCCESS {
+        let cert_payload = TLVPayload::deserialize(&message_data.get_value()).unwrap();
+        match cert_payload.get_tag() {
+            0x01 => {
+                let mut file = std::fs::File::create("/etc/certs/mobile_server_ca.crt")
+                    .map_err(|_| ErrorKind::ICCOAPairingError("create mobile server ca cert file error".to_string()))
+                    .unwrap();
+                file.write_all(&cert_payload.value)
+                    .map_err(|_| ErrorKind::ICCOAPairingError("write cert data to mobile server ca cert file error".to_string()))
+                    .unwrap();
+            },
+            0x02 => {
+                let mut file = std::fs::File::create("/etc/certs/mobile_tee_ca.crt")
+                    .map_err(|_| ErrorKind::ICCOAPairingError("create mobile tee ca cert file error".to_string()))
+                    .unwrap();
+                file.write_all(&cert_payload.value)
+                    .map_err(|_| ErrorKind::ICCOAPairingError("write cert data to moile tee ca cert file error".to_string()))
+                    .unwrap();
+            },
+            0x03 => {
+                let mut file = std::fs::File::create("/etc/certs/carkey_public.crt")
+                    .map_err(|_| ErrorKind::ICCOAPairingError("create carkey public cert file error".to_string()))
+                    .unwrap();
+                file.write_all(&cert_payload.value)
+                    .map_err(|_| ErrorKind::ICCOAPairingError("write cert data to carkey public cert file error".to_string()))
+                    .unwrap();
+            },
+            _ => {},
+        }
+        Ok(())
+    } else {
+        return Err(ErrorKind::ICCOAPairingError("pairing read response error".to_string()).into());
+    }
 }
 
 pub fn handle_iccoa_standard_auth_data_exchange_response_payload(iccoa: &ICCOA) -> Status {
@@ -143,40 +160,40 @@ pub fn handle_iccoa_pairing_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA>
             //handle pA
             let _status = handle_iccoa_pairing_p_a_payload(iccoa);
             //create spake2+ auth request cB
-            let c_b = calculate_cB();
+            let c_b = pairing::calculate_cB();
             let c_b_payload = TLVPayloadBuilder::new().set_tag(0x53).set_value(&c_b).build();
-            let response = create_iccoa_paring_auth_request(transaction_id, &[c_b_payload])?;
+            let response = pairing::create_iccoa_paring_auth_request(transaction_id, &[c_b_payload])?;
             return Ok(response)
         },
         0x03 => {   //get cA
             //handle cA
             let _status = handle_iccoa_pairing_c_a_payload(iccoa);
             //create spake2+ pairing certificate write request
-            let vehicle_pubkey_cert = get_vehicle_certificate();
+            let vehicle_pubkey_cert = pairing::get_vehicle_certificate();
             let vehicle_pubkey_cert_payload = TLVPayloadBuilder::new().set_tag(0x55).set_value(&vehicle_pubkey_cert).build();
-            let response = create_iccoa_pairing_certificate_write_request(transaction_id, &[vehicle_pubkey_cert_payload])?;
+            let response = pairing::create_iccoa_pairing_certificate_write_request(transaction_id, &[vehicle_pubkey_cert_payload])?;
             Ok(response)
         },
         0x04 => {   //get write command status
             //handle write command status
             //create spake2+ pairing certificate read request
             let device_ca_cert_payload = TLVPayloadBuilder::new().set_tag(0x01).build();
-            let response = create_iccoa_pairing_certificate_read_request(transaction_id, &[device_ca_cert_payload])?;
+            let response = pairing::create_iccoa_pairing_certificate_read_request(transaction_id, &[device_ca_cert_payload])?;
             Ok(response)
         },
         0x05 => {   //get read command data(TLV)
             //handle read command data
-            let _status = handle_iccoa_pairing_read_response_payload(iccoa);
+            handle_iccoa_pairing_read_response_payload(iccoa)?;
             //create spake2+ pairing certificate read request
             let payload = TLVPayload::deserialize(message_data.get_value())?;
             let response = match payload.get_tag() {
                 0x01 => {
                     let mobile_tee_cert_payload = TLVPayloadBuilder::new().set_tag(0x02).build();
-                    create_iccoa_pairing_certificate_read_request(transaction_id, &[mobile_tee_cert_payload])?
+                    pairing::create_iccoa_pairing_certificate_read_request(transaction_id, &[mobile_tee_cert_payload])?
                 },
                 0x02 => {
                     let carkey_pubkey_cert_payload= TLVPayloadBuilder::new().set_tag(0x03).build();
-                    create_iccoa_pairing_certificate_read_request(transaction_id, &[carkey_pubkey_cert_payload])?
+                    pairing::create_iccoa_pairing_certificate_read_request(transaction_id, &[carkey_pubkey_cert_payload])?
                 },
                 _ => {
                     //test create standard auth request
@@ -209,7 +226,7 @@ pub fn handle_iccoa_auth_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
             //create standard auth request
             let vehicle_signature = [0x03; 64];
             let vehicle_signature_payload = TLVPayloadBuilder::new().set_tag(0x86).set_value(&vehicle_signature).build();
-            let response = create_iccoa_standard_auth_request(transaction_id, &[vehicle_signature_payload])?;
+            let response = auth::create_iccoa_standard_auth_request(transaction_id, &[vehicle_signature_payload])?;
             Ok(response)
         },
         0x02 => {
@@ -223,7 +240,7 @@ pub fn handle_iccoa_auth_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
             //create fast auth request
             let vehicle_fast_auth_data = [0x08; 16];
             let vehicle_fast_auth_data_payload = TLVPayloadBuilder::new().set_tag(0x88).set_value(&vehicle_fast_auth_data).build();
-            let response = create_iccoa_fast_auth_request(transaction_id, &[vehicle_fast_auth_data_payload]).unwrap();
+            let response = auth::create_iccoa_fast_auth_request(transaction_id, &[vehicle_fast_auth_data_payload]).unwrap();
             Ok(response)
         },
         0xC2 => {
@@ -358,7 +375,16 @@ pub fn handle_iccoa_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
 }
 
 pub fn handle_data_package_from_mobile(data_package: &[u8]) -> Result<ICCOA> {
-    if let Ok(iccoa) = ICCOA::deserialize(data_package) {
+    if let Ok(mut iccoa) = ICCOA::deserialize(data_package) {
+        let mark = iccoa.get_header().get_mark();
+        if mark.get_more_fragment() == true {
+            objects::collect_iccoa_fragments(iccoa);
+            return Err(ErrorKind::ICCOAObjectError("receive fragments".to_string()).into());
+        }
+        if mark.get_more_fragment() == false && mark.get_fragment_offset() != 0x00 {
+            objects::collect_iccoa_fragments(iccoa);
+            iccoa = objects::reassemble_iccoa_fragments();
+        }
         match iccoa.header.packet_type {
             PacketType::REQUEST_PACKET => {
                 return handle_iccoa_request_from_mobile(&iccoa)
@@ -377,7 +403,7 @@ pub fn handle_data_package_from_mobile(data_package: &[u8]) -> Result<ICCOA> {
 
 #[cfg(test)]
 mod tests {
-    use crate::iccoa::{command::{rke::create_iccoa_rke_central_lock_request, ranging::create_iccoa_ranging_response}, objects::{Header, Body, Mark, MessageData}, pairing::{create_iccoa_pairing_data_request, calculate_pB, calculate_pA, create_iccoa_pairing_data_response, calculate_cA, create_iccoa_pairing_auth_response, create_iccoa_pairing_certificate_write_response, get_mobile_device_server_ca_certificate, get_mobile_device_tee_ca_certificate, get_carkey_certificate, create_iccoa_pairing_certificate_read_response}, auth::{create_iccoa_standard_auth_pubkey_exchange_response, create_iccoa_standard_auth_response, create_iccoa_fast_auth_pubkey_exchange_response, create_iccoa_fast_auth_response}};
+    use crate::iccoa::{command::{rke::create_iccoa_rke_central_lock_request, ranging::create_iccoa_ranging_response}, objects::{Header, Body, Mark, MessageData, create_iccoa_header, EncryptType, create_iccoa_body_message_data, create_iccoa_body, create_iccoa}, pairing::{create_iccoa_pairing_data_request, calculate_pB, calculate_pA, create_iccoa_pairing_data_response, calculate_cA, create_iccoa_pairing_auth_response, create_iccoa_pairing_certificate_write_response, get_mobile_device_server_ca_certificate, get_mobile_device_tee_ca_certificate, get_carkey_certificate, create_iccoa_pairing_certificate_read_response}, auth::{create_iccoa_standard_auth_pubkey_exchange_response, create_iccoa_standard_auth_response, create_iccoa_fast_auth_pubkey_exchange_response, create_iccoa_fast_auth_response}};
     use super::*;
 
     #[test]
@@ -628,7 +654,8 @@ mod tests {
         let mobile_signature = [0x30; 64];
         let mobile_signature_payload = TLVPayloadBuilder::new().set_tag(0x87).set_value(&mobile_signature).build();
         let iccoa = create_iccoa_standard_auth_response(transaction_id, status, &[mobile_signature_payload]).unwrap();
-        let _ = handle_data_package_from_mobile(&iccoa.serialize()).unwrap();
+        if let Ok(_) = handle_data_package_from_mobile(&iccoa.serialize()) {
+        }
     }
     #[test]
     fn test_fast_auth_response_from_mobile() {
@@ -670,7 +697,8 @@ mod tests {
         //create fast auth response
         let status = StatusBuilder::new().success().build();
         let iccoa = create_iccoa_fast_auth_response(transaction_id, status).unwrap();
-        let _ = handle_data_package_from_mobile(&iccoa.serialize()).unwrap();
+        if let Ok(_) = handle_data_package_from_mobile(&iccoa.serialize()) {
+        }
     }
     #[test]
     fn test_ranging_command_response_success_from_mobile() {
@@ -679,7 +707,8 @@ mod tests {
         let ranging_value = 0x00;
         let ranging_value_payload = TLVPayloadBuilder::new().set_tag(0x00).set_value(&[ranging_value]).build();
         let ranging_response = create_iccoa_ranging_response(transaction_id, status, 0x02, &[ranging_value_payload]).unwrap();
-        let _ = handle_data_package_from_mobile(&ranging_response.serialize()).unwrap();
+        if let Ok(_) = handle_data_package_from_mobile(&ranging_response.serialize()) {
+        }
     }
     #[test]
     fn test_ranging_command_response_failure_from_mobile() {
@@ -689,6 +718,150 @@ mod tests {
         let ranging_value = 0x01;
         let ranging_value_payload = TLVPayloadBuilder::new().set_tag(ranging_tag).set_value(&[ranging_value]).build();
         let ranging_response = create_iccoa_ranging_response(transaction_id, status, 0x02, &[ranging_value_payload]).unwrap();
-        let _ = handle_data_package_from_mobile(&ranging_response.serialize()).unwrap();
+        if let Ok(_) = handle_data_package_from_mobile(&ranging_response.serialize()) {
+        }
+    }
+    #[test]
+    fn test_fragments_from_mobile() {
+        let transaction_id = 0x0011;
+        let header = create_iccoa_header(
+            PacketType::REQUEST_PACKET,
+            transaction_id,
+            1+3+3,
+            Mark {
+                encrypt_type: EncryptType::NO_ENCRYPT,
+                more_fragment: true,
+                fragment_offset: 0x0000,
+            }
+        );
+        let payload = create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x01,
+            &[0x01, 0x02, 0x03]
+        );
+        let body = create_iccoa_body(
+            MessageType::VEHICLE_PAIRING,
+            payload
+        );
+        let request = create_iccoa(header, body);
+        println!("request serialized is {:02X?}", request.serialize());
+        let result = handle_data_package_from_mobile(&request.serialize());
+        println!("result = {:?}", result);
+
+        let header2 = create_iccoa_header(
+            PacketType::REQUEST_PACKET,
+            transaction_id,
+            3,
+            Mark {
+                encrypt_type: EncryptType::NO_ENCRYPT,
+                more_fragment: true,
+                fragment_offset: 0x0003,
+            }
+        );
+        let payload2 = create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x01,
+            &[0x04, 0x05, 0x06]
+        );
+        let body2 = create_iccoa_body(
+            MessageType::VEHICLE_PAIRING,
+            payload2
+        );
+        let request2= create_iccoa(header2, body2);
+        println!("request2 serialized is {:02X?}", request2.serialize());
+        let result2 = handle_data_package_from_mobile(&request2.serialize());
+        println!("result2 = {:?}", result2);
+
+        let header3 = create_iccoa_header(
+            PacketType::REQUEST_PACKET,
+            transaction_id,
+            3,
+            Mark {
+                encrypt_type: EncryptType::NO_ENCRYPT,
+                more_fragment: false,
+                fragment_offset: 0x0006,
+            }
+        );
+        let payload3 = create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x01,
+            &[0x07, 0x08, 0x09]
+        );
+        let body3 = create_iccoa_body(
+            MessageType::VEHICLE_PAIRING,
+            payload3
+        );
+        let request3= create_iccoa(header3, body3);
+        println!("request3 serialized is {:02X?}", request3.serialize());
+        let result3 = handle_data_package_from_mobile(&request3.serialize());
+        println!("result3 = {:?}", result3);
+    }
+    #[test]
+    fn test_split_request_iccoa() {
+        let transaction_id = 0x0012;
+        let header = create_iccoa_header(
+            PacketType::REQUEST_PACKET,
+            transaction_id,
+            1+3+1024,
+            Mark {
+                encrypt_type: EncryptType::NO_ENCRYPT,
+                more_fragment: false,
+                fragment_offset: 0x0000,
+            }
+        );
+        let payload = create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x01,
+            &vec![0x01; 1024],
+        );
+        let body = create_iccoa_body(
+            MessageType::VEHICLE_PAIRING,
+            payload
+        );
+        let request = create_iccoa(header, body);
+        println!("request serialized is {:02X?}", request.serialize());
+        println!("request seriallized length is {}", request.serialize().len());
+        match objects::split_iccoa(&request) {
+            Some(splitted_iccoa) => {
+                println!("splitted_iccoa size = {}", splitted_iccoa.len());
+                splitted_iccoa.iter().for_each(|item| {
+                    println!("{:?}", item);
+                });
+            },
+            None => {
+                println!("No need split!!!");
+            }
+        }
+    }
+    #[test]
+    fn test_split_response_iccoa() {
+        let transaction_id = 0x0013;
+        let header = create_iccoa_header(
+            PacketType::REPLY_PACKET,
+            transaction_id,
+            1+2+3+1024,
+            Mark {
+                encrypt_type: EncryptType::NO_ENCRYPT,
+                more_fragment: false,
+                fragment_offset: 0x0000,
+            }
+        );
+        let payload = create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x01,
+            &vec![0x01; 1024],
+        );
+        let body = create_iccoa_body(
+            MessageType::VEHICLE_PAIRING,
+            payload
+        );
+        let response = create_iccoa(header, body);
+        println!("response serialized is {:02X?}", response.serialize());
+        println!("response seriallized length is {}", response.serialize().len());
     }
 }

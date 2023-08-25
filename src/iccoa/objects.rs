@@ -5,6 +5,7 @@ use cmac::{Cmac, Mac};
 use super::{errors::*, status::{Status, StatusTag, StatusBuilder}};
 
 lazy_static! {
+    static ref BLE_DEFAULT_MTU: u16 = 500;
     static ref ICCOA_HEADER_LENGTH: usize = 12;
     static ref ICCOA_HEADER_MARK_LENGTH: usize = 2;
     static ref ICCOA_REQUEST_TRANSACTION_ID: Mutex<u16> = Mutex::new(0x0000);
@@ -12,6 +13,7 @@ lazy_static! {
     static ref SHARED_KEY: Mutex<[u8; 32]> = Mutex::new([0x00; 32]);
     static ref CMAC_KEY_VEHICLE: Mutex<[u8; 16]> = Mutex::new([0x00; 16]);
     static ref CMAC_KEY_MOBILE: Mutex<[u8; 16]> = Mutex::new([0x00; 16]);
+    static ref ICCOA_FRAGMENTS: Mutex<Vec<ICCOA>> = Mutex::new(Vec::new());
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -591,6 +593,105 @@ pub fn update_cmac_key(key_type: &str, key: &[u8; 16]) {
 pub fn update_shared_key(key: &[u8; 32]) {
     let mut shared_key = SHARED_KEY.lock().unwrap();
     *shared_key = *key;
+}
+
+pub fn collect_iccoa_fragments(iccoa: ICCOA) {
+    let mut iccoa_fragments = ICCOA_FRAGMENTS.lock().unwrap();
+    iccoa_fragments.push(iccoa);
+}
+
+pub fn reassemble_iccoa_fragments() -> ICCOA {
+    let mut iccoa = ICCOA::new();
+    let mut iccoa_fragments = ICCOA_FRAGMENTS.lock().unwrap();
+    iccoa_fragments.sort_by(|a, b| {
+        a.get_header().get_mark().get_fragment_offset().cmp(&b.get_header().get_mark().get_fragment_offset())
+    });
+    let mut total_length: u16 = 0x0000;
+    for (index, tmp_iccoa) in iccoa_fragments.iter().enumerate() {
+        if index == 0 {
+            iccoa.header.set_version(tmp_iccoa.get_header().get_version());
+            iccoa.header.set_connection_id(tmp_iccoa.get_header().get_connection_id());
+            iccoa.header.set_packet_type(tmp_iccoa.get_header().get_packet_type());
+            iccoa.header.set_source_transaction_id(tmp_iccoa.get_header().get_source_transaction_id());
+            iccoa.header.set_dest_transaction_id(tmp_iccoa.get_header().get_dest_transaction_id());
+            iccoa.header.set_mark(tmp_iccoa.get_header().get_mark());
+            iccoa.header.mark.set_more_fragment(false);
+
+            iccoa.body.set_message_type(tmp_iccoa.get_body().message_type);
+            iccoa.body.set_message_data(tmp_iccoa.get_body().message_data.clone());
+            if iccoa.header.get_packet_type() == PacketType::REPLY_PACKET {
+                total_length += (12+1+2+3+tmp_iccoa.get_body().get_message_data().get_value().len()+8) as u16;
+            } else {
+                total_length += (12+1+3+tmp_iccoa.get_body().get_message_data().get_value().len()+8) as u16;
+            }
+        } else {
+            iccoa.body.message_data.value.append(&mut tmp_iccoa.get_body().get_message_data().get_value().to_vec());
+            total_length += tmp_iccoa.get_body().get_message_data().get_value().len() as u16;
+        }
+    }
+    iccoa.header.set_pdu_length(total_length);
+    iccoa.calculate_mac();
+    iccoa_fragments.clear();
+    iccoa
+}
+
+pub fn split_iccoa(iccoa: &ICCOA) -> Option<Vec<ICCOA>> {
+    //according to iccoa.header.pdu_length to split ICCOA package
+    if iccoa.get_header().get_pdu_length() < *BLE_DEFAULT_MTU {
+        return None
+    }
+    let mut splitted_iccoa = Vec::new();
+    let mut position = 0x00;
+    let mut total_payload_length = iccoa.get_header().get_pdu_length() - (12+1+3+8);
+    if iccoa.get_header().get_packet_type() == PacketType::REPLY_PACKET {
+        total_payload_length -= 2;
+    }
+    loop {
+        let mut tmp_iccoa = ICCOA::new();
+        tmp_iccoa.header.set_version(iccoa.get_header().get_version());
+        tmp_iccoa.header.set_connection_id(iccoa.get_header().get_connection_id());
+        tmp_iccoa.header.set_packet_type(iccoa.get_header().packet_type);
+        tmp_iccoa.header.set_source_transaction_id(iccoa.get_header().get_source_transaction_id());
+        tmp_iccoa.header.set_dest_transaction_id(iccoa.get_header().get_dest_transaction_id());
+        let mut payload_length: u16 = 0x00;
+        if position == 0x00 {
+            if iccoa.get_header().get_packet_type() == PacketType::REPLY_PACKET {
+                payload_length = *BLE_DEFAULT_MTU - 26;
+                tmp_iccoa.header.set_pdu_length(12+1+2+3+payload_length+8);
+            } else {
+                payload_length = *BLE_DEFAULT_MTU - 24;
+                tmp_iccoa.header.set_pdu_length(12+1+3+payload_length+8);
+            }
+        } else {
+            if total_payload_length - position > *BLE_DEFAULT_MTU - 20 {
+                payload_length = *BLE_DEFAULT_MTU - 20;
+            } else {
+                payload_length = total_payload_length - position;
+            }
+            tmp_iccoa.header.set_pdu_length(12+payload_length+8);
+        }
+        tmp_iccoa.header.mark.set_encrypt_type(iccoa.get_header().get_mark().get_encrypt_type());
+        if position + payload_length == total_payload_length {
+            tmp_iccoa.header.mark.set_more_fragment(false);
+        } else {
+            tmp_iccoa.header.mark.set_more_fragment(true);
+        }
+        tmp_iccoa.header.mark.set_fragment_offset(position);
+
+        if position == 0x00 {
+            tmp_iccoa.body.set_message_type(iccoa.body.message_type);
+            tmp_iccoa.body.message_data.status = iccoa.body.get_message_data().get_status();
+            tmp_iccoa.body.message_data.tag = iccoa.body.get_message_data().get_tag();
+        }
+        tmp_iccoa.body.message_data.value.append(&mut iccoa.body.get_message_data().value[position as usize ..(position+payload_length) as usize].to_vec());
+        tmp_iccoa.calculate_mac();
+        splitted_iccoa.push(tmp_iccoa);
+        position += payload_length;
+        if position == total_payload_length {
+            break;
+        }
+    }
+    return Some(splitted_iccoa)
 }
 
 #[cfg(test)]
