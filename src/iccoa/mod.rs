@@ -49,7 +49,15 @@ impl TLVPayload {
         }
     }
     pub fn length(&self) -> usize {
-        1+1+self.value.len()
+        let mut length_bytes = 0x00;
+        if self.value.len() < 128 {
+            length_bytes = 1;
+        } else if self.value.len() < 256 {
+            length_bytes = 2;
+        } else {
+            length_bytes = 3;
+        }
+        1+length_bytes+self.value.len()
     }
     pub fn get_tag(&self) -> u8 {
         self.tag
@@ -57,7 +65,16 @@ impl TLVPayload {
     pub fn serialize(&self) -> Vec<u8> {
         let mut buffer = Vec::new();
         buffer.push(self.tag);
-        buffer.push(self.value.len() as u8);
+        if self.value.len() < 128 {
+            buffer.push(self.value.len() as u8);
+        } else if self.value.len() < 256 {
+            buffer.push(0x81);
+            buffer.push(self.value.len() as u8);
+        } else {
+            buffer.push(0x82);
+            let length = self.value.len() as u16;
+            buffer.append(&mut length.to_be_bytes().to_vec());
+        }
         buffer.append(&mut self.value.to_vec());
 
         buffer
@@ -70,9 +87,18 @@ impl TLVPayload {
         let mut index = 0x00;
         payload.tag = buffer[index];
         index += 1;
-        let _length = buffer[index] as usize;
-        index += 1;
-        payload.value = buffer[index..].to_vec();
+        let mut length = 0x00;
+        if buffer[index] < 128 {
+            length = buffer[index] as usize;
+            index += 1;
+        } else if buffer[index] == 0x81 {
+            length = buffer[index+1] as usize;
+            index += 2;
+        } else {
+            length = (u16::from_be_bytes([buffer[index+1], buffer[index+2]])) as usize;
+            index += 3;
+        }
+        payload.value = buffer[index..index+length].to_vec();
 
         Ok(payload)
     }
@@ -103,5 +129,27 @@ impl TLVPayloadBuilder {
             tag: self.tag,
             value: self.value.to_vec(),
         }
+    }
+}
+
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ber_tlv() {
+        let payload = TLVPayloadBuilder::new().set_tag(0x55).set_value(&[0x01; 16]).build();
+        println!("serialized payload = {:02X?}", payload.serialize());
+        let deserialized_payload = TLVPayload::deserialize(&payload.serialize()).unwrap();
+        println!("deserialized_payload = {:?}", deserialized_payload);
+
+        let payload2 = TLVPayloadBuilder::new().set_tag(0x56).set_value(&[0x02; 250]).build();
+        println!("serialized payload2 = {:02X?}", payload2.serialize());
+        let deserialized_payload2 = TLVPayload::deserialize(&payload2.serialize()).unwrap();
+        println!("deserialized_payload2 = {:?}", deserialized_payload2);
+
+        let payload3 = TLVPayloadBuilder::new().set_tag(0x57).set_value(&[0x03; 1024]).build();
+        println!("serialized payload3 = {:02X?}", payload3.serialize());
+        let deserialized_payload3 = TLVPayload::deserialize(&payload3.serialize()).unwrap();
+        println!("deserialized_payload3 = {:?}", deserialized_payload3);
     }
 }

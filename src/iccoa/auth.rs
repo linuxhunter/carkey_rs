@@ -17,7 +17,15 @@ fn create_iccoa_auth_request(transaction_id: u16, tag: u8, payloads: &[TLVPayloa
     let mut payload_data= Vec::new();
     let mut payload_length = 0x00;
     payloads.iter().for_each(|p| {
-        payload_length += 2+p.value.len();
+        let mut length_bytes = 0x00;
+        if p.value.len() < 128 {
+            length_bytes = 1;
+        } else if p.value.len() < 256 {
+            length_bytes = 2;
+        } else {
+            length_bytes = 3;
+        }
+        payload_length += 1+length_bytes+p.value.len();
         payload_data.append(&mut p.serialize());
     });
 
@@ -50,7 +58,15 @@ fn create_iccoa_auth_response(transaction_id: u16, status: Status, tag: u8, payl
     let mut payload_data= Vec::new();
     let mut payload_length = 0x00;
     payloads.iter().for_each(|p| {
-        payload_length += 2+p.value.len();
+        let mut length_bytes = 0x00;
+        if p.value.len() < 128 {
+            length_bytes = 1;
+        } else if p.value.len() < 256 {
+            length_bytes = 2;
+        } else {
+            length_bytes = 3;
+        }
+        payload_length += 1+length_bytes+p.value.len();
         payload_data.append(&mut p.serialize());
     });
 

@@ -67,7 +67,15 @@ fn create_iccoa_pairing_request(transaction_id: u16, tag: u8, payloads: &[TLVPay
     let mut payload_data= Vec::new();
     let mut payload_length = 0x00;
     payloads.iter().for_each(|p| {
-        payload_length += 2+p.value.len();
+        let mut length_bytes = 0x00;
+        if p.value.len() < 128 {
+            length_bytes = 1;
+        } else if p.value.len() < 256 {
+            length_bytes = 2;
+        } else {
+            length_bytes = 3;
+        }
+        payload_length += 1+length_bytes+p.value.len();
         payload_data.append(&mut p.serialize());
     });
 
@@ -100,7 +108,15 @@ fn create_iccoa_pairing_response(transaction_id: u16, status: Status, tag: u8, p
     let mut payload_data= Vec::new();
     let mut payload_length = 0x00;
     payloads.iter().for_each(|p| {
-        payload_length += 2+p.value.len();
+        let mut length_bytes = 0x00;
+        if p.value.len() < 128 {
+            length_bytes = 1;
+        } else if p.value.len() < 256 {
+            length_bytes = 2;
+        } else {
+            length_bytes = 3;
+        }
+        payload_length += 1+length_bytes+p.value.len();
         payload_data.append(&mut p.serialize());
     });
 
@@ -167,6 +183,36 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn test_little_size_pairing_payload() {
+        let transaction_id = 0x0004;
+        let vehicle_certificate = [0x01; 16];
+        let vehicle_certificate_payload = TLVPayloadBuilder::new().set_tag(0x55).set_value(&vehicle_certificate).build();
+        let iccoa = create_iccoa_pairing_certificate_write_request(transaction_id, &[vehicle_certificate_payload]).unwrap();
+        println!("seialized iccoa = {:02X?}", iccoa.serialize());
+        let deserialized_iccoa = ICCOA::deserialize(&iccoa.serialize()).unwrap();
+        assert_eq!(iccoa, deserialized_iccoa);
+    }
+    #[test]
+    fn test_middle_size_pairing_payload() {
+        let transaction_id = 0x0004;
+        let vehicle_certificate = [0x01; 250];
+        let vehicle_certificate_payload = TLVPayloadBuilder::new().set_tag(0x55).set_value(&vehicle_certificate).build();
+        let iccoa = create_iccoa_pairing_certificate_write_request(transaction_id, &[vehicle_certificate_payload]).unwrap();
+        println!("seialized iccoa = {:02X?}", iccoa.serialize());
+        let deserialized_iccoa = ICCOA::deserialize(&iccoa.serialize()).unwrap();
+        assert_eq!(iccoa, deserialized_iccoa);
+    }
+    #[test]
+    fn test_large_size_pairing_payload() {
+        let transaction_id = 0x0004;
+        let vehicle_certificate = [0x01; 1024];
+        let vehicle_certificate_payload = TLVPayloadBuilder::new().set_tag(0x55).set_value(&vehicle_certificate).build();
+        let iccoa = create_iccoa_pairing_certificate_write_request(transaction_id, &[vehicle_certificate_payload]).unwrap();
+        println!("seialized iccoa = {:02X?}", iccoa.serialize());
+        let deserialized_iccoa = ICCOA::deserialize(&iccoa.serialize()).unwrap();
+        assert_eq!(iccoa, deserialized_iccoa);
+    }
     #[test]
     fn test_spake2_plus_data_request() {
         let transaction_id = 0x0001;
