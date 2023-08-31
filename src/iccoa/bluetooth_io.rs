@@ -1,7 +1,9 @@
 use std::io::Write;
 
+use openssl::pkey::PKey;
+
 use super::command::ranging::create_iccoa_ranging_request;
-use super::{errors::*, objects};
+use super::{errors::*, objects, utils};
 use super::objects::{ICCOA, PacketType, MessageType};
 use super::status::{StatusTag, StatusBuilder, Status};
 use super::pairing;
@@ -29,8 +31,11 @@ pub fn create_iccoa_pairing_data_request_package() -> Result<Vec<u8>> {
 
 pub fn create_iccoa_standard_auth_pubkey_exchange_request_package() -> Result<ICCOA> {
     let transaction_id = 0x0000;
-    let vehicle_temp_pubkey = [0x01; 65];
-    let vehicle_id = [0x10; 16];
+    let mut auth_sign_object = utils::get_auth_sign_object();
+    auth_sign_object.create_vehicle_temp_keypair("rsa")?;
+    let vehicle_temp_pubkey = auth_sign_object.get_vehicle_temp_public_key_pem()?;
+    let vehicle_id = auth_sign_object.get_vehicle_id()?;
+    utils::set_auth_sign_object(&auth_sign_object);
     let vehicle_temp_pubkey_payload = TLVPayloadBuilder::new().set_tag(0x81).set_value(&vehicle_temp_pubkey).build();
     let vehicle_id_payload = TLVPayloadBuilder::new().set_tag(0x83).set_value(&vehicle_id).build();
     let iccoa = auth::create_iccoa_standard_auth_pubkey_exchange_request(
@@ -40,15 +45,20 @@ pub fn create_iccoa_standard_auth_pubkey_exchange_request_package() -> Result<IC
 }
 
 pub fn create_iccoa_fast_auth_pubkey_exchange_request_package() -> Result<ICCOA> {
+    /*
     let transaction_id = 0x0000;
-    let vehicle_temp_pubkey = [0x06; 65];
-    let vehicle_id = [0x60; 16];
+    let vehicle_temp_rsa = utils::create_temp_rsa().unwrap();
+    let keypair = PKey::from_rsa(vehicle_temp_rsa).unwrap();
+    let vehicle_temp_pubkey = keypair.public_key_to_pem().unwrap();
+    let vehicle_id = utils::get_vehicle_id();
     let vehicle_temp_pubkey_payload = TLVPayloadBuilder::new().set_tag(0x81).set_value(&vehicle_temp_pubkey).build();
     let vehicle_id_payload = TLVPayloadBuilder::new().set_tag(0x83).set_value(&vehicle_id).build();
     let iccoa = auth::create_iccoa_fast_auth_pubkey_exchange_request(
         transaction_id,
         &[vehicle_temp_pubkey_payload, vehicle_id_payload])?;
     Ok(iccoa)
+    */
+    Ok(ICCOA::new())
 }
 
 pub fn create_iccoa_ranging_request_package() -> Result<ICCOA> {
@@ -107,14 +117,85 @@ pub fn handle_iccoa_pairing_read_response_payload(iccoa: &ICCOA) -> Result<()> {
     }
 }
 
-pub fn handle_iccoa_standard_auth_data_exchange_response_payload(iccoa: &ICCOA) -> Status {
+pub fn handle_iccoa_standard_auth_data_exchange_response_payload(iccoa: &ICCOA) -> Result<Vec<u8>> {
     //handle standard auth data exchange payload
-    StatusBuilder::new().success().build()
+    let message_data = iccoa.get_body().get_message_data();
+    if message_data.status != StatusBuilder::new().success().build() {
+        return Err(ErrorKind::ICCOAAuthError("standard auth data exchnage response error".to_string()).into());
+    }
+    if message_data.get_tag() != 0x01 {
+        return Err(ErrorKind::ICCOAAuthError("standard auth data exchange response tag error".to_string()).into());
+    }
+    let total_payload = message_data.get_value();
+    let total_length = total_payload.len() as usize;
+    let mut index = 0x00;
+    let mut carkey_temp_pubkey = Vec::new();
+    let mut carkey_id = Vec::new();
+    while index < total_length {
+        let payload = TLVPayload::deserialize(&total_payload[index..]).unwrap();
+        if payload.get_tag() == 0x84 {
+            carkey_temp_pubkey.append(&mut payload.value.to_vec());
+        } else if payload.get_tag() == 0x89 {
+            carkey_id.append(&mut payload.value.to_vec());
+        }
+        let payload_length = payload.value.len();
+        if payload_length < 128 {
+            index += 1+1+payload_length;
+        } else if payload_length < 256 {
+            index += 1+2+payload_length;
+        } else {
+            index += 1+3+payload_length;
+        }
+    }
+    let mut auth_sign_object = utils::get_auth_sign_object();
+    auth_sign_object.set_mobile_temp_public_key_pem(&carkey_temp_pubkey)?;
+    auth_sign_object.set_mobile_id(&carkey_id);
+    utils::set_auth_sign_object(&auth_sign_object);
+    auth_sign_object.signature()
 }
 
-pub fn handle_iccoa_standard_auth_response_payload(iccoa: &ICCOA) -> Status {
+pub fn handle_iccoa_standard_auth_response_payload(iccoa: &ICCOA) -> Result<()> {
     //handle standard auth response payload
-    StatusBuilder::new().success().build()
+    let message_data = iccoa.get_body().get_message_data();
+    if message_data.status != StatusBuilder::new().success().build() {
+        return Err(ErrorKind::ICCOAAuthError("standard auth response error".to_string()).into());
+    }
+    if message_data.get_tag() != 0x02 {
+        return Err(ErrorKind::ICCOAAuthError("standard auth response tag error".to_string()).into());
+    }
+    let total_payload = message_data.get_value();
+    let total_length = total_payload.len() as usize;
+    let mut index = 0x00;
+    let mut mobile_auth_info = Vec::new();
+    while index < total_length {
+        let payload = TLVPayload::deserialize(&total_payload[index..]).unwrap();
+        if payload.get_tag() == 0x87 {
+            mobile_auth_info.append(&mut payload.value.to_vec());
+        }
+        let payload_length = payload.value.len();
+        if payload_length < 128 {
+            index += 1+1+payload_length;
+        } else if payload_length < 256 {
+            index += 1+2+payload_length;
+        } else {
+            index += 1+3+payload_length;
+        }
+    }
+    let auth_sign_object = utils::get_auth_sign_object();
+    match auth_sign_object.verify(&mobile_auth_info)  {
+        Ok(result) => {
+            if result {
+                println!("OK");
+                Ok(())
+            } else {
+                println!("Failed");
+                return Err(ErrorKind::ICCOAAuthError("mobile auth info signature verify error".to_string()).into());
+            }
+        },
+        Err(_) => {
+            return Err(ErrorKind::ICCOAAuthError("mobile auth info signature verify error".to_string()).into());
+        }
+    }
 }
 
 pub fn handle_iccoa_fast_auth_data_exchange_response_payload(iccoa: &ICCOA) -> Status {
@@ -197,8 +278,8 @@ pub fn handle_iccoa_pairing_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA>
                 },
                 _ => {
                     //test create standard auth request
-                    //create_iccoa_standard_auth_pubkey_exchange_request_package()?
-                    create_iccoa_fast_auth_pubkey_exchange_request_package()?
+                    create_iccoa_standard_auth_pubkey_exchange_request_package()?
+                    //create_iccoa_fast_auth_pubkey_exchange_request_package()?
                     //return Err(ErrorKind::ICCOAPairingError("Pairing Completed".to_string()).into());
                 }
             };
@@ -222,16 +303,15 @@ pub fn handle_iccoa_auth_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
     match message_data.get_tag() {
         0x01 => {
             //handle standard auth vehicle temp pubkey response
-            let _status = handle_iccoa_standard_auth_data_exchange_response_payload(iccoa);
+            let vehicle_signature = handle_iccoa_standard_auth_data_exchange_response_payload(iccoa)?;
             //create standard auth request
-            let vehicle_signature = [0x03; 64];
             let vehicle_signature_payload = TLVPayloadBuilder::new().set_tag(0x86).set_value(&vehicle_signature).build();
             let response = auth::create_iccoa_standard_auth_request(transaction_id, &[vehicle_signature_payload])?;
             Ok(response)
         },
         0x02 => {
             //handle standard auth response
-            let _status = handle_iccoa_standard_auth_response_payload(iccoa);
+            handle_iccoa_standard_auth_response_payload(iccoa)?;
             return Err(ErrorKind::ICCOAAuthError("standard auth completed".to_string()).into());
         },
         0xC1 => {
