@@ -1,7 +1,5 @@
 use std::io::Write;
 
-use openssl::pkey::PKey;
-
 use super::command::ranging::create_iccoa_ranging_request;
 use super::{errors::*, objects, utils};
 use super::objects::{ICCOA, PacketType, MessageType};
@@ -32,7 +30,7 @@ pub fn create_iccoa_pairing_data_request_package() -> Result<Vec<u8>> {
 pub fn create_iccoa_standard_auth_pubkey_exchange_request_package() -> Result<ICCOA> {
     let transaction_id = 0x0000;
     let mut auth_sign_object = utils::get_auth_sign_object();
-    auth_sign_object.create_vehicle_temp_keypair("rsa")?;
+    auth_sign_object.create_vehicle_temp_keypair("ec")?;
     let vehicle_temp_pubkey = auth_sign_object.get_vehicle_temp_public_key_pem()?;
     let vehicle_id = auth_sign_object.get_vehicle_id()?;
     utils::set_auth_sign_object(&auth_sign_object);

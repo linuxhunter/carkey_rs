@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use openssl::{rsa::Rsa, pkey::{Private, PKey}, sign::{Signer, Verifier}, hash::MessageDigest};
+use openssl::{rsa::Rsa, pkey::{Private, PKey}, sign::{Signer, Verifier}, hash::MessageDigest, ec::{EcGroup, EcKey}, nid::Nid};
 
 use super::errors::*;
 
@@ -30,6 +30,12 @@ impl AuthSign {
             let vehicle_temp_rsa = Rsa::generate(1024).map_err(|_| ErrorKind::ICCOAAuthError("create temp rsa keypair error".to_string()))?;
             let keypair = PKey::from_rsa(vehicle_temp_rsa).map_err(|_| ErrorKind::ICCOAAuthError("create pkey error".to_string()))?;
             self.vehicle_temp_keypair = Some(keypair);
+            Ok(())
+        } else if mode == "ec" {
+            let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).map_err(|_| ErrorKind::ICCOAAuthError("create EC Group with SECP256K1 error".to_string()))?;
+            let keypair = EcKey::generate(&group).map_err(|_| ErrorKind::ICCOAAuthError("create EC key pair error".to_string()))?;
+            let pkey = PKey::from_ec_key(keypair).map_err(|_| ErrorKind::ICCOAAuthError("create PKey from EC keypair error".to_string()))?;
+            self.vehicle_temp_keypair = Some(pkey);
             Ok(())
         } else {
             return Err(ErrorKind::ICCOAAuthError("not supported key mode error".to_string()).into());
@@ -144,9 +150,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_auth_sign_object() {
+    fn test_rsa_auth_sign_object() {
         let mut object = get_auth_sign_object();
         let _ = object.create_vehicle_temp_keypair("rsa");
+        println!("vehicle public key = {}", std::str::from_utf8(object.get_vehicle_temp_public_key_pem().unwrap().as_slice()).unwrap());
+        set_auth_sign_object(&object);
+    }
+    #[test]
+    fn test_eckey_auth_sign_object() {
+        let mut object = get_auth_sign_object();
+        let _ = object.create_vehicle_temp_keypair("ec");
         println!("vehicle public key = {}", std::str::from_utf8(object.get_vehicle_temp_public_key_pem().unwrap().as_slice()).unwrap());
         set_auth_sign_object(&object);
     }
