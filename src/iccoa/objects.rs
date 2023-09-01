@@ -2,7 +2,7 @@ use std::sync::Mutex;
 use aes::Aes128;
 use cmac::{Cmac, Mac};
 
-use super::{errors::*, status::{Status, StatusTag, StatusBuilder}};
+use super::{errors::*, status::{Status, StatusTag, StatusBuilder}, utils};
 
 lazy_static! {
     static ref BLE_DEFAULT_MTU: u16 = 500;
@@ -10,9 +10,6 @@ lazy_static! {
     static ref ICCOA_HEADER_MARK_LENGTH: usize = 2;
     static ref ICCOA_REQUEST_TRANSACTION_ID: Mutex<u16> = Mutex::new(0x0000);
     static ref ICCOA_RESPONSE_TRANSACTION_ID: Mutex<u16> = Mutex::new(0x0000);
-    static ref SHARED_KEY: Mutex<[u8; 32]> = Mutex::new([0x00; 32]);
-    static ref CMAC_KEY_VEHICLE: Mutex<[u8; 16]> = Mutex::new([0x00; 16]);
-    static ref CMAC_KEY_MOBILE: Mutex<[u8; 16]> = Mutex::new([0x00; 16]);
     static ref ICCOA_FRAGMENTS: Mutex<Vec<ICCOA>> = Mutex::new(Vec::new());
 }
 
@@ -453,8 +450,6 @@ impl ICCOA {
         &self.body
     }
     pub fn calculate_mac(&mut self) {
-        let key = CMAC_KEY_VEHICLE.lock().unwrap().to_vec();
-        let mut calculator = Cmac::<Aes128>::new_from_slice(&key).unwrap();
         let mut message = Vec::new();
         message.append(&mut self.header.serialize());
         let request = match self.get_header().get_packet_type() {
@@ -467,32 +462,9 @@ impl ICCOA {
             false
         };
         message.append(&mut self.body.serialize(request, fragment));
-        calculator.update(&message);
-        let _result = calculator.finalize();
+        let _result = utils::calculate_cmac(&utils::get_auth_key_mac(), &message).unwrap();
         //println!("[cmac-aes-128] = {:02X?}", result.into_bytes());
         self.mac = [0x00; 8];
-    }
-    pub fn verify_mac(&mut self) -> bool {
-        let key = CMAC_KEY_MOBILE.lock().unwrap().to_vec();
-        let mut calculator = Cmac::<Aes128>::new_from_slice(&key).unwrap();
-        let mut message = Vec::new();
-        message.append(&mut self.header.serialize());
-        let request = match self.get_header().get_packet_type() {
-            PacketType::REQUEST_PACKET | PacketType::EVENT_PACKET => true,
-            _ => false,
-        };
-        let fragment = if self.get_header().get_mark().get_fragment_offset() != 0 {
-            true
-        } else {
-            false
-        };
-        message.append(&mut self.body.serialize(request, fragment));
-        calculator.update(&message);
-        let result = calculator.finalize();
-        result.into_bytes().to_vec().eq(&self.mac.to_vec())
-    }
-    pub fn get_mac(&self) -> &[u8; 8] {
-        &self.mac
     }
     pub fn serialize(&self) -> Vec<u8> {
         let mut buffer = Vec::new();
@@ -579,20 +551,6 @@ pub fn create_iccoa(header: Header, body: Body) -> ICCOA {
     iccoa.calculate_mac();
 
     iccoa
-}
-
-pub fn update_cmac_key(key_type: &str, key: &[u8; 16]) {
-    let mut cmac_key = if key_type == "vehicle" {
-        CMAC_KEY_VEHICLE.lock().unwrap()
-    } else {
-        CMAC_KEY_MOBILE.lock().unwrap()
-    };
-    *cmac_key = *key;
-}
-
-pub fn update_shared_key(key: &[u8; 32]) {
-    let mut shared_key = SHARED_KEY.lock().unwrap();
-    *shared_key = *key;
 }
 
 pub fn collect_iccoa_fragments(iccoa: ICCOA) {
@@ -1318,26 +1276,6 @@ mod tests {
             },
             mac: [0x00; 8],
         });
-    }
-    #[test]
-    fn test_cmac_aes_128_for_iccoa() {
-        let serialized_iccoa = vec![0x01, 0x02, 0x02, 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00, 0x01, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
-        let mut iccoa = ICCOA::deserialize(&serialized_iccoa).unwrap();
-        let cmac_key = [0x85, 0x7d, 0x0d, 0xb7, 0xf5, 0xe0, 0x63, 0x85, 0x85, 0x3b, 0xf4, 0xb8, 0xab, 0xd4, 0x3b, 0x5a];
-        println!("cmac key is {:02X?}", cmac_key);
-        update_cmac_key("vehicle", &cmac_key);
-        let message = [
-            0x04, 0xc0, 0x59, 0x53, 0xea, 0x9d, 0x1c, 0xd6,
-            0x24, 0x8b, 0x8c, 0x61, 0xbe, 0xcd, 0x7d, 0x55,
-            0xe4, 0x62, 0x37, 0x52, 0x6d, 0x8b, 0x1e, 0x23,
-            0x49, 0x5e, 0xa7, 0x56, 0x6b, 0x7f, 0x6b, 0xc2,
-            0x4b, 0x3d, 0xa1, 0xcf, 0xb2, 0xe8, 0x8a, 0x97,
-            0x5f, 0xcf, 0xb5, 0xdc, 0x4e, 0x72, 0xb5, 0xcb,
-            0xea, 0x50, 0x9b, 0x1c, 0xfd, 0xd1, 0xef, 0x8f,
-            0x81, 0x95, 0xfa, 0x8b, 0xf2, 0xbd, 0x5c, 0xa1,
-            0xe5
-        ];
-        //calculate_mac2(&message);
     }
     #[test]
     fn test_auto_dest_transaction_id() {

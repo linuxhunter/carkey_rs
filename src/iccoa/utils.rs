@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::{sync::Mutex, vec};
 
 use aes::Aes128;
 use cmac::{Cmac, Mac};
@@ -45,7 +45,7 @@ impl AuthKey {
             Some(key_enc) => {
                 key_enc.to_vec()
             },
-            None => Vec::new()
+            None => [0x00; 16].to_vec()
         }
     }
     pub fn get_key_mac(&self) -> Vec<u8> {
@@ -53,7 +53,7 @@ impl AuthKey {
             Some(key_mac) => {
                 key_mac.to_vec()
             },
-            None => Vec::new()
+            None => [0x00; 16].to_vec()
         }
     }
     pub fn get_kv_mac(&self) -> Vec<u8> {
@@ -61,7 +61,7 @@ impl AuthKey {
             Some(kv_mac) => {
                 kv_mac.to_vec()
             },
-            None => Vec::new()
+            None => [0x00; 16].to_vec()
         }
     }
     pub fn get_kd_mac(&self) -> Vec<u8> {
@@ -69,7 +69,7 @@ impl AuthKey {
             Some(kd_mac) => {
                 kd_mac.to_vec()
             },
-            None => Vec::new()
+            None => [0x00; 16].to_vec()
         }
     }
 }
