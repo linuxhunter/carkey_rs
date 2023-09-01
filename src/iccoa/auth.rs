@@ -2,17 +2,6 @@ use super::objects::{ICCOA, Mark, create_iccoa_header, create_iccoa_body_message
 use super::{errors::*, TLVPayload};
 use super::status::{StatusBuilder, Status};
 
-lazy_static! {
-    static ref VEHICLE_TEMP_PUBKEY_LENGTH: usize = 65;
-    static ref VEHICLE_ID_LENGTH: usize = 16;
-    static ref MOBILE_TEMP_PUBKEY_LENGTH: usize = 65;
-    static ref MOBILE_ID_LENGTH: usize = 16;
-    static ref VEHICLE_SIGNATURE_LENGTH: usize = 64;
-    static ref MOBILE_SIGNATURE_LENGTH: usize = 64;
-    static ref VEHICLE_FAST_AUTH_DATA_LENGTH: usize = 16;
-    static ref AUTH_PAYLOAD_LENGTH_MINIMUM: usize = 2;
-}
-
 fn create_iccoa_auth_request(transaction_id: u16, tag: u8, payloads: &[TLVPayload]) -> Result<ICCOA> {
     let mut payload_data= Vec::new();
     let mut payload_length = 0x00;
