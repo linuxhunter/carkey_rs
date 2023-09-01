@@ -1,6 +1,4 @@
 use std::sync::Mutex;
-use aes::Aes128;
-use cmac::{Cmac, Mac};
 
 use super::{errors::*, status::{Status, StatusTag, StatusBuilder}, utils};
 
