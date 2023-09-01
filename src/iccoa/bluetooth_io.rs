@@ -11,7 +11,7 @@ use super::command::rke::{create_iccoa_rke_response, RKECommandRequest};
 
 pub fn create_iccoa_pairing_data_request_package() -> Result<Vec<u8>> {
     let transaction_id = 0x0000;
-    let p_b = pairing::calculate_pB();
+    let p_b = pairing::calculate_p_b();
     let p_b_payload = TLVPayloadBuilder::new().set_tag(0x51).set_value(&p_b).build();
     let salt = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f];
     let salt_payload = TLVPayloadBuilder::new().set_tag(0xC0).set_value(&salt).build();
@@ -320,7 +320,7 @@ pub fn handle_iccoa_pairing_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA>
             //handle pA
             let _status = handle_iccoa_pairing_p_a_payload(iccoa);
             //create spake2+ auth request cB
-            let c_b = pairing::calculate_cB();
+            let c_b = pairing::calculate_c_b();
             let c_b_payload = TLVPayloadBuilder::new().set_tag(0x53).set_value(&c_b).build();
             let response = pairing::create_iccoa_paring_auth_request(transaction_id, &[c_b_payload])?;
             return Ok(response)
@@ -560,7 +560,7 @@ pub fn handle_data_package_from_mobile(data_package: &[u8]) -> Result<ICCOA> {
 
 #[cfg(test)]
 mod tests {
-    use crate::iccoa::{command::{rke::create_iccoa_rke_central_lock_request, ranging::create_iccoa_ranging_response}, objects::{Header, Body, Mark, MessageData, create_iccoa_header, EncryptType, create_iccoa_body_message_data, create_iccoa_body, create_iccoa}, pairing::{create_iccoa_pairing_data_request, calculate_pB, calculate_pA, create_iccoa_pairing_data_response, calculate_cA, create_iccoa_pairing_auth_response, create_iccoa_pairing_certificate_write_response, get_mobile_device_server_ca_certificate, get_mobile_device_tee_ca_certificate, get_carkey_certificate, create_iccoa_pairing_certificate_read_response}, auth::{create_iccoa_standard_auth_pubkey_exchange_response, create_iccoa_standard_auth_response, create_iccoa_fast_auth_pubkey_exchange_response, create_iccoa_fast_auth_response}};
+    use crate::iccoa::{command::{rke::create_iccoa_rke_central_lock_request, ranging::create_iccoa_ranging_response}, objects::{Header, Body, Mark, MessageData, create_iccoa_header, EncryptType, create_iccoa_body_message_data, create_iccoa_body, create_iccoa}, pairing::{create_iccoa_pairing_data_request, calculate_p_b, calculate_p_a, create_iccoa_pairing_data_response, calculate_c_a, create_iccoa_pairing_auth_response, create_iccoa_pairing_certificate_write_response, get_mobile_device_server_ca_certificate, get_mobile_device_tee_ca_certificate, get_carkey_certificate, create_iccoa_pairing_certificate_read_response}, auth::{create_iccoa_standard_auth_pubkey_exchange_response, create_iccoa_standard_auth_response, create_iccoa_fast_auth_pubkey_exchange_response, create_iccoa_fast_auth_response}};
     use super::*;
 
     #[test]
@@ -599,7 +599,7 @@ mod tests {
         //1st receive pA response
         let transaction_id = 0x0000;
         let status = StatusBuilder::new().success().build();
-        let p_a = calculate_pA();
+        let p_a = calculate_p_a();
         let p_a_payload = TLVPayloadBuilder::new().set_tag(0x52).set_value(&p_a).build();
         let p_a_response = create_iccoa_pairing_data_response(transaction_id, status, &[p_a_payload]).unwrap();
         //create auth request cB
@@ -632,7 +632,7 @@ mod tests {
             mac: [0x00; 8],
         });
         //2nd receive auth response cA
-        let c_a = calculate_cA();
+        let c_a = calculate_c_a();
         let c_a_payload = TLVPayloadBuilder::new().set_tag(0x54).set_value(&c_a).build();
         let iccoa = create_iccoa_pairing_auth_response(transaction_id, status, &[c_a_payload]).unwrap();
         //create pairing certificate write request

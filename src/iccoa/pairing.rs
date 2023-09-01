@@ -11,19 +11,19 @@ lazy_static! {
     static ref PAIRING_PAYLOAD_LENGTH_MINIMUM: usize = 0x02;
 }
 
-pub fn calculate_pB() -> [u8; 65] {
+pub fn calculate_p_b() -> [u8; 65] {
     [0x00; 65]
 }
 
-pub fn calculate_pA() -> [u8; 65] {
+pub fn calculate_p_a() -> [u8; 65] {
     [0x00; 65]
 }
 
-pub fn calculate_cB() -> [u8; 16] {
+pub fn calculate_c_b() -> [u8; 16] {
     [0x00; 16]
 }
 
-pub fn calculate_cA() -> [u8; 16] {
+pub fn calculate_c_a() -> [u8; 16] {
     [0x00; 16]
 }
 
@@ -216,7 +216,7 @@ mod tests {
     #[test]
     fn test_spake2_plus_data_request() {
         let transaction_id = 0x0001;
-        let p_b = calculate_pB();
+        let p_b = calculate_p_b();
         let p_b_payload = TLVPayloadBuilder::new().set_tag(0x51).set_value(&p_b).build();
         let salt = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f];
         let salt_payload = TLVPayloadBuilder::new().set_tag(0xC0).set_value(&salt).build();
@@ -267,7 +267,7 @@ mod tests {
     fn test_spake2_plus_data_response() {
         let transaction_id = 0x0002;
         let status = StatusBuilder::new().success().build();
-        let p_a = calculate_pA();
+        let p_a = calculate_p_a();
         let p_a_payload = TLVPayloadBuilder::new().set_tag(0x52).set_value(&p_a).build();
         let iccoa = create_iccoa_pairing_data_response(transaction_id, status, &[p_a_payload]).unwrap();
         assert_eq!(iccoa, ICCOA {
@@ -306,7 +306,7 @@ mod tests {
     #[test]
     fn test_spake2_plus_auth_request() {
         let transaction_id = 0x0002;
-        let c_b = calculate_cB();
+        let c_b = calculate_c_b();
         let c_b_payload = TLVPayloadBuilder::new().set_tag(0x53).set_value(&c_b).build();
         let iccoa = create_iccoa_paring_auth_request(transaction_id, &[c_b_payload]).unwrap();
         assert_eq!(iccoa, ICCOA {
@@ -341,7 +341,7 @@ mod tests {
     fn test_spake2_plus_auth_response() {
         let transaction_id= 0x0003;
         let status = StatusBuilder::new().success().build();
-        let c_a = calculate_cA();
+        let c_a = calculate_c_a();
         let c_a_payload = TLVPayloadBuilder::new().set_tag(0x54).set_value(&c_a).build();
         let iccoa = create_iccoa_pairing_auth_response(transaction_id, status, &[c_a_payload]).unwrap();
         assert_eq!(iccoa, ICCOA {
