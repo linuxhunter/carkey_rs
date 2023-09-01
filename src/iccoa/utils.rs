@@ -3,7 +3,7 @@ use std::sync::Mutex;
 use aes::Aes128;
 use cmac::{Cmac, Mac};
 use hkdf::Hkdf;
-use openssl::{rsa::Rsa, pkey::{Private, PKey}, sign::{Signer, Verifier}, hash::MessageDigest, ec::{EcGroup, EcKey}, nid::Nid, derive::Deriver};
+use openssl::{rsa::Rsa, pkey::{Private, PKey}, sign::{Signer, Verifier}, hash::MessageDigest, ec::{EcGroup, EcKey}, nid::Nid, derive::Deriver, cipher::Cipher, symm::{encrypt, decrypt}};
 use sha2::Sha256;
 
 use super::errors::*;
@@ -348,6 +348,16 @@ pub fn calculate_cmac(key: &[u8], message: &[u8]) -> Result<Vec<u8>> {
     mac.update(message);
     let result = mac.finalize();
     Ok(result.into_bytes().to_vec())
+}
+
+pub fn encrypt_aes_128_cbc(key: &[u8], plain_text: &[u8], iv: &[u8]) -> Result<Vec<u8>> {
+    let cipher = openssl::symm::Cipher::aes_128_cbc();
+    encrypt(cipher, key, Some(iv), plain_text).map_err(|_| ErrorKind::ICCOAEncryptError("aes 128 cbc encrypt data error".to_string()).into())
+}
+
+pub fn decrypt_aes_128_cbc(key: &[u8], cipher_text: &[u8], iv: &[u8]) -> Result<Vec<u8>> {
+    let cipher = openssl::symm::Cipher::aes_128_cbc();
+    decrypt(cipher, key, Some(iv), cipher_text).map_err(|_| ErrorKind::ICCOAEncryptError("aes 128 cbc decrypt data error".to_string()).into())
 }
 
 pub fn get_vehicle_id() -> [u8; 16] {

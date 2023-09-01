@@ -24,6 +24,7 @@ mod errors {
             ICCOAAuthError(t: String)
             ICCOACommandError(t: String)
             ICCOANotificationError(t: String)
+            ICCOAEncryptError(t: String)
         }
     }
 }
