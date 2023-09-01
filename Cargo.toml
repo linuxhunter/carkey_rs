@@ -11,9 +11,14 @@ bitflags = "2.4.0"
 bluer = { version = "0.15.7", features = ["full"] }
 cmac = "0.7.2"
 crc16 = "0.4.0"
+ecdh = "0.0.12"
+elliptic-curve = { version = "0.13.5", features = ["ecdh"] }
 error-chain = "0.12.4"
 futures = "0.3.28"
+hex-literal = "0.4.1"
+hkdf = "0.12.3"
 lazy_static = "1.4.0"
 openssl = "0.10.55"
+sha2 = "0.10.7"
 tokio = { version = "1.29.1", features = ["full"] }
 uuid = "1.4.1"
