@@ -1,30 +1,28 @@
-use std::{sync::Mutex, vec};
-
 use aes::Aes128;
 use cmac::{Cmac, Mac};
 use hkdf::Hkdf;
-use openssl::{rsa::Rsa, pkey::{Private, PKey}, sign::{Signer, Verifier}, hash::MessageDigest, ec::{EcGroup, EcKey}, nid::Nid, derive::Deriver, cipher::Cipher, symm::{encrypt, decrypt}};
+use openssl::{rsa::Rsa, pkey::{Private, PKey}, sign::{Signer, Verifier}, hash::MessageDigest, ec::{EcGroup, EcKey}, nid::Nid, derive::Deriver, symm::{encrypt, decrypt}};
 use sha2::Sha256;
 
 use super::errors::*;
 
-lazy_static! {
-    static ref AUTH_SIGN_OBJECT: Mutex<AuthSignMaterial> = Mutex::new(AuthSignMaterial::new());
-    static ref AUTH_KEY_PERSISTENT: Mutex<Vec<u8>> = Mutex::new(Vec::new());
-    static ref AUTH_KEY: Mutex<AuthKey> = Mutex::new(AuthKey::new());
+pub trait KeyMaterialOperation {
+    fn signature(&self) -> Result<Vec<u8>>;
+    fn verify(&self, signature: &[u8]) -> Result<bool>;
+    fn derive_key(&mut self, ikm: Option<&[u8]>, other_materials: &[u8], key_length: usize) -> Result<Vec<u8>>;
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct AuthKey {
+pub struct CipherKey {
     key_enc: Option<Vec<u8>>,
     key_mac: Option<Vec<u8>>,
     kv_mac: Option<Vec<u8>>,
     kd_mac: Option<Vec<u8>>,
 }
 
-impl AuthKey {
+impl CipherKey {
     pub fn new() -> Self {
-        AuthKey {
+        CipherKey {
             ..Default::default()
         }
     }
@@ -74,16 +72,16 @@ impl AuthKey {
     }
 }
 #[derive(Debug, Clone)]
-pub struct AuthSignMaterial {
+pub struct KeyDeriveMaterial {
     vehicle_temp_keypair: Option<PKey<Private>>,
     vehicle_id: Option<Vec<u8>>,
     mobile_temp_public_key: Option<Vec<u8>>,
     mobile_id: Option<Vec<u8>>,
 }
 
-impl AuthSignMaterial {
+impl KeyDeriveMaterial {
     pub fn new() -> Self {
-        AuthSignMaterial {
+        KeyDeriveMaterial {
             vehicle_temp_keypair: None,
             vehicle_id: Some([0x10; 16].to_vec()),
             mobile_temp_public_key: None,
@@ -157,14 +155,37 @@ impl AuthSignMaterial {
             }
         }
     }
-    pub fn signature(&self) -> Result<Vec<u8>> {
-        let mut vehicle_auth_info = Vec::new();
-        vehicle_auth_info.append(&mut self.get_vehicle_temp_public_key_pem()?);
-        vehicle_auth_info.append(&mut self.get_mobile_temp_public_key_pem()?);
-        vehicle_auth_info.append(&mut self.get_mobile_id()?);
-        vehicle_auth_info.append(&mut "Auth".as_bytes().to_vec());
+    pub fn serialize_key_material(&self, op_type: &str, other_materials: &[u8]) -> Result<Vec<u8>> {
+        let mut key_material = Vec::new();
+        key_material.append(&mut self.get_vehicle_temp_public_key_pem()?);
+        key_material.append(&mut self.get_mobile_temp_public_key_pem()?);
+        if op_type == "signature" {
+            key_material.append(&mut self.get_mobile_id()?);
+        } else if op_type == "verify" {
+            key_material.append(&mut self.get_vehicle_id()?);
+        } else if op_type == "derive" {
+            key_material.append(&mut self.get_vehicle_id()?);
+            key_material.append(&mut self.get_mobile_id()?);
+        }
+        key_material.append(&mut other_materials.to_vec());
+        Ok(key_material)
+    }
+    pub fn calculate_cryptogram(&self, key: &[u8], mode: &str) -> Result<Vec<u8>> {
+        let mut cryptogram_message = Vec::new();
+        if mode == "vehicle" {
+            cryptogram_message.append(&mut self.get_mobile_temp_public_key_pem()?);
+            cryptogram_message.append(&mut self.get_mobile_id()?);
+        } else {
+            cryptogram_message.append(&mut self.get_vehicle_temp_public_key_pem()?);
+            cryptogram_message.append(&mut self.get_vehicle_id()?);
+        };
+        calculate_cmac(key, &cryptogram_message)
+    }
+}
 
-        println!("vehicle_auth_info = {:02X?}", vehicle_auth_info);
+impl KeyMaterialOperation for KeyDeriveMaterial {
+    fn signature(&self) -> Result<Vec<u8>> {
+        let vehicle_auth_info = self.serialize_key_material("signature", "Auth".as_bytes())?;
         match &self.vehicle_temp_keypair {
             Some(vehicle_temp_private_key) => {
                 let mut signer = Signer::new(MessageDigest::sha256(), &vehicle_temp_private_key).unwrap();
@@ -176,13 +197,9 @@ impl AuthSignMaterial {
             }
         }
     }
-    pub fn verify(&self, signature: &[u8]) -> Result<bool> {
-        let mut mobile_auth_info = Vec::new();
-        mobile_auth_info.append(&mut self.get_vehicle_temp_public_key_pem()?);
-        mobile_auth_info.append(&mut self.get_mobile_temp_public_key_pem()?);
-        mobile_auth_info.append(&mut self.get_vehicle_id()?);
-        mobile_auth_info.append(&mut "Auth".to_string().into_bytes());
 
+    fn verify(&self, signature: &[u8]) -> Result<bool> {
+        let mobile_auth_info = self.serialize_key_material("verify", "Auth".as_bytes())?;
         match &self.mobile_temp_public_key {
             Some(mobile_temp_public_key) => {
                 let pubkey = PKey::public_key_from_pem(&mobile_temp_public_key).unwrap();
@@ -195,152 +212,40 @@ impl AuthSignMaterial {
             }
         }
     }
-    pub fn derive_key(&mut self) -> Result<()> {
-        let mobile_public_pkey = PKey::public_key_from_pem(&self.get_mobile_temp_public_key_pem()?).map_err(|_| ErrorKind::ICCOAAuthError("get mobile temp pubkey to Pkey error".to_string()))?;
-        match &self.vehicle_temp_keypair {
-            Some(private_key) => {
-                let mut deriver = Deriver::new(private_key).map_err(|_| ErrorKind::ICCOAAuthError("create deriver from temp vehicle private key error".to_string()))?;
-                deriver.set_peer(mobile_public_pkey.as_ref()).map_err(|_| ErrorKind::ICCOAAuthError("deriver set mobile public key pair error".to_string()))?;
-                let secret = deriver.derive_to_vec().map_err(|_| ErrorKind::ICCOAAuthError("deriver derive to vector error".to_string()))?;
-                let mut info = Vec::new();
-                info.append(&mut self.get_vehicle_temp_public_key_pem()?);
-                info.append(&mut self.get_mobile_temp_public_key_pem()?);
-                info.append(&mut self.get_vehicle_id()?);
-                info.append(&mut self.get_mobile_id()?);
-                info.append(&mut "ECDH".as_bytes().to_vec());
 
-                let hk = Hkdf::<Sha256>::new(None, &secret);
-                let mut okm = [0u8; 32];
-                hk.expand(&info, &mut okm).map_err(|_| "HKDF Sha256 with info error".to_string())?;
-                set_auth_key_enc(&okm[0..16]);
-                set_auth_key_mac(&okm[16..32]);
-                println!("key_enc = {:02X?}", get_auth_key_enc());
-                println!("key_mac = {:02X?}", get_auth_key_mac());
-                Ok(())
+    fn derive_key(&mut self, ikm: Option<&[u8]>, other_materials: &[u8], key_length: usize) -> Result<Vec<u8>> {
+        let secret = match ikm {
+            Some(value) => {
+                value.to_vec()
             },
-            None => todo!(),
-        }
-    }
-    pub fn derive_persistent(&mut self) -> Result<()> {
-        let mobile_public_pkey = PKey::public_key_from_pem(&self.get_mobile_temp_public_key_pem()?).map_err(|_| ErrorKind::ICCOAAuthError("get mobile temp pubkey to Pkey error".to_string()))?;
-        match &self.vehicle_temp_keypair {
-            Some(private_key) => {
-                let mut deriver = Deriver::new(private_key).map_err(|_| ErrorKind::ICCOAAuthError("create deriver from temp vehicle private key error".to_string()))?;
-                deriver.set_peer(mobile_public_pkey.as_ref()).map_err(|_| ErrorKind::ICCOAAuthError("deriver set mobile public key pair error".to_string()))?;
-                let secret = deriver.derive_to_vec().map_err(|_| ErrorKind::ICCOAAuthError("deriver derive to vector error".to_string()))?;
-                let mut info = Vec::new();
-                info.append(&mut self.get_vehicle_temp_public_key_pem()?);
-                info.append(&mut self.get_mobile_temp_public_key_pem()?);
-                info.append(&mut self.get_vehicle_id()?);
-                info.append(&mut self.get_mobile_id()?);
-                info.append(&mut "Persistent".as_bytes().to_vec());
-
-                let hk = Hkdf::<Sha256>::new(None, &secret);
-                let mut okm = [0u8; 32];
-                hk.expand(&info, &mut okm).map_err(|_| "HKDF Sha256 with info error".to_string())?;
-                set_auth_key_persistent(&okm);
-                println!("key_persistent = {:02X?}", get_auth_key_persistent());
-                Ok(())
+            None => {
+                let mobile_public_pkey = PKey::public_key_from_pem(&self.get_mobile_temp_public_key_pem()?).map_err(|_| ErrorKind::ICCOAAuthError("get mobile temp pubkey to Pkey error".to_string()))?;
+                match &self.vehicle_temp_keypair {
+                    Some(private_key) => {
+                        let mut deriver = Deriver::new(private_key).map_err(|_| ErrorKind::ICCOAAuthError("create deriver from temp vehicle private key error".to_string()))?;
+                        deriver.set_peer(mobile_public_pkey.as_ref()).map_err(|_| ErrorKind::ICCOAAuthError("deriver set mobile public key pair error".to_string()))?;
+                        deriver.derive_to_vec().map_err(|_| ErrorKind::ICCOAAuthError("deriver derive to vector error".to_string()))?
+                    },
+                    None => todo!()
+                }
             },
-            None => todo!(),
-        }
-    }
-    pub fn derive_fast_auth_shared_key(&mut self) -> Result<()> {
-        let secret = get_auth_key_persistent();
-        let mut info = Vec::new();
-        info.append(&mut self.get_vehicle_temp_public_key_pem()?);
-        info.append(&mut self.get_mobile_temp_public_key_pem()?);
-        info.append(&mut self.get_vehicle_id()?);
-        info.append(&mut self.get_mobile_id()?);
-        info.append(&mut "FastAuth".as_bytes().to_vec());
-
-        let hk = Hkdf::<Sha256>::new(None, &secret);
-        let mut okm = [0u8; 64];
-        hk.expand(&info, &mut okm).map_err(|_| "HKDF Sha256 with info error".to_string())?;
-        set_auth_kv_mac(&okm[0..16]);
-        set_auth_kd_mac(&okm[16..32]);
-        set_auth_key_enc(&okm[32..48]);
-        set_auth_key_mac(&okm[48..64]);
-
-        println!("kv_mac = {:02X?}", get_auth_kv_mac());
-        println!("kd_mac = {:02X?}", get_auth_kd_mac());
-        println!("key_enc = {:02X?}", get_auth_key_enc());
-        println!("key_mac = {:02X?}", get_auth_key_mac());
-
-        Ok(())
-    }
-    pub fn calculate_cryptogram(&self, mode: &str) -> Result<Vec<u8>> {
-        let mut cryptogram_message = Vec::new();
-        if mode == "vehicle" {
-            cryptogram_message.append(&mut self.get_mobile_temp_public_key_pem()?);
-            cryptogram_message.append(&mut self.get_mobile_id()?);
-            calculate_cmac(&get_auth_kv_mac(), &cryptogram_message)
-        } else {
-            cryptogram_message.append(&mut self.get_vehicle_temp_public_key_pem()?);
-            cryptogram_message.append(&mut self.get_vehicle_id()?);
-            calculate_cmac(&get_auth_kd_mac(), &cryptogram_message)
-        }
+        };
+        let info = self.serialize_key_material("derive", other_materials)?;
+        Ok(calculate_derive_key(None, &secret, &info, key_length))
     }
 }
 
-pub fn get_auth_sign_object() -> AuthSignMaterial {
-    let auth_sign_object = AUTH_SIGN_OBJECT.lock().unwrap();
-    auth_sign_object.clone()
+pub fn calculate_derive_key(salt: Option<&[u8]>, ikm: &[u8], info: &[u8], key_length: usize) -> Vec<u8> {
+    let hk = Hkdf::<Sha256>::new(salt, ikm);
+    let mut okm = [0u8; 64];
+    hk.expand(&info, &mut okm).unwrap();
+    okm[0..key_length].to_vec()
 }
 
-pub fn set_auth_sign_object(object: &AuthSignMaterial) {
-    let mut auth_sign_object = AUTH_SIGN_OBJECT.lock().unwrap();
-    *auth_sign_object = object.clone();
-}
-
-pub fn get_auth_key_persistent() -> Vec<u8> {
-    let auth_key_persistent = AUTH_KEY_PERSISTENT.lock().unwrap();
-    auth_key_persistent.clone()
-}
-
-pub fn set_auth_key_persistent(key_persistent: &[u8]) {
-    let mut auth_key_persistent = AUTH_KEY_PERSISTENT.lock().unwrap();
-    auth_key_persistent.append(&mut key_persistent.to_vec());
-}
-
-pub fn get_auth_key_enc() -> Vec<u8> {
-    let auth_key = AUTH_KEY.lock().unwrap();
-    auth_key.get_key_enc()
-}
-
-pub fn set_auth_key_enc(key_enc: &[u8]) {
-    let mut auth_key = AUTH_KEY.lock().unwrap();
-    auth_key.set_key_enc(key_enc);
-}
-
-pub fn get_auth_key_mac() -> Vec<u8> {
-    let auth_key = AUTH_KEY.lock().unwrap();
-    auth_key.get_key_mac()
-}
-
-pub fn set_auth_key_mac(key_mac: &[u8]) {
-    let mut auth_key = AUTH_KEY.lock().unwrap();
-    auth_key.set_key_mac(key_mac);
-}
-
-pub fn get_auth_kv_mac() -> Vec<u8> {
-    let auth_key = AUTH_KEY.lock().unwrap();
-    auth_key.get_kv_mac()
-}
-
-pub fn set_auth_kv_mac(kv_mac: &[u8]) {
-    let mut auth_key = AUTH_KEY.lock().unwrap();
-    auth_key.set_kv_mac(kv_mac);
-}
-
-pub fn get_auth_kd_mac() -> Vec<u8> {
-    let auth_key = AUTH_KEY.lock().unwrap();
-    auth_key.get_kd_mac()
-}
-
-pub fn set_auth_kd_mac(kd_mac: &[u8]) {
-    let mut auth_key = AUTH_KEY.lock().unwrap();
-    auth_key.set_kd_mac(kd_mac);
+pub fn calculate_sha256(message: &[u8]) -> Vec<u8> {
+    let mut hasher =  openssl::sha::Sha256::new();
+    hasher.update(message);
+    hasher.finish().to_vec()
 }
 
 pub fn calculate_cmac(key: &[u8], message: &[u8]) -> Result<Vec<u8>> {
@@ -362,23 +267,4 @@ pub fn decrypt_aes_128_cbc(key: &[u8], cipher_text: &[u8], iv: &[u8]) -> Result<
 
 pub fn get_vehicle_id() -> [u8; 16] {
     [0x10; 16]
-}
-
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_rsa_auth_sign_object() {
-        let mut object = get_auth_sign_object();
-        let _ = object.create_vehicle_temp_keypair("rsa");
-        println!("vehicle public key = {}", std::str::from_utf8(object.get_vehicle_temp_public_key_pem().unwrap().as_slice()).unwrap());
-        set_auth_sign_object(&object);
-    }
-    #[test]
-    fn test_eckey_auth_sign_object() {
-        let mut object = get_auth_sign_object();
-        let _ = object.create_vehicle_temp_keypair("ec");
-        println!("vehicle public key = {}", std::str::from_utf8(object.get_vehicle_temp_public_key_pem().unwrap().as_slice()).unwrap());
-        set_auth_sign_object(&object);
-    }
 }

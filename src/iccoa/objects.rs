@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use super::{errors::*, status::{Status, StatusTag, StatusBuilder}, utils};
+use super::{errors::*, status::{Status, StatusTag, StatusBuilder}, utils, bluetooth_io};
 
 lazy_static! {
     static ref BLE_DEFAULT_MTU: u16 = 500;
@@ -460,7 +460,7 @@ impl ICCOA {
             false
         };
         message.append(&mut self.body.serialize(request, fragment));
-        let _result = utils::calculate_cmac(&utils::get_auth_key_mac(), &message).unwrap();
+        let _result = utils::calculate_cmac(&bluetooth_io::get_auth_key_mac(), &message).unwrap();
         //println!("[cmac-aes-128] = {:02X?}", result.into_bytes());
         self.mac = [0x00; 8];
     }

@@ -1,13 +1,27 @@
 use std::io::Write;
+use std::sync::Mutex;
+
+use crate::iccoa::utils::{KeyDeriveMaterial, CipherKey, KeyMaterialOperation};
 
 use super::command::ranging::create_iccoa_ranging_request;
-use super::{errors::*, objects, utils};
+use super::{errors::*, objects};
 use super::objects::{ICCOA, PacketType, MessageType};
 use super::status::{StatusTag, StatusBuilder, Status};
 use super::pairing;
 use super::{TLVPayloadBuilder, TLVPayload};
 use super::auth;
 use super::command::rke::{create_iccoa_rke_response, RKECommandRequest};
+
+lazy_static! {
+    static ref AUTH_SIGN_OBJECT: Mutex<KeyDeriveMaterial> = Mutex::new(KeyDeriveMaterial::new());
+    static ref AUTH_KEY_PERSISTENT: Mutex<Vec<u8>> = Mutex::new(Vec::new());
+    static ref AUTH_KEY: Mutex<CipherKey> = Mutex::new(CipherKey::new());
+}
+
+pub fn get_auth_key_mac() -> Vec<u8> {
+    let auth_key = AUTH_KEY.lock().unwrap();
+    auth_key.get_key_mac()
+}
 
 pub fn create_iccoa_pairing_data_request_package() -> Result<Vec<u8>> {
     let transaction_id = 0x0000;
@@ -29,11 +43,10 @@ pub fn create_iccoa_pairing_data_request_package() -> Result<Vec<u8>> {
 
 pub fn create_iccoa_standard_auth_pubkey_exchange_request_package() -> Result<ICCOA> {
     let transaction_id = 0x0000;
-    let mut auth_sign_object = utils::get_auth_sign_object();
+    let mut auth_sign_object = AUTH_SIGN_OBJECT.lock().unwrap();
     auth_sign_object.create_vehicle_temp_keypair("ec")?;
     let vehicle_temp_pubkey = auth_sign_object.get_vehicle_temp_public_key_pem()?;
     let vehicle_id = auth_sign_object.get_vehicle_id()?;
-    utils::set_auth_sign_object(&auth_sign_object);
     let vehicle_temp_pubkey_payload = TLVPayloadBuilder::new().set_tag(0x81).set_value(&vehicle_temp_pubkey).build();
     let vehicle_id_payload = TLVPayloadBuilder::new().set_tag(0x83).set_value(&vehicle_id).build();
     let iccoa = auth::create_iccoa_standard_auth_pubkey_exchange_request(
@@ -44,11 +57,10 @@ pub fn create_iccoa_standard_auth_pubkey_exchange_request_package() -> Result<IC
 
 pub fn create_iccoa_fast_auth_pubkey_exchange_request_package() -> Result<ICCOA> {
     let transaction_id = 0x0000;
-    let mut auth_sign_object = utils::get_auth_sign_object();
+    let mut auth_sign_object = AUTH_SIGN_OBJECT.lock().unwrap();
     auth_sign_object.create_vehicle_temp_keypair("ec")?;
     let vehicle_temp_pubkey = auth_sign_object.get_vehicle_temp_public_key_pem()?;
     let vehicle_id = auth_sign_object.get_vehicle_id()?;
-    utils::set_auth_sign_object(&auth_sign_object);
     let vehicle_temp_pubkey_payload = TLVPayloadBuilder::new().set_tag(0x81).set_value(&vehicle_temp_pubkey).build();
     let vehicle_id_payload = TLVPayloadBuilder::new().set_tag(0x83).set_value(&vehicle_id).build();
     let iccoa = auth::create_iccoa_fast_auth_pubkey_exchange_request(
@@ -143,10 +155,9 @@ pub fn handle_iccoa_standard_auth_data_exchange_response_payload(iccoa: &ICCOA) 
             index += 1+3+payload_length;
         }
     }
-    let mut auth_sign_object = utils::get_auth_sign_object();
+    let mut auth_sign_object = AUTH_SIGN_OBJECT.lock().unwrap();
     auth_sign_object.set_mobile_temp_public_key_pem(&carkey_temp_pubkey)?;
     auth_sign_object.set_mobile_id(&carkey_id);
-    utils::set_auth_sign_object(&auth_sign_object);
     auth_sign_object.signature()
 }
 
@@ -177,12 +188,17 @@ pub fn handle_iccoa_standard_auth_response_payload(iccoa: &ICCOA) -> Result<()> 
             index += 1+3+payload_length;
         }
     }
-    let mut auth_sign_object = utils::get_auth_sign_object();
+    let mut auth_sign_object = AUTH_SIGN_OBJECT.lock().unwrap();
     match auth_sign_object.verify(&mobile_auth_info)  {
         Ok(result) => {
             if result {
-                auth_sign_object.derive_key()?;
-                auth_sign_object.derive_persistent()?;
+                let cipher_key = auth_sign_object.derive_key(None, "ECDH".as_bytes(), 32)?;
+                let mut auth_key = AUTH_KEY.lock().unwrap();
+                auth_key.set_key_enc(&cipher_key[0..16]);
+                auth_key.set_key_mac(&cipher_key[16..32]);
+                let persistent = auth_sign_object.derive_key(None, "Persistent".as_bytes(), 32)?;
+                let mut auth_key_persistent = AUTH_KEY_PERSISTENT.lock().unwrap();
+                auth_key_persistent.append(&mut persistent.to_vec());
                 println!("OK");
                 Ok(())
             } else {
@@ -228,15 +244,20 @@ pub fn handle_iccoa_fast_auth_data_exchange_response_payload(iccoa: &ICCOA) -> R
             index += 1+3+payload_length;
         }
     }
-    let mut auth_sign_object = utils::get_auth_sign_object();
+    let mut auth_sign_object = AUTH_SIGN_OBJECT.lock().unwrap();
     auth_sign_object.set_mobile_temp_public_key_pem(&carkey_temp_pubkey)?;
     auth_sign_object.set_mobile_id(&carkey_id);
-    utils::set_auth_sign_object(&auth_sign_object);
-    auth_sign_object.derive_fast_auth_shared_key()?;
-    let calculated_cmac = auth_sign_object.calculate_cryptogram("mobile")?;
+    let key_persistent = AUTH_KEY_PERSISTENT.lock().unwrap();
+    let fast_cipher_key = auth_sign_object.derive_key(Some(&key_persistent), "FastAuth".as_bytes(), 64)?;
+    let mut auth_key = AUTH_KEY.lock().unwrap();
+    auth_key.set_kv_mac(&fast_cipher_key[0..16]);
+    auth_key.set_kd_mac(&fast_cipher_key[16..32]);
+    auth_key.set_key_enc(&fast_cipher_key[32..48]);
+    auth_key.set_key_mac(&fast_cipher_key[48..64]);
+    let calculated_cmac = auth_sign_object.calculate_cryptogram(&auth_key.get_kd_mac(), "mobile")?;
     if calculated_cmac.eq(&cryptogram) {
         println!("-------------- Fast Auth OK-------------------");
-        auth_sign_object.calculate_cryptogram("vehicle")
+        auth_sign_object.calculate_cryptogram(&auth_key.get_kv_mac(), "vehicle")
     } else {
         println!("-------------- Fast Auth Failed-------------------");
         return Err(ErrorKind::ICCOAAuthError("fast auth verify cryptogram error".to_string()).into());
@@ -270,7 +291,7 @@ pub fn handle_iccoa_fast_auth_response_payload(iccoa: &ICCOA) -> Result<()> {
             index += 1+3+payload_length;
         }
     }
-    let auth_sign_object = utils::get_auth_sign_object();
+    let auth_sign_object = AUTH_SIGN_OBJECT.lock().unwrap();
     match auth_sign_object.verify(&mobile_auth_info)  {
         Ok(result) => {
             if result {
