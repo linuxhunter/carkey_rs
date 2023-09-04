@@ -351,8 +351,7 @@ async fn main() -> bluer::Result<()> {
                 }
             },
             Some((addr, DeviceEvent::PropertyChanged(DeviceProperty::Rssi(rssi)))) = all_change_events.next() => {
-                println!("Device changed: {}", addr);
-                println!("\t distance: {}m", calculate_distance_by_rssi(rssi));
+                println!("Device {}, distance: {}m", addr, calculate_distance_by_rssi(rssi));
             },
             Some(data_package) = bt_write_rx.recv() => {
                 println!("GOT ICCOA Package from Mobile = {:02X?}", data_package);

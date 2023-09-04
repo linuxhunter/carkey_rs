@@ -16,11 +16,27 @@ lazy_static! {
     static ref AUTH_SIGN_OBJECT: Mutex<KeyDeriveMaterial> = Mutex::new(KeyDeriveMaterial::new());
     static ref AUTH_KEY_PERSISTENT: Mutex<Vec<u8>> = Mutex::new(Vec::new());
     static ref AUTH_KEY: Mutex<CipherKey> = Mutex::new(CipherKey::new());
+    static ref PAIRING_KEY: Mutex<CipherKey> = Mutex::new(CipherKey::new());
+}
+
+pub fn get_pairing_key_mac() -> Vec<u8> {
+    let pairing_key = PAIRING_KEY.lock().unwrap();
+    pairing_key.get_key_mac()
+}
+
+pub fn get_pairing_key_enc() -> Vec<u8> {
+    let pairing_key = PAIRING_KEY.lock().unwrap();
+    pairing_key.get_key_enc()
 }
 
 pub fn get_auth_key_mac() -> Vec<u8> {
     let auth_key = AUTH_KEY.lock().unwrap();
     auth_key.get_key_mac()
+}
+
+pub fn get_auth_key_enc() -> Vec<u8> {
+    let auth_key = AUTH_KEY.lock().unwrap();
+    auth_key.get_key_enc()
 }
 
 pub fn create_iccoa_pairing_data_request_package() -> Result<Vec<u8>> {

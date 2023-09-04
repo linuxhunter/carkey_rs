@@ -460,9 +460,44 @@ impl ICCOA {
             false
         };
         message.append(&mut self.body.serialize(request, fragment));
-        let _result = utils::calculate_cmac(&bluetooth_io::get_auth_key_mac(), &message).unwrap();
-        //println!("[cmac-aes-128] = {:02X?}", result.into_bytes());
-        self.mac = [0x00; 8];
+        let key = match self.get_body().message_type {
+            MessageType::VEHICLE_PAIRING | MessageType::AUTH => {
+               bluetooth_io::get_pairing_key_mac()
+            },
+            _ => {
+                bluetooth_io::get_auth_key_mac()
+            }
+        };
+        let result = utils::calculate_cmac(&key, &message).unwrap();
+        self.mac = result[0..8].try_into().unwrap();
+    }
+    pub fn verify_mac(&self) -> bool {
+        let mut message = Vec::new();
+        message.append(&mut self.header.serialize());
+        let request = match self.get_header().get_packet_type() {
+            PacketType::REQUEST_PACKET | PacketType::EVENT_PACKET => true,
+            _ => false,
+        };
+        let fragment = if self.get_header().get_mark().get_fragment_offset() != 0 {
+            true
+        } else {
+            false
+        };
+        message.append(&mut self.body.serialize(request, fragment));
+        let key = match self.get_body().message_type {
+            MessageType::VEHICLE_PAIRING | MessageType::AUTH => {
+               bluetooth_io::get_pairing_key_mac()
+            },
+            _ => {
+                bluetooth_io::get_auth_key_mac()
+            }
+        };
+        let result = utils::calculate_cmac(&key, &message).unwrap();
+        if result[0..8] == self.mac.to_vec() {
+            true
+        } else {
+            false
+        }
     }
     pub fn serialize(&self) -> Vec<u8> {
         let mut buffer = Vec::new();
@@ -493,6 +528,18 @@ impl ICCOA {
         };
         let body = Body::deserialize(&buffer[*ICCOA_HEADER_LENGTH..buffer.len()-8], request, fragment)?;
         let mac = buffer[buffer.len()-8..].try_into().map_err(|_| ErrorKind::ICCOAObjectError("deserialized ICCOA mac error".to_string()))?;
+        //debug
+        let iccoa = ICCOA {
+            header,
+            body: body.clone(),
+            mac
+        };
+        if iccoa.verify_mac() {
+            println!("Verify MAC OK......");
+        } else {
+            println!("Verify MAC Failed......");
+        }
+        //debug
         Ok(ICCOA {
             header,
             body,
