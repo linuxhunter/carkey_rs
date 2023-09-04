@@ -1,3 +1,5 @@
+use crate::iccoa::{bluetooth_io::get_auth_key_enc, utils::{encrypt_aes_128_cbc, decrypt_aes_128_cbc, get_default_iv}};
+
 use super::super::{errors::*, objects, objects::{ICCOA, create_iccoa_header, Mark, create_iccoa_body_message_data, MessageType, create_iccoa_body, create_iccoa}, status::{StatusBuilder, Status}};
 
 lazy_static! {
@@ -42,16 +44,22 @@ impl RKECommandRequest {
         serialized_data.append(&mut self.function_id.to_be_bytes().to_vec());
         serialized_data.push(self.action_id);
 
-        serialized_data
+        let key = get_auth_key_enc();
+        let iv = get_default_iv();
+        let cipher_text = encrypt_aes_128_cbc(&key, &serialized_data, &iv).unwrap();
+        cipher_text
     }
     pub fn deserialize(buffer: &[u8]) -> Result<Self> {
-        if buffer.len() != *RKE_COMMAND_REQUEST_DATA_LENGTH {
+        let key = get_auth_key_enc();
+        let iv = get_default_iv();
+        let plain_text = decrypt_aes_128_cbc(&key, buffer, &iv)?;
+        if plain_text.len() != *RKE_COMMAND_REQUEST_DATA_LENGTH {
             return Err(ErrorKind::ICCOACommandError("rke command request data length error".to_string()).into());
         }
         let mut request = RKECommandRequest::new();
-        request.event_id = u16::from_be_bytes(buffer[0..2].try_into().map_err(|_| ErrorKind::ICCOACommandError("deserialize event id error".to_string()))?);
-        request.function_id = u16::from_be_bytes(buffer[2..4].try_into().map_err(|_| ErrorKind::ICCOACommandError("deserialize function id error".to_string()))?);
-        request.action_id = buffer[4];
+        request.event_id = u16::from_be_bytes(plain_text[0..2].try_into().map_err(|_| ErrorKind::ICCOACommandError("deserialize event id error".to_string()))?);
+        request.function_id = u16::from_be_bytes(plain_text[2..4].try_into().map_err(|_| ErrorKind::ICCOACommandError("deserialize function id error".to_string()))?);
+        request.action_id = plain_text[4];
 
         Ok(request)
     }

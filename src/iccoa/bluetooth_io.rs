@@ -324,14 +324,19 @@ pub fn handle_iccoa_fast_auth_response_payload(iccoa: &ICCOA) -> Result<()> {
     }
 }
 
-pub fn handle_iccoa_rke_command(iccoa: &ICCOA) -> TLVPayload {
+pub fn handle_iccoa_rke_command(iccoa: &ICCOA) -> Result<TLVPayload> {
     //handle rke command from iccoa object
-    TLVPayloadBuilder::new().set_tag(0x00).set_value(&[0x00]).build()
+    let rke_command = RKECommandRequest::deserialize(iccoa.body.message_data.get_value())?;
+    println!("[RKE Command]:");
+    println!("\tevent_id: {:02X?}", rke_command.get_event_id());
+    println!("\tfunction_id: {:02X?}", rke_command.get_function_id());
+    println!("\taction_id: {:02X?}", rke_command.get_action_id());
+    Ok(TLVPayloadBuilder::new().set_tag(0x00).set_value(&[0x00]).build())
 }
 
 pub fn handle_iccoa_rke_command_request_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
     //handle rke command with request
-    let rke_command_response = handle_iccoa_rke_command(iccoa);
+    let rke_command_response = handle_iccoa_rke_command(iccoa)?;
     //create rke command response
     let transaction_id = 0x0000;
     let event_id = RKECommandRequest::deserialize(iccoa.body.message_data.get_value())?.get_event_id();

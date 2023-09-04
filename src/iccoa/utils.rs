@@ -265,6 +265,10 @@ pub fn decrypt_aes_128_cbc(key: &[u8], cipher_text: &[u8], iv: &[u8]) -> Result<
     decrypt(cipher, key, Some(iv), cipher_text).map_err(|_| ErrorKind::ICCOAEncryptError("aes 128 cbc decrypt data error".to_string()).into())
 }
 
+pub fn get_default_iv() -> [u8; 16] {
+    [0x00; 16]
+}
+
 pub fn get_vehicle_id() -> [u8; 16] {
     [0x10; 16]
 }
