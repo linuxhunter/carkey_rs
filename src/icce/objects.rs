@@ -7,6 +7,7 @@ use crate::icce::aes128;
 type Result<T> = std::result::Result<T, String>;
 
 lazy_static! {
+    static ref BLE_DEFAULT_MTU: u16 = 500;
     static ref SESSION_KEY: Mutex<[u8; 16]> = Mutex::new([0; 16]);
     static ref SESSION_IV: Mutex<[u8; 16]> = Mutex::new([0; 16]);
     static ref CARD_ATC: Mutex<[u8; 4]> = Mutex::new([0; 4]);
@@ -1473,14 +1474,13 @@ pub fn reassemble_icce_fragments() -> ICCE {
     let mut icce = ICCE::new();
     let mut icce_fragments = ICCE_FRAGMENTS.lock().unwrap();
     icce_fragments.sort_by(|a, b| a.get_header().get_fsn().cmp(&b.get_header().get_fsn()));
-    println!("icce_fragments = {:02X?}", icce_fragments);
     let mut total_length: u16 = 0x0000;
     for (index, tmp_icce) in icce_fragments.iter().enumerate() {
         if index == 0 {
             let mut header = Header::new();
             header.set_sof(0x5A);
             header.set_control(tmp_icce.get_header().get_control());
-            header.get_control().set_no_frag();
+            header.control.set_no_frag();
             header.set_fsn(0x00);
             icce.set_header(header);
             let mut payload = Payload::new();
@@ -1510,6 +1510,58 @@ pub fn reassemble_icce_fragments() -> ICCE {
     icce.calculate_checksum();
     icce_fragments.clear();
     icce
+}
+
+pub fn split_icce(icce: &ICCE) -> Option<Vec<ICCE>> {
+    if icce.get_header().get_length() + 5 < *BLE_DEFAULT_MTU {
+        return None
+    }
+    let mut splitted_icce = Vec::new();
+    let mut position = 0x00;
+    let mut fsn = 0x00;
+    let total_payload_length = icce.get_header().get_length() - 4 - 1 - 3;
+    loop {
+        let mut tmp_icce = ICCE::new();
+        tmp_icce.header.set_sof(icce.get_header().sof);
+        tmp_icce.header.set_control(icce.get_header().get_control());
+        let payload_length = if position == 0x00 {
+            tmp_icce.header.control.set_first_frag();
+            *BLE_DEFAULT_MTU - 13
+        } else if position + *BLE_DEFAULT_MTU - 7 < total_payload_length {
+            tmp_icce.header.control.set_conti_frag();
+            *BLE_DEFAULT_MTU - 7
+        } else {
+            tmp_icce.header.control.set_last_frag();
+            total_payload_length - position
+        };
+        let total_payload = icce.get_body().get_payloads()[0].get_payload_value().to_vec();
+        if position == 0x00 {
+            tmp_icce.header.set_length(payload_length + 8);
+            tmp_icce.header.set_fsn(fsn);
+            fsn += 1;
+            tmp_icce.body.set_message_id(icce.get_body().get_message_id());
+            tmp_icce.body.set_command_id(icce.get_body().get_command_id());
+            let mut payload = Payload::new();
+            payload.set_payload_type(icce.body.get_payloads()[0].get_payload_type());
+            payload.set_payload_length(payload_length as usize);
+            payload.set_payload_value(&total_payload[position as usize ..(position+payload_length) as usize]);
+            tmp_icce.body.set_payload(payload);
+        } else {
+            tmp_icce.header.set_length(payload_length + 2);
+            tmp_icce.header.set_fsn(fsn);
+            fsn += 1;
+            let mut payload = Payload::new();
+            payload.set_payload_value(&total_payload[position as usize .. (position + payload_length) as usize]);
+            tmp_icce.body.set_payload(payload);
+        }
+        tmp_icce.calculate_checksum();
+        splitted_icce.push(tmp_icce);
+        position += payload_length;
+        if position == total_payload_length {
+            break;
+        }
+    }
+    Some(splitted_icce)
 }
 
 #[cfg(test)]
@@ -2653,5 +2705,58 @@ mod tests {
         collect_icce_fragments(icce1);
         let reassemble_icce = reassemble_icce_fragments();
         println!("reassemble_icce = {:02X?}", reassemble_icce);
+    }
+    #[test]
+    fn test_split_icce() {
+        let mut control1 = Control::new();
+        control1.set_request();
+        control1.set_no_crypto();
+        control1.set_sync();
+        control1.set_no_frag();
+        let mut header1 = Header::new();
+        header1.set_sof(0x5A);
+        header1.set_length(4+4+1024);
+        header1.set_control(control1);
+        header1.set_fsn(0x00);
+        let mut value = vec![];
+        for i in 0..=255 {
+            value.push(i);
+        }
+        for i in 0..=255 {
+            value.push(i);
+        }
+        for i in 0..=255 {
+            value.push(i);
+        }
+        for i in 0..=255 {
+            value.push(i);
+        }
+        let mut payload1 = Payload::new();
+        payload1.set_payload_type(0x01);
+        payload1.set_payload_length(value.len());
+        payload1.set_payload_value(&value);
+        let mut body1 = Body::new();
+        body1.set_message_id(0x02);
+        body1.set_command_id(0x01);
+        body1.set_payload(payload1);
+        let mut icce1 = ICCE::new();
+        icce1.set_header(header1);
+        icce1.set_body(body1);
+        icce1.calculate_checksum();
+        println!("{:02X?}", icce1);
+        println!("serialized icce = {:02X?}", icce1.serialize());
+        let splitted_icce = split_icce(&icce1).unwrap();
+        println!("--------------------------");
+        println!("splitted_icce counts = {}", splitted_icce.len());
+        for item in splitted_icce {
+            println!("{:02X?}", item);
+            collect_icce_fragments(item);
+        }
+        println!("--------------------------");
+        println!("=========================");
+        let collected_icce = reassemble_icce_fragments();
+        println!("{:02X?}", collected_icce);
+        println!("=========================");
+
     }
 }
