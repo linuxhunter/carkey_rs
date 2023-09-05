@@ -162,14 +162,7 @@ pub fn handle_iccoa_standard_auth_data_exchange_response_payload(iccoa: &ICCOA) 
         } else if payload.get_tag() == 0x89 {
             carkey_id.append(&mut payload.value.to_vec());
         }
-        let payload_length = payload.value.len();
-        if payload_length < 128 {
-            index += 1+1+payload_length;
-        } else if payload_length < 256 {
-            index += 1+2+payload_length;
-        } else {
-            index += 1+3+payload_length;
-        }
+        index += payload.get_total_length();
     }
     let mut auth_sign_object = AUTH_SIGN_OBJECT.lock().unwrap();
     auth_sign_object.set_mobile_temp_public_key_pem(&carkey_temp_pubkey)?;
@@ -195,14 +188,7 @@ pub fn handle_iccoa_standard_auth_response_payload(iccoa: &ICCOA) -> Result<()> 
         if payload.get_tag() == 0x87 {
             mobile_auth_info.append(&mut payload.value.to_vec());
         }
-        let payload_length = payload.value.len();
-        if payload_length < 128 {
-            index += 1+1+payload_length;
-        } else if payload_length < 256 {
-            index += 1+2+payload_length;
-        } else {
-            index += 1+3+payload_length;
-        }
+        index += payload.get_total_length();
     }
     let mut auth_sign_object = AUTH_SIGN_OBJECT.lock().unwrap();
     match auth_sign_object.verify(&mobile_auth_info)  {
@@ -251,14 +237,7 @@ pub fn handle_iccoa_fast_auth_data_exchange_response_payload(iccoa: &ICCOA) -> R
         } else if payload.get_tag() == 0x89 {
             carkey_id.append(&mut payload.value.to_vec());
         }
-        let payload_length = payload.value.len();
-        if payload_length < 128 {
-            index += 1+1+payload_length;
-        } else if payload_length < 256 {
-            index += 1+2+payload_length;
-        } else {
-            index += 1+3+payload_length;
-        }
+        index += payload.get_total_length();
     }
     let mut auth_sign_object = AUTH_SIGN_OBJECT.lock().unwrap();
     auth_sign_object.set_mobile_temp_public_key_pem(&carkey_temp_pubkey)?;
@@ -298,14 +277,7 @@ pub fn handle_iccoa_fast_auth_response_payload(iccoa: &ICCOA) -> Result<()> {
         if payload.get_tag() == 0x87 {
             mobile_auth_info.append(&mut payload.value.to_vec());
         }
-        let payload_length = payload.value.len();
-        if payload_length < 128 {
-            index += 1+1+payload_length;
-        } else if payload_length < 256 {
-            index += 1+2+payload_length;
-        } else {
-            index += 1+3+payload_length;
-        }
+        index += payload.get_total_length();
     }
     let auth_sign_object = AUTH_SIGN_OBJECT.lock().unwrap();
     match auth_sign_object.verify(&mobile_auth_info)  {

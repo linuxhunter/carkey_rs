@@ -50,11 +50,11 @@ impl TLVPayload {
             ..Default::default()
         }
     }
-    pub fn length(&self) -> usize {
+    pub fn get_total_length(&self) -> usize {
         let mut length_bytes = 0x00;
-        if self.value.len() < 128 {
+        if self.value.len() < 0x80 {
             length_bytes = 1;
-        } else if self.value.len() < 256 {
+        } else if self.value.len() < 0x100 {
             length_bytes = 2;
         } else {
             length_bytes = 3;
@@ -67,9 +67,9 @@ impl TLVPayload {
     pub fn serialize(&self) -> Vec<u8> {
         let mut buffer = Vec::new();
         buffer.push(self.tag);
-        if self.value.len() < 128 {
+        if self.value.len() < 0x80 {
             buffer.push(self.value.len() as u8);
-        } else if self.value.len() < 256 {
+        } else if self.value.len() < 0x100 {
             buffer.push(0x81);
             buffer.push(self.value.len() as u8);
         } else {
