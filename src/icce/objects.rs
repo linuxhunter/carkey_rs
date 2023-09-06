@@ -1564,6 +1564,46 @@ pub fn split_icce(icce: &ICCE) -> Option<Vec<ICCE>> {
     Some(splitted_icce)
 }
 
+pub fn handle_data_package_from_mobile(icce_package: &[u8]) -> Result<ICCE> {
+    if let Ok(mut icce_object) = ICCE::deserialize(icce_package) {
+        println!("icce_object is {:?}", icce_object);
+        let icce_header_control = icce_object.get_header().get_control();
+        if icce_header_control.is_first_frag() || icce_header_control.is_conti_frag() {
+            collect_icce_fragments(icce_object);
+            return Err("fragment".to_string())
+        }
+        if icce_header_control.is_last_frag() {
+            collect_icce_fragments(icce_object);
+            icce_object = reassemble_icce_fragments();
+        }
+        if icce_header_control.is_request() {
+            if let Ok(response_message) = handle_icce_mobile_request(&icce_object) {
+                if response_message.len() > 1 {
+                    let icce = ICCE::deserialize(&response_message)?;
+                    return Ok(icce)
+                } else {
+                    return Err("not to send response".to_string());
+                }
+            } else {
+                return Err("handle icce mobile request error".to_string());
+            }
+        } else {
+            if let Ok(response_message) = handle_icce_mobile_response(&icce_object) {
+                if response_message.len() > 0 {
+                    let icce = ICCE::deserialize(&response_message)?;
+                    return Ok(icce)
+                } else {
+                    return Err("not to send response".to_string());
+                }
+            } else {
+                return Err("handle icce mobile response error".to_string());
+            }
+        }
+    } else {
+        return Err("deserialize original icce data package error".to_string());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -366,6 +366,17 @@ async fn main() -> bluer::Result<()> {
                     }
                 }
                 /*
+                if let Ok(response) = icce::objects::handle_data_package_from_mobile(&data_package) {
+                    if let Some(splitted_response) = icce::objects::split_icce(&response) {
+                        for response in splitted_response {
+                            let _ = bt_notify_tx.send(response.serialize());
+                        }
+                    } else {
+                        let _ = bt_notify_tx.send(response.serialize());
+                    }
+                }
+                */
+                /*
                 println!("GOT ICCE Package from Mobile = {:02X?}", icce_package);
                 if let Ok(mut icce_object) = icce::objects::ICCE::deserialize(&icce_package) {
                     println!("icce_object is {:?}", icce_object);
