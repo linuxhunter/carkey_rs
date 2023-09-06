@@ -1,3 +1,4 @@
+#![recursion_limit = "1024"]
 #[macro_use]
 extern crate lazy_static;
 
@@ -13,7 +14,7 @@ use uuid::Uuid;
 
 use crate::bluetooth::agent;
 use crate::iccoa::objects::ICCOA;
-use crate::iccoa::{bluetooth_io, objects};
+use crate::iccoa::{bluetooth_io, objects, command, pairing};
 use crate::iccoa::notification::senseless_control;
 use crate::iccoa::notification::vehicle_status;
 use crate::iccoa::notification::vehicle_unsafe;
@@ -158,7 +159,7 @@ async fn main() -> bluer::Result<()> {
                                         println!("Notification error when setting get process data request: {}", err);
                                     }
                                     */
-                                    let pairing_request = bluetooth_io::create_iccoa_pairing_data_request_package().unwrap();
+                                    let pairing_request = pairing::create_iccoa_pairing_data_request_package().unwrap();
                                     println!("pairing request = {:02X?}", pairing_request);
                                     if let Err(err) = notifier.notify(pairing_request).await {
                                         println!("Notification error when setting get process data request: {}", err);
@@ -239,7 +240,7 @@ async fn main() -> bluer::Result<()> {
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
             let request = match index {
                 0x00 => {
-                    bluetooth_io::create_iccoa_ranging_request_package().unwrap()
+                    command::ranging::create_iccoa_ranging_request_package().unwrap()
                 },
                 0x01 => {
                     vehicle_status::create_iccoa_total_mileage_notification().unwrap()

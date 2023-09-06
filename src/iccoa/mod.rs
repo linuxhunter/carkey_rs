@@ -1,5 +1,3 @@
-#![recursion_limit = "1024"]
-
 use error_chain::error_chain;
 
 pub mod status;

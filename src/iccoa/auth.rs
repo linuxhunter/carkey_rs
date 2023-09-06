@@ -1,6 +1,27 @@
+use std::sync::Mutex;
+
+use crate::iccoa::utils::{KeyDeriveMaterial, CipherKey};
+
 use super::objects::{ICCOA, Mark, create_iccoa_header, create_iccoa_body_message_data, create_iccoa_body, create_iccoa};
-use super::{errors::*, TLVPayload};
+use super::utils::KeyMaterialOperation;
+use super::{errors::*, TLVPayload, TLVPayloadBuilder};
 use super::status::{StatusBuilder, Status};
+
+lazy_static! {
+    static ref AUTH_SIGN_OBJECT: Mutex<KeyDeriveMaterial> = Mutex::new(KeyDeriveMaterial::new());
+    static ref AUTH_KEY_PERSISTENT: Mutex<Vec<u8>> = Mutex::new(Vec::new());
+    static ref AUTH_KEY: Mutex<CipherKey> = Mutex::new(CipherKey::new());
+}
+
+pub fn get_auth_key_mac() -> Vec<u8> {
+    let auth_key = AUTH_KEY.lock().unwrap();
+    auth_key.get_key_mac()
+}
+
+pub fn get_auth_key_enc() -> Vec<u8> {
+    let auth_key = AUTH_KEY.lock().unwrap();
+    auth_key.get_key_enc()
+}
 
 fn create_iccoa_auth_request(transaction_id: u16, tag: u8, payloads: &[TLVPayload]) -> Result<ICCOA> {
     let mut payload_data= Vec::new();
@@ -123,6 +144,225 @@ pub fn create_iccoa_fast_auth_request(transaction_id: u16, payloads: &[TLVPayloa
 
 pub fn create_iccoa_fast_auth_response(transaction_id: u16, status: Status) -> Result<ICCOA> {
     return create_iccoa_auth_response(transaction_id, status, 0xC2, &[])
+}
+
+pub fn create_iccoa_standard_auth_pubkey_exchange_request_package() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let mut auth_sign_object = AUTH_SIGN_OBJECT.lock().unwrap();
+    auth_sign_object.create_vehicle_temp_keypair("ec")?;
+    let vehicle_temp_pubkey = auth_sign_object.get_vehicle_temp_public_key_pem()?;
+    let vehicle_id = auth_sign_object.get_vehicle_id()?;
+    let vehicle_temp_pubkey_payload = TLVPayloadBuilder::new().set_tag(0x81).set_value(&vehicle_temp_pubkey).build();
+    let vehicle_id_payload = TLVPayloadBuilder::new().set_tag(0x83).set_value(&vehicle_id).build();
+    let iccoa = create_iccoa_standard_auth_pubkey_exchange_request(
+        transaction_id,
+        &[vehicle_temp_pubkey_payload, vehicle_id_payload])?;
+    Ok(iccoa)
+}
+
+pub fn create_iccoa_fast_auth_pubkey_exchange_request_package() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let mut auth_sign_object = AUTH_SIGN_OBJECT.lock().unwrap();
+    auth_sign_object.create_vehicle_temp_keypair("ec")?;
+    let vehicle_temp_pubkey = auth_sign_object.get_vehicle_temp_public_key_pem()?;
+    let vehicle_id = auth_sign_object.get_vehicle_id()?;
+    let vehicle_temp_pubkey_payload = TLVPayloadBuilder::new().set_tag(0x81).set_value(&vehicle_temp_pubkey).build();
+    let vehicle_id_payload = TLVPayloadBuilder::new().set_tag(0x83).set_value(&vehicle_id).build();
+    let iccoa = create_iccoa_fast_auth_pubkey_exchange_request(
+        transaction_id,
+        &[vehicle_temp_pubkey_payload, vehicle_id_payload])?;
+    Ok(iccoa)
+}
+
+pub fn handle_iccoa_standard_auth_data_exchange_response_payload(iccoa: &ICCOA) -> Result<Vec<u8>> {
+    //handle standard auth data exchange payload
+    let message_data = iccoa.get_body().get_message_data();
+    if message_data.status != StatusBuilder::new().success().build() {
+        return Err(ErrorKind::ICCOAAuthError("standard auth data exchnage response error".to_string()).into());
+    }
+    if message_data.get_tag() != 0x01 {
+        return Err(ErrorKind::ICCOAAuthError("standard auth data exchange response tag error".to_string()).into());
+    }
+    let total_payload = message_data.get_value();
+    let total_length = total_payload.len() as usize;
+    let mut index = 0x00;
+    let mut carkey_temp_pubkey = Vec::new();
+    let mut carkey_id = Vec::new();
+    while index < total_length {
+        let payload = TLVPayload::deserialize(&total_payload[index..]).unwrap();
+        if payload.get_tag() == 0x84 {
+            carkey_temp_pubkey.append(&mut payload.value.to_vec());
+        } else if payload.get_tag() == 0x89 {
+            carkey_id.append(&mut payload.value.to_vec());
+        }
+        index += payload.get_total_length();
+    }
+    let mut auth_sign_object = AUTH_SIGN_OBJECT.lock().unwrap();
+    auth_sign_object.set_mobile_temp_public_key_pem(&carkey_temp_pubkey)?;
+    auth_sign_object.set_mobile_id(&carkey_id);
+    auth_sign_object.signature()
+}
+
+pub fn handle_iccoa_standard_auth_response_payload(iccoa: &ICCOA) -> Result<()> {
+    //handle standard auth response payload
+    let message_data = iccoa.get_body().get_message_data();
+    if message_data.status != StatusBuilder::new().success().build() {
+        return Err(ErrorKind::ICCOAAuthError("standard auth response error".to_string()).into());
+    }
+    if message_data.get_tag() != 0x02 {
+        return Err(ErrorKind::ICCOAAuthError("standard auth response tag error".to_string()).into());
+    }
+    let total_payload = message_data.get_value();
+    let total_length = total_payload.len() as usize;
+    let mut index = 0x00;
+    let mut mobile_auth_info = Vec::new();
+    while index < total_length {
+        let payload = TLVPayload::deserialize(&total_payload[index..]).unwrap();
+        if payload.get_tag() == 0x87 {
+            mobile_auth_info.append(&mut payload.value.to_vec());
+        }
+        index += payload.get_total_length();
+    }
+    let mut auth_sign_object = AUTH_SIGN_OBJECT.lock().unwrap();
+    match auth_sign_object.verify(&mobile_auth_info)  {
+        Ok(result) => {
+            if result {
+                let cipher_key = auth_sign_object.derive_key(None, "ECDH".as_bytes(), 32)?;
+                let mut auth_key = AUTH_KEY.lock().unwrap();
+                auth_key.set_key_enc(&cipher_key[0..16]);
+                auth_key.set_key_mac(&cipher_key[16..32]);
+                let persistent = auth_sign_object.derive_key(None, "Persistent".as_bytes(), 32)?;
+                let mut auth_key_persistent = AUTH_KEY_PERSISTENT.lock().unwrap();
+                auth_key_persistent.append(&mut persistent.to_vec());
+                println!("OK");
+                Ok(())
+            } else {
+                println!("Failed");
+                return Err(ErrorKind::ICCOAAuthError("mobile auth info signature verify error".to_string()).into());
+            }
+        },
+        Err(_) => {
+            return Err(ErrorKind::ICCOAAuthError("mobile auth info signature verify error".to_string()).into());
+        }
+    }
+}
+
+pub fn handle_iccoa_fast_auth_data_exchange_response_payload(iccoa: &ICCOA) -> Result<Vec<u8>> {
+    let message_data = iccoa.get_body().get_message_data();
+    if message_data.status != StatusBuilder::new().success().build() {
+        return Err(ErrorKind::ICCOAAuthError("standard auth data exchnage response error".to_string()).into());
+    }
+    if message_data.get_tag() != 0xC1 {
+        return Err(ErrorKind::ICCOAAuthError("standard auth data exchange response tag error".to_string()).into());
+    }
+    let total_payload = message_data.get_value();
+    let total_length = total_payload.len() as usize;
+    let mut index = 0x00;
+    let mut carkey_temp_pubkey = Vec::new();
+    let mut carkey_id = Vec::new();
+    let mut cryptogram = Vec::new();
+    while index < total_length {
+        let payload = TLVPayload::deserialize(&total_payload[index..]).unwrap();
+        if payload.get_tag() == 0x84 {
+            carkey_temp_pubkey.append(&mut payload.value.to_vec());
+        } else if payload.get_tag() == 0x85 {
+            cryptogram.append(&mut payload.value.to_vec());
+        } else if payload.get_tag() == 0x89 {
+            carkey_id.append(&mut payload.value.to_vec());
+        }
+        index += payload.get_total_length();
+    }
+    let mut auth_sign_object = AUTH_SIGN_OBJECT.lock().unwrap();
+    auth_sign_object.set_mobile_temp_public_key_pem(&carkey_temp_pubkey)?;
+    auth_sign_object.set_mobile_id(&carkey_id);
+    let key_persistent = AUTH_KEY_PERSISTENT.lock().unwrap();
+    let fast_cipher_key = auth_sign_object.derive_key(Some(&key_persistent), "FastAuth".as_bytes(), 64)?;
+    let mut auth_key = AUTH_KEY.lock().unwrap();
+    auth_key.set_kv_mac(&fast_cipher_key[0..16]);
+    auth_key.set_kd_mac(&fast_cipher_key[16..32]);
+    auth_key.set_key_enc(&fast_cipher_key[32..48]);
+    auth_key.set_key_mac(&fast_cipher_key[48..64]);
+    let calculated_cmac = auth_sign_object.calculate_cryptogram(&auth_key.get_kd_mac(), "mobile")?;
+    if calculated_cmac.eq(&cryptogram) {
+        println!("-------------- Fast Auth OK-------------------");
+        auth_sign_object.calculate_cryptogram(&auth_key.get_kv_mac(), "vehicle")
+    } else {
+        println!("-------------- Fast Auth Failed-------------------");
+        return Err(ErrorKind::ICCOAAuthError("fast auth verify cryptogram error".to_string()).into());
+    }
+}
+
+pub fn handle_iccoa_fast_auth_response_payload(iccoa: &ICCOA) -> Result<()> {
+    //handle fast auth response payload
+    let message_data = iccoa.get_body().get_message_data();
+    if message_data.status != StatusBuilder::new().success().build() {
+        return Err(ErrorKind::ICCOAAuthError("standard auth response error".to_string()).into());
+    }
+    if message_data.get_tag() != 0xC2 {
+        return Err(ErrorKind::ICCOAAuthError("standard auth response tag error".to_string()).into());
+    }
+    let total_payload = message_data.get_value();
+    let total_length = total_payload.len() as usize;
+    let mut index = 0x00;
+    let mut mobile_auth_info = Vec::new();
+    while index < total_length {
+        let payload = TLVPayload::deserialize(&total_payload[index..]).unwrap();
+        if payload.get_tag() == 0x87 {
+            mobile_auth_info.append(&mut payload.value.to_vec());
+        }
+        index += payload.get_total_length();
+    }
+    let auth_sign_object = AUTH_SIGN_OBJECT.lock().unwrap();
+    match auth_sign_object.verify(&mobile_auth_info)  {
+        Ok(result) => {
+            if result {
+                println!("OK");
+                Ok(())
+            } else {
+                println!("Failed");
+                return Err(ErrorKind::ICCOAAuthError("mobile auth info signature verify error".to_string()).into());
+            }
+        },
+        Err(_) => {
+            return Err(ErrorKind::ICCOAAuthError("mobile auth info signature verify error".to_string()).into());
+        }
+    }
+}
+
+pub fn handle_iccoa_auth_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let message_data = &iccoa.body.message_data;
+    match message_data.get_tag() {
+        0x01 => {
+            //handle standard auth vehicle temp pubkey response
+            let vehicle_signature = handle_iccoa_standard_auth_data_exchange_response_payload(iccoa)?;
+            //create standard auth request
+            let vehicle_signature_payload = TLVPayloadBuilder::new().set_tag(0x86).set_value(&vehicle_signature).build();
+            let response = create_iccoa_standard_auth_request(transaction_id, &[vehicle_signature_payload])?;
+            Ok(response)
+        },
+        0x02 => {
+            //handle standard auth response
+            handle_iccoa_standard_auth_response_payload(iccoa)?;
+            return Err(ErrorKind::ICCOAAuthError("standard auth completed".to_string()).into());
+        },
+        0xC1 => {
+            //handle fast auth vehicle temp pubkey response
+            let vehicle_fast_auth_data = handle_iccoa_fast_auth_data_exchange_response_payload(iccoa)?;
+            //create fast auth request
+            let vehicle_fast_auth_data_payload = TLVPayloadBuilder::new().set_tag(0x88).set_value(&vehicle_fast_auth_data).build();
+            let response = create_iccoa_fast_auth_request(transaction_id, &[vehicle_fast_auth_data_payload]).unwrap();
+            Ok(response)
+        },
+        0xC2 => {
+            //handle fast auth response
+            let _status = handle_iccoa_fast_auth_response_payload(iccoa);
+            return Err(ErrorKind::ICCOAAuthError("fast auth completed".to_string()).into());
+        },
+        _ => {
+            return Err(ErrorKind::ICCOAPairingError("RFU is not implemented".to_string()).into());
+        },
+    }
 }
 
 #[cfg(test)]

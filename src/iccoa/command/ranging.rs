@@ -1,3 +1,5 @@
+use crate::iccoa::TLVPayloadBuilder;
+
 use super::super::errors::*;
 use super::super::objects::{create_iccoa_header, Mark, create_iccoa_body_message_data, create_iccoa_body, create_iccoa};
 use super::super::status::{StatusBuilder, Status};
@@ -68,6 +70,24 @@ pub fn create_iccoa_ranging_response(transaction_id: u16, status: Status, tag: u
     );
 
     Ok(create_iccoa(header, body))
+}
+
+pub fn create_iccoa_ranging_request_package() -> Result<ICCOA> {
+    let transaction_id = 0x0000;
+    let ranging_type = 0x01;
+    let ranging_type_payload = TLVPayloadBuilder::new().set_tag(0x01).set_value(&[ranging_type]).build();
+    let iccoa = create_iccoa_ranging_request(transaction_id, 0x02, &[ranging_type_payload])?;
+    Ok(iccoa)
+}
+
+pub fn handle_iccoa_ranging_command_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
+    let ranging_result= TLVPayload::deserialize(&iccoa.body.message_data.get_value())?;
+    if ranging_result.get_tag() == 0x00 {
+        println!("Ranging Success!");
+    } else {
+        println!("Ranging Failure");
+    }
+    return Err(ErrorKind::ICCOACommandError("Ranging Command completed".to_string()).into());
 }
 
 #[cfg(test)]

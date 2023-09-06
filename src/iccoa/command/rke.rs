@@ -1,4 +1,4 @@
-use crate::iccoa::{bluetooth_io::get_auth_key_enc, utils::{encrypt_aes_128_cbc, decrypt_aes_128_cbc, get_default_iv}};
+use crate::iccoa::{utils::{encrypt_aes_128_cbc, decrypt_aes_128_cbc, get_default_iv}, TLVPayload, TLVPayloadBuilder, auth};
 
 use super::super::{errors::*, objects, objects::{ICCOA, create_iccoa_header, Mark, create_iccoa_body_message_data, MessageType, create_iccoa_body, create_iccoa}, status::{StatusBuilder, Status}};
 
@@ -44,13 +44,13 @@ impl RKECommandRequest {
         serialized_data.append(&mut self.function_id.to_be_bytes().to_vec());
         serialized_data.push(self.action_id);
 
-        let key = get_auth_key_enc();
+        let key = auth::get_auth_key_enc();
         let iv = get_default_iv();
         let cipher_text = encrypt_aes_128_cbc(&key, &serialized_data, &iv).unwrap();
         cipher_text
     }
     pub fn deserialize(buffer: &[u8]) -> Result<Self> {
-        let key = get_auth_key_enc();
+        let key = auth::get_auth_key_enc();
         let iv = get_default_iv();
         let plain_text = decrypt_aes_128_cbc(&key, buffer, &iv)?;
         if plain_text.len() != *RKE_COMMAND_REQUEST_DATA_LENGTH {
@@ -233,6 +233,33 @@ pub fn create_iccoa_rke_response(transaction_id: u16, status: Status, event_id: 
     response.set_tag(tag);
     response.set_value(value);
     create_iccoa_rke_command_response(transaction_id, status, response)
+}
+
+pub fn handle_iccoa_rke_command(iccoa: &ICCOA) -> Result<TLVPayload> {
+    //handle rke command from iccoa object
+    let rke_command = RKECommandRequest::deserialize(iccoa.body.message_data.get_value())?;
+    println!("[RKE Command]:");
+    println!("\tevent_id: {:02X?}", rke_command.get_event_id());
+    println!("\tfunction_id: {:02X?}", rke_command.get_function_id());
+    println!("\taction_id: {:02X?}", rke_command.get_action_id());
+    Ok(TLVPayloadBuilder::new().set_tag(0x00).set_value(&[0x00]).build())
+}
+
+pub fn handle_iccoa_rke_command_request_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
+    //handle rke command with request
+    let rke_command_response = handle_iccoa_rke_command(iccoa)?;
+    //create rke command response
+    let transaction_id = 0x0000;
+    let event_id = RKECommandRequest::deserialize(iccoa.body.message_data.get_value())?.get_event_id();
+    let tag = rke_command_response.get_tag();
+    let value = rke_command_response.value;
+    //set status according to tag and value
+    let status = match tag {
+        0x00 => StatusBuilder::new().success().build(),
+        _ => StatusBuilder::new().rfu().build(),
+    };
+    let response = create_iccoa_rke_response(transaction_id, status, event_id, tag, &value)?;
+    Ok(response)
 }
 
 #[cfg(test)]

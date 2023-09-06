@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use super::{errors::*, status::{Status, StatusTag, StatusBuilder}, utils, bluetooth_io};
+use super::{errors::*, status::{Status, StatusTag, StatusBuilder}, utils, pairing, auth};
 
 lazy_static! {
     static ref BLE_DEFAULT_MTU: u16 = 500;
@@ -462,10 +462,10 @@ impl ICCOA {
         message.append(&mut self.body.serialize(request, fragment));
         let key = match self.get_body().message_type {
             MessageType::VEHICLE_PAIRING | MessageType::AUTH => {
-               bluetooth_io::get_pairing_key_mac()
+               pairing::get_pairing_key_mac()
             },
             _ => {
-                bluetooth_io::get_auth_key_mac()
+                auth::get_auth_key_mac()
             }
         };
         let result = utils::calculate_cmac(&key, &message).unwrap();
@@ -486,10 +486,10 @@ impl ICCOA {
         message.append(&mut self.body.serialize(request, fragment));
         let key = match self.get_body().message_type {
             MessageType::VEHICLE_PAIRING | MessageType::AUTH => {
-               bluetooth_io::get_pairing_key_mac()
+               pairing::get_pairing_key_mac()
             },
             _ => {
-                bluetooth_io::get_auth_key_mac()
+                auth::get_auth_key_mac()
             }
         };
         let result = utils::calculate_cmac(&key, &message).unwrap();

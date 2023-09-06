@@ -1,14 +1,18 @@
-use std::io::Read;
+use std::io::{Read, Write};
+use std::sync::Mutex;
+
+use crate::iccoa::utils::CipherKey;
 
 use super::objects::{ICCOA, Mark, create_iccoa_header, create_iccoa_body_message_data, create_iccoa_body, create_iccoa};
-use super::{errors::*, TLVPayload};
-use super::status::{StatusBuilder, Status};
+use super::{errors::*, TLVPayload, TLVPayloadBuilder, auth};
+use super::status::{StatusBuilder, Status, StatusTag};
 
 lazy_static! {
     static ref SPAKE2_PLUS_P_A_LENGTH: usize = 0x41;
     static ref SPAKE2_PLUS_C_A_LENGTH: usize = 0x12;
     static ref SPAKE2_PLUS_C_B_LENGTH: usize = 0x12;
     static ref PAIRING_PAYLOAD_LENGTH_MINIMUM: usize = 0x02;
+    static ref PAIRING_KEY: Mutex<CipherKey> = Mutex::new(CipherKey::new());
 }
 
 pub fn calculate_p_b() -> [u8; 65] {
@@ -25,6 +29,16 @@ pub fn calculate_c_b() -> [u8; 16] {
 
 pub fn calculate_c_a() -> [u8; 16] {
     [0x00; 16]
+}
+
+pub fn get_pairing_key_mac() -> Vec<u8> {
+    let pairing_key = PAIRING_KEY.lock().unwrap();
+    pairing_key.get_key_mac()
+}
+
+pub fn get_pairing_key_enc() -> Vec<u8> {
+    let pairing_key = PAIRING_KEY.lock().unwrap();
+    pairing_key.get_key_enc()
 }
 
 pub fn get_vehicle_certificate() -> Vec<u8> {
@@ -61,6 +75,24 @@ pub fn get_mobile_device_tee_ca_certificate() -> Vec<u8> {
 
 pub fn get_carkey_certificate() -> Vec<u8> {
     [0x04; 16].to_vec()
+}
+
+pub fn create_iccoa_pairing_data_request_package() -> Result<Vec<u8>> {
+    let transaction_id = 0x0000;
+    let p_b = calculate_p_b();
+    let p_b_payload = TLVPayloadBuilder::new().set_tag(0x51).set_value(&p_b).build();
+    let salt = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f];
+    let salt_payload = TLVPayloadBuilder::new().set_tag(0xC0).set_value(&salt).build();
+    let nscrypt = [0x01, 0x02, 0x03, 0x04];
+    let nscrypt_payload = TLVPayloadBuilder::new().set_tag(0xC1).set_value(&nscrypt).build();
+    let r = [0x01, 0x02];
+    let r_payload = TLVPayloadBuilder::new().set_tag(0xC2).set_value(&r).build();
+    let p = [0x02, 0x01];
+    let p_payload = TLVPayloadBuilder::new().set_tag(0xC3).set_value(&p).build();
+    let iccoa = create_iccoa_pairing_data_request(
+        transaction_id,
+        &[p_b_payload, salt_payload, nscrypt_payload, r_payload, p_payload])?;
+    Ok(iccoa.serialize())
 }
 
 fn create_iccoa_pairing_request(transaction_id: u16, tag: u8, payloads: &[TLVPayload]) -> Result<ICCOA> {
@@ -160,6 +192,122 @@ pub fn create_iccoa_pairing_certificate_read_request(transaction_id: u16, payloa
 pub fn create_iccoa_pairing_certificate_read_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
     return create_iccoa_pairing_response(transaction_id, status, 0x05, payloads)
 }
+
+
+pub fn handle_iccoa_pairing_p_a_payload(iccoa: &ICCOA) -> Status {
+    //handle pA
+    StatusBuilder::new().success().build()
+}
+
+pub fn handle_iccoa_pairing_c_a_payload(iccoa: &ICCOA) -> Status {
+    //handle cA
+    StatusBuilder::new().success().build()
+}
+
+pub fn handle_iccoa_pairing_read_response_payload(iccoa: &ICCOA) -> Result<()> {
+    //handle read response payload
+    let message_data = iccoa.get_body().get_message_data();
+    if message_data.get_status().get_tag() == StatusTag::SUCCESS {
+        let cert_payload = TLVPayload::deserialize(&message_data.get_value()).unwrap();
+        match cert_payload.get_tag() {
+            0x01 => {
+                let mut file = std::fs::File::create("/etc/certs/mobile_server_ca.crt")
+                    .map_err(|_| ErrorKind::ICCOAPairingError("create mobile server ca cert file error".to_string()))
+                    .unwrap();
+                file.write_all(&cert_payload.value)
+                    .map_err(|_| ErrorKind::ICCOAPairingError("write cert data to mobile server ca cert file error".to_string()))
+                    .unwrap();
+            },
+            0x02 => {
+                let mut file = std::fs::File::create("/etc/certs/mobile_tee_ca.crt")
+                    .map_err(|_| ErrorKind::ICCOAPairingError("create mobile tee ca cert file error".to_string()))
+                    .unwrap();
+                file.write_all(&cert_payload.value)
+                    .map_err(|_| ErrorKind::ICCOAPairingError("write cert data to moile tee ca cert file error".to_string()))
+                    .unwrap();
+            },
+            0x03 => {
+                let mut file = std::fs::File::create("/etc/certs/carkey_public.crt")
+                    .map_err(|_| ErrorKind::ICCOAPairingError("create carkey public cert file error".to_string()))
+                    .unwrap();
+                file.write_all(&cert_payload.value)
+                    .map_err(|_| ErrorKind::ICCOAPairingError("write cert data to carkey public cert file error".to_string()))
+                    .unwrap();
+            },
+            _ => {},
+        }
+        Ok(())
+    } else {
+        return Err(ErrorKind::ICCOAPairingError("pairing read response error".to_string()).into());
+    }
+}
+
+pub fn handle_iccoa_pairing_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
+    let transaction_id = 0x00000;
+    let message_data = &iccoa.body.message_data;
+    match message_data.get_tag() {
+        0x01 => {
+            return Err(ErrorKind::ICCOAPairingError("getting paired password is not implemented".to_string()).into());
+        },
+        0x02 => {   //get pA
+            //handle pA
+            let _status = handle_iccoa_pairing_p_a_payload(iccoa);
+            //create spake2+ auth request cB
+            let c_b = calculate_c_b();
+            let c_b_payload = TLVPayloadBuilder::new().set_tag(0x53).set_value(&c_b).build();
+            let response = create_iccoa_paring_auth_request(transaction_id, &[c_b_payload])?;
+            return Ok(response)
+        },
+        0x03 => {   //get cA
+            //handle cA
+            let _status = handle_iccoa_pairing_c_a_payload(iccoa);
+            //create spake2+ pairing certificate write request
+            let vehicle_pubkey_cert = get_vehicle_certificate();
+            let vehicle_pubkey_cert_payload = TLVPayloadBuilder::new().set_tag(0x55).set_value(&vehicle_pubkey_cert).build();
+            let response = create_iccoa_pairing_certificate_write_request(transaction_id, &[vehicle_pubkey_cert_payload])?;
+            Ok(response)
+        },
+        0x04 => {   //get write command status
+            //handle write command status
+            //create spake2+ pairing certificate read request
+            let device_ca_cert_payload = TLVPayloadBuilder::new().set_tag(0x01).build();
+            let response = create_iccoa_pairing_certificate_read_request(transaction_id, &[device_ca_cert_payload])?;
+            Ok(response)
+        },
+        0x05 => {   //get read command data(TLV)
+            //handle read command data
+            handle_iccoa_pairing_read_response_payload(iccoa)?;
+            //create spake2+ pairing certificate read request
+            let payload = TLVPayload::deserialize(message_data.get_value())?;
+            let response = match payload.get_tag() {
+                0x01 => {
+                    let mobile_tee_cert_payload = TLVPayloadBuilder::new().set_tag(0x02).build();
+                    create_iccoa_pairing_certificate_read_request(transaction_id, &[mobile_tee_cert_payload])?
+                },
+                0x02 => {
+                    let carkey_pubkey_cert_payload= TLVPayloadBuilder::new().set_tag(0x03).build();
+                    create_iccoa_pairing_certificate_read_request(transaction_id, &[carkey_pubkey_cert_payload])?
+                },
+                _ => {
+                    //test create standard auth request
+                    auth::create_iccoa_standard_auth_pubkey_exchange_request_package()?
+                    //return Err(ErrorKind::ICCOAPairingError("Pairing Completed".to_string()).into());
+                }
+            };
+            Ok(response)
+        },
+        0x07 => {
+            return Err(ErrorKind::ICCOAPairingError("Tag 0x07 is not implemented".to_string()).into());
+        },
+        0xC0 => {
+            return Err(ErrorKind::ICCOAPairingError("Tag 0xC0 is not implemented".to_string()).into());
+        },
+        _ => {      //RFU
+            return Err(ErrorKind::ICCOAPairingError("RFU is not implemented".to_string()).into());
+        },
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
