@@ -27,31 +27,31 @@ lazy_static! {
 
 fn test_create_measure_request() -> Vec<u8> {
     let measure_type = 0x01;
-    let icce = icce::objects::create_icce_measure_request(measure_type);
+    let icce = icce::command::create_icce_measure_request(measure_type);
     icce.serialize()
 }
 
 fn test_craate_anti_relay_request() -> Vec<u8> {
     let measure_type = 0x01;
     let vehicle_info = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06];
-    let icce = icce::objects::create_icce_anti_relay_request(measure_type, &vehicle_info);
+    let icce = icce::command::create_icce_anti_relay_request(measure_type, &vehicle_info);
     icce.serialize()
 }
 
 fn test_create_mobile_info_request() -> Vec<u8> {
     let request_type = 0x01;
-    let icce = icce::objects::create_icce_get_mobile_info_request(request_type);
+    let icce = icce::command::create_icce_get_mobile_info_request(request_type);
     icce.serialize()
 }
 
 fn test_create_calbriate_time_request() -> Vec<u8> {
-    let icce = icce::objects::create_icce_calibrate_clock_request();
+    let icce = icce::command::create_icce_calibrate_clock_request();
     icce.serialize()
 }
 
 fn test_create_protocol_request() -> Vec<u8> {
     let vehicle_protocol = vec![0x01, 0x02, 0x03, 0x04];
-    let icce = icce::objects::create_icce_get_protocol_request(&vehicle_protocol);
+    let icce = icce::command::create_icce_get_protocol_request(&vehicle_protocol);
     icce.serialize()
 }
 
@@ -59,19 +59,19 @@ fn test_create_vehicle_event_request() -> Vec<u8> {
     let vehicle_event = 0x00;
     let async_result = vec![0x11, 0x22, 0x33, 0x44];
     let vehicle_state = vec![0x55, 0x66, 0x77, 0x88];
-    let icce = icce::objects::create_icce_vehicle_state_event_request(vehicle_event, &async_result, &vehicle_state);
+    let icce = icce::notification::create_icce_vehicle_state_event_request(vehicle_event, &async_result, &vehicle_state);
     icce.serialize()
 }
 
 fn test_create_app_event_request() -> Vec<u8> {
     let app_data = vec![0xaa, 0xbb, 0xcc, 0xdd];
-    let icce = icce::objects::create_icce_vehicle_to_app_event_request(&app_data);
+    let icce = icce::notification::create_icce_vehicle_to_app_event_request(&app_data);
     icce.serialize()
 }
 
 fn test_create_server_event_request() -> Vec<u8> {
     let server_data = vec![0xff, 0xee, 0xdd, 0xcc];
-    let icce = icce::objects::create_icce_vehicle_to_server_event_request(&server_data);
+    let icce = icce::notification::create_icce_vehicle_to_server_event_request(&server_data);
     icce.serialize()
 }
 
@@ -153,17 +153,17 @@ async fn main() -> bluer::Result<()> {
                         async move {
                             tokio::spawn(async move {
                                 if notifier.is_stopped() == false {
-                                    /*
-                                    let icce = icce::objects::create_icce_auth_get_process_data_request();
+                                    let icce = icce::auth::create_icce_auth_get_process_data_request();
                                     if let Err(err) = notifier.notify(icce.serialize()).await {
                                         println!("Notification error when setting get process data request: {}", err);
                                     }
-                                    */
+                                    /*
                                     let pairing_request = pairing::create_iccoa_pairing_data_request_package().unwrap();
                                     println!("pairing request = {:02X?}", pairing_request);
                                     if let Err(err) = notifier.notify(pairing_request).await {
                                         println!("Notification error when setting get process data request: {}", err);
                                     }
+                                    */
                                 }
                                 let mut bt_notify_rx = bt_notify_tx.subscribe();
                                 while let Ok(notify_data) = bt_notify_rx.recv().await {
@@ -188,7 +188,7 @@ async fn main() -> bluer::Result<()> {
     let device_events = adapter.discover_devices().await?;
     pin_mut!(device_events);
     let mut all_change_events = SelectAll::new();
-/*
+
     //test code for sending message from vehicle to mobile by notification
     tokio::spawn(async move {
         let mut index = 0;
@@ -231,8 +231,7 @@ async fn main() -> bluer::Result<()> {
             }
         }
     });
-*/
-
+/*
     //test code for sending message from vehicle to mobile by notification
     tokio::spawn(async move {
         let mut index = 0;
@@ -335,6 +334,7 @@ async fn main() -> bluer::Result<()> {
             }
         }
     });
+*/
 
     println!("Server ready. Press ctrl-c to quit");
     loop {
@@ -356,6 +356,7 @@ async fn main() -> bluer::Result<()> {
             },
             Some(data_package) = bt_write_rx.recv() => {
                 println!("GOT ICCOA Package from Mobile = {:02X?}", data_package);
+                /*
                 if let Ok(response) = bluetooth_io::handle_data_package_from_mobile(&data_package) {
                     if let Some(splitted_response) = objects::split_iccoa(&response) {
                         for response in splitted_response {
@@ -365,8 +366,8 @@ async fn main() -> bluer::Result<()> {
                         let _ = bt_notify_tx.send(response.serialize());
                     }
                 }
-                /*
-                if let Ok(response) = icce::objects::handle_data_package_from_mobile(&data_package) {
+                */
+                if let Ok(response) = icce::bluetooth_io::handle_data_package_from_mobile(&data_package) {
                     if let Some(splitted_response) = icce::objects::split_icce(&response) {
                         for response in splitted_response {
                             let _ = bt_notify_tx.send(response.serialize());
@@ -375,7 +376,6 @@ async fn main() -> bluer::Result<()> {
                         let _ = bt_notify_tx.send(response.serialize());
                     }
                 }
-                */
                 /*
                 println!("GOT ICCE Package from Mobile = {:02X?}", icce_package);
                 if let Ok(mut icce_object) = icce::objects::ICCE::deserialize(&icce_package) {
