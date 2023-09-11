@@ -267,12 +267,15 @@ pub fn handle_iccoa_pairing_read_response_payload(iccoa: &ICCOA) -> Result<()> {
     let message_data = iccoa.get_body().get_message_data();
     if message_data.get_status().get_tag() == StatusTag::SUCCESS {
         let cert_payload = TLVPayload::deserialize(&message_data.get_value()).unwrap();
+        let dec_key = PAIRING_KEY.lock().unwrap().get_key_enc();
+        let iv = utils::get_default_iv();
+        let plain_text = utils::decrypt_aes_128_cbc(&dec_key, &cert_payload.value, &iv)?;
         match cert_payload.get_tag() {
             0x01 => {
                 let mut file = std::fs::File::create("/etc/certs/mobile_server_ca.crt")
                     .map_err(|_| ErrorKind::ICCOAPairingError("create mobile server ca cert file error".to_string()))
                     .unwrap();
-                file.write_all(&cert_payload.value)
+                file.write_all(&plain_text)
                     .map_err(|_| ErrorKind::ICCOAPairingError("write cert data to mobile server ca cert file error".to_string()))
                     .unwrap();
             },
@@ -280,7 +283,7 @@ pub fn handle_iccoa_pairing_read_response_payload(iccoa: &ICCOA) -> Result<()> {
                 let mut file = std::fs::File::create("/etc/certs/mobile_tee_ca.crt")
                     .map_err(|_| ErrorKind::ICCOAPairingError("create mobile tee ca cert file error".to_string()))
                     .unwrap();
-                file.write_all(&cert_payload.value)
+                file.write_all(&plain_text)
                     .map_err(|_| ErrorKind::ICCOAPairingError("write cert data to moile tee ca cert file error".to_string()))
                     .unwrap();
             },
@@ -288,7 +291,7 @@ pub fn handle_iccoa_pairing_read_response_payload(iccoa: &ICCOA) -> Result<()> {
                 let mut file = std::fs::File::create("/etc/certs/carkey_public.crt")
                     .map_err(|_| ErrorKind::ICCOAPairingError("create carkey public cert file error".to_string()))
                     .unwrap();
-                file.write_all(&cert_payload.value)
+                file.write_all(&plain_text)
                     .map_err(|_| ErrorKind::ICCOAPairingError("write cert data to carkey public cert file error".to_string()))
                     .unwrap();
             },
@@ -321,7 +324,10 @@ pub fn handle_iccoa_pairing_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA>
             handle_iccoa_pairing_c_a_payload(iccoa)?;
             //create spake2+ pairing certificate write request
             let vehicle_pubkey_cert = get_vehicle_certificate();
-            let vehicle_pubkey_cert_payload = TLVPayloadBuilder::new().set_tag(0x55).set_value(&vehicle_pubkey_cert).build();
+            let enc_key = PAIRING_KEY.lock().unwrap().get_key_enc();
+            let iv = utils::get_default_iv();
+            let cipher_text= utils::encrypt_aes_128_cbc(&enc_key, &vehicle_pubkey_cert, &iv)?;
+            let vehicle_pubkey_cert_payload = TLVPayloadBuilder::new().set_tag(0x55).set_value(&cipher_text).build();
             let response = create_iccoa_pairing_certificate_write_request(transaction_id, &[vehicle_pubkey_cert_payload])?;
             Ok(response)
         },
