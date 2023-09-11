@@ -4,7 +4,7 @@ use std::sync::Mutex;
 use crate::iccoa::utils::CipherKey;
 
 use super::objects::{ICCOA, Mark, create_iccoa_header, create_iccoa_body_message_data, create_iccoa_body, create_iccoa};
-use super::{errors::*, TLVPayload, TLVPayloadBuilder, auth};
+use super::{errors::*, TLVPayload, TLVPayloadBuilder, auth, utils};
 use super::status::{StatusBuilder, Status, StatusTag};
 
 lazy_static! {
@@ -13,22 +13,18 @@ lazy_static! {
     static ref SPAKE2_PLUS_C_B_LENGTH: usize = 0x12;
     static ref PAIRING_PAYLOAD_LENGTH_MINIMUM: usize = 0x02;
     static ref PAIRING_KEY: Mutex<CipherKey> = Mutex::new(CipherKey::new());
+    static ref PAIRING_PA: Mutex<Vec<u8>> = Mutex::new(vec![]);
+    static ref PAIRING_CA: Mutex<Vec<u8>> = Mutex::new(vec![]);
 }
 
-pub fn calculate_p_b() -> [u8; 65] {
-    [0x00; 65]
+pub fn set_pairing_key_mac(key: &[u8]) {
+    let mut pairing_key = PAIRING_KEY.lock().unwrap();
+    pairing_key.set_key_mac(key);
 }
 
-pub fn calculate_p_a() -> [u8; 65] {
-    [0x00; 65]
-}
-
-pub fn calculate_c_b() -> [u8; 16] {
-    [0x00; 16]
-}
-
-pub fn calculate_c_a() -> [u8; 16] {
-    [0x00; 16]
+pub fn set_pairing_key_enc(key: &[u8]) {
+    let mut pairing_Key = PAIRING_KEY.lock().unwrap();
+    pairing_Key.set_key_enc(key);
 }
 
 pub fn get_pairing_key_mac() -> Vec<u8> {
@@ -39,6 +35,36 @@ pub fn get_pairing_key_mac() -> Vec<u8> {
 pub fn get_pairing_key_enc() -> Vec<u8> {
     let pairing_key = PAIRING_KEY.lock().unwrap();
     pairing_key.get_key_enc()
+}
+
+pub fn calculate_p_b() -> [u8; 65] {
+    [0x01; 65]
+}
+
+pub fn calculate_p_a() -> [u8; 65] {
+    [0x00; 65]
+}
+
+pub fn calculate_c_b(p_a: &[u8]) -> [u8; 16] {
+    let p_b = calculate_p_b().to_vec();
+    let mut tt = Vec::new();
+    tt.append(&mut p_a.to_vec());
+    tt.append(&mut p_b.to_vec());
+    let hash_tt = utils::calculate_sha256(&tt);
+    let k_a = &hash_tt[0..16];
+    let _k_b = &hash_tt[16..32];
+    let derived_key = utils::calculate_derive_key(None, k_a, "ConfirmationKeys".as_bytes(), 32);
+    let k_ca = &derived_key[0..16];
+    let k_cb = &derived_key[16..32];
+    let c_a = utils::calculate_cmac(k_ca, &p_b).unwrap();
+    let c_b = utils::calculate_cmac(k_cb, p_a).unwrap();
+    let mut pairing_c_a = PAIRING_CA.lock().unwrap();
+    *pairing_c_a = c_a.clone();
+    c_b.try_into().unwrap()
+}
+
+pub fn calculate_c_a() -> [u8; 16] {
+    [0x00; 16]
 }
 
 pub fn get_vehicle_certificate() -> Vec<u8> {
@@ -194,14 +220,46 @@ pub fn create_iccoa_pairing_certificate_read_response(transaction_id: u16, statu
 }
 
 
-pub fn handle_iccoa_pairing_p_a_payload(iccoa: &ICCOA) -> Status {
+pub fn handle_iccoa_pairing_p_a_payload(iccoa: &ICCOA) -> Result<Vec<u8>> {
     //handle pA
-    StatusBuilder::new().success().build()
+    let payload = iccoa.get_body().get_message_data().get_value();
+    let p_a_tlv_payload = TLVPayload::deserialize(payload)?;
+    if p_a_tlv_payload.get_tag() != 0x52 {
+        return Err(ErrorKind::ICCOAPairingError("handle pairing pA payload error".to_string()).into());
+    }
+    let mut pairing_p_a = PAIRING_PA.lock().unwrap();
+    *pairing_p_a = p_a_tlv_payload.value.clone();
+    Ok(p_a_tlv_payload.value.to_vec())
 }
 
-pub fn handle_iccoa_pairing_c_a_payload(iccoa: &ICCOA) -> Status {
-    //handle cA
-    StatusBuilder::new().success().build()
+pub fn handle_iccoa_pairing_c_a_payload(iccoa: &ICCOA) -> Result<()> {
+    let payload = iccoa.get_body().get_message_data().get_value();
+    let c_a_tlv_payload = TLVPayload::deserialize(payload)?;
+    if c_a_tlv_payload.get_tag() != 0x53 {
+        return Err(ErrorKind::ICCOAPairingError("handle pairing cA payload error".to_string()).into());
+    }
+    let mobile_c_a = c_a_tlv_payload.value.as_slice();
+    if PAIRING_CA.lock().unwrap().eq(mobile_c_a) {
+        println!("C_A OK!!!!!!");
+    } else {
+        println!("C_A Failed!!!!!!");
+        return Err(ErrorKind::ICCOAPairingError("cA calculate error".to_string()).into());
+    }
+
+    let p_a = PAIRING_PA.lock().unwrap();
+    let p_b = calculate_p_b().to_vec();
+    let mut tt = Vec::new();
+    tt.append(&mut p_a.to_vec());
+    tt.append(&mut p_b.to_vec());
+    let hash_tt = utils::calculate_sha256(&tt);
+    let _k_a = &hash_tt[0..16];
+    let k_b = &hash_tt[16..32];
+    let derived_key = utils::calculate_derive_key(None, k_b, "ConfirmationKeys".as_bytes(), 32);
+    let k_enc= &derived_key[0..16];
+    let k_mac= &derived_key[16..32];
+    set_pairing_key_enc(k_enc);
+    set_pairing_key_mac(k_mac);
+    Ok(())
 }
 
 pub fn handle_iccoa_pairing_read_response_payload(iccoa: &ICCOA) -> Result<()> {
@@ -251,16 +309,16 @@ pub fn handle_iccoa_pairing_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA>
         },
         0x02 => {   //get pA
             //handle pA
-            let _status = handle_iccoa_pairing_p_a_payload(iccoa);
+            let p_a = handle_iccoa_pairing_p_a_payload(iccoa)?;
             //create spake2+ auth request cB
-            let c_b = calculate_c_b();
+            let c_b = calculate_c_b(&p_a);
             let c_b_payload = TLVPayloadBuilder::new().set_tag(0x53).set_value(&c_b).build();
             let response = create_iccoa_paring_auth_request(transaction_id, &[c_b_payload])?;
             return Ok(response)
         },
         0x03 => {   //get cA
             //handle cA
-            let _status = handle_iccoa_pairing_c_a_payload(iccoa);
+            handle_iccoa_pairing_c_a_payload(iccoa)?;
             //create spake2+ pairing certificate write request
             let vehicle_pubkey_cert = get_vehicle_certificate();
             let vehicle_pubkey_cert_payload = TLVPayloadBuilder::new().set_tag(0x55).set_value(&vehicle_pubkey_cert).build();
@@ -438,7 +496,7 @@ mod tests {
     #[test]
     fn test_spake2_plus_auth_request() {
         let transaction_id = 0x0002;
-        let c_b = calculate_c_b();
+        let c_b = calculate_c_b(&calculate_p_a());
         let c_b_payload = TLVPayloadBuilder::new().set_tag(0x53).set_value(&c_b).build();
         let iccoa = create_iccoa_paring_auth_request(transaction_id, &[c_b_payload]).unwrap();
         assert_eq!(iccoa, ICCOA {
