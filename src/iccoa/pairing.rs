@@ -1,20 +1,94 @@
 use std::io::{Read, Write};
 use std::sync::Mutex;
 
+use openssl::bn::{BigNum, BigNumContext};
+use openssl::ec::EcGroup;
+use openssl::nid::Nid;
+use rand::Rng;
+
 use crate::iccoa::utils::CipherKey;
 
 use super::objects::{ICCOA, Mark, create_iccoa_header, create_iccoa_body_message_data, create_iccoa_body, create_iccoa};
 use super::{errors::*, TLVPayload, TLVPayloadBuilder, auth, utils};
 use super::status::{StatusBuilder, Status, StatusTag};
 
+const SALT: &str = "fd4acb81182a2c8fa959d180967b374277f2ccf2f7f401cb08d042cc785464b4";
+const SCRYPT_N: u32 = 32768;
+const SCRYPT_R: u16 = 1;
+const SCRYPT_P: u16 = 8;
+
 lazy_static! {
-    static ref SPAKE2_PLUS_P_A_LENGTH: usize = 0x41;
-    static ref SPAKE2_PLUS_C_A_LENGTH: usize = 0x12;
-    static ref SPAKE2_PLUS_C_B_LENGTH: usize = 0x12;
+    static ref W0: BigNum = BigNum::from_hex_str("1DDA099ADFB7464CB073503FCDFFBBEED9499646A37E3FA53271976AB407361C").unwrap();
+    static ref L: BigNum = BigNum::from_hex_str("1F2131221F850910EA2EBD8E744F3B1320B423310B49CAADE1A9338D829D29D963D910E6C41F6AEFA5EDCDEA7E12D52AEA2581D07D34C861C0776CE111DBE000").unwrap();
+    static ref M: BigNum = BigNum::from_hex_str("02886e2f97ace46e55ba9dd7242579f2993b64e16ef3dcab95afd497333d8fa12f").unwrap();
+    static ref N: BigNum = BigNum::from_hex_str("03d8bbd6c639c62937b04d997f38c3770719c629d7014d49a24b4f98baa1292b49").unwrap();
+    static ref P: Mutex<BigNum> = Mutex::new(BigNum::new().unwrap());
+    static ref RANDOM_Y: Mutex<u32> = Mutex::new(0);
     static ref PAIRING_PAYLOAD_LENGTH_MINIMUM: usize = 0x02;
     static ref PAIRING_KEY: Mutex<CipherKey> = Mutex::new(CipherKey::new());
-    static ref PAIRING_PA: Mutex<Vec<u8>> = Mutex::new(vec![]);
+    static ref PAIRING_PA: Mutex<BigNum> = Mutex::new(BigNum::new().unwrap());
+    static ref PAIRING_PB: Mutex<BigNum> = Mutex::new(BigNum::new().unwrap());
+    static ref PAIRING_Z: Mutex<BigNum> = Mutex::new(BigNum::new().unwrap());
+    static ref PAIRING_V: Mutex<BigNum> = Mutex::new(BigNum::new().unwrap());
     static ref PAIRING_CA: Mutex<Vec<u8>> = Mutex::new(vec![]);
+}
+
+pub fn calculate_p_b() -> BigNum {
+    let nid = Nid::X9_62_PRIME256V1;
+    let group = EcGroup::from_curve_name(nid).unwrap();
+    let mut ctx = BigNumContext::new().unwrap();
+
+    //calculate base point P
+    let base_point = group.generator();
+    let mut x = BigNum::new().unwrap();
+    let mut y = BigNum::new().unwrap();
+    base_point.affine_coordinates_gfp(&group, &mut x, &mut y, &mut ctx).unwrap();
+    let mut p = P.lock().unwrap();
+    *p = x;
+
+    //calculate random u32 y
+    let mut rng = rand::thread_rng();
+    let y = rng.gen::<u32>();
+    let mut random_y = RANDOM_Y.lock().unwrap();
+    *random_y = y;
+
+    //calculate p_b
+    let mut tmp_y = BigNum::new().unwrap();
+    tmp_y.checked_mul(&*p, &BigNum::from_u32(y).unwrap(), &mut ctx).unwrap();
+
+    let mut tmp_n = BigNum::new().unwrap();
+    tmp_n.checked_mul(&N, &W0, &mut ctx).unwrap();
+
+    let mut p_b = BigNum::new().unwrap();
+    p_b.checked_add(&tmp_y, &tmp_n).unwrap();
+    p_b
+}
+
+pub fn verify_p_a() {
+    let h = 1;
+    let y = *RANDOM_Y.lock().unwrap();
+    let mut ctx = BigNumContext::new().unwrap();
+
+    let mut tmp_m = BigNum::new().unwrap();
+    tmp_m.checked_mul(&W0, &M, &mut ctx).unwrap();
+
+    let p_a = PAIRING_PA.lock().unwrap();
+    let mut tmp_z = BigNum::new().unwrap();
+    tmp_z.checked_sub(&*p_a, &tmp_m).unwrap();
+
+    let mut ec_z = BigNum::new().unwrap();
+    ec_z.checked_mul(&BigNum::from_u32(h*y).unwrap(), &tmp_z, &mut ctx).unwrap();
+    let mut ec_v = BigNum::new().unwrap();
+    ec_v.checked_mul(&L, &BigNum::from_u32(h*y).unwrap(), &mut ctx).unwrap();
+
+    let mut pairing_z = PAIRING_Z.lock().unwrap();
+    *pairing_z = ec_z;
+    let mut paring_v = PAIRING_V.lock().unwrap();
+    *paring_v = ec_v;
+}
+
+pub fn calculate_p_a() -> [u8; 65] {
+    [0x00; 65]
 }
 
 pub fn set_pairing_key_mac(key: &[u8]) {
@@ -37,27 +111,38 @@ pub fn get_pairing_key_enc() -> Vec<u8> {
     pairing_key.get_key_enc()
 }
 
-pub fn calculate_p_b() -> [u8; 65] {
-    [0x01; 65]
+pub fn calculate_length_element_tt(element: &[u8]) -> Vec<u8> {
+    let mut tt_elements = Vec::new();
+    let length_u64 = element.len() as u64;
+    tt_elements.append(&mut length_u64.to_le_bytes().to_vec());
+    tt_elements.append(&mut element.to_vec());
+    tt_elements
 }
 
-pub fn calculate_p_a() -> [u8; 65] {
-    [0x00; 65]
-}
-
-pub fn calculate_c_b(p_a: &[u8]) -> [u8; 16] {
-    let p_b = calculate_p_b().to_vec();
+pub fn calculate_tt() -> Vec<u8> {
     let mut tt = Vec::new();
-    tt.append(&mut p_a.to_vec());
-    tt.append(&mut p_b.to_vec());
+    tt.append(&mut calculate_length_element_tt(M.to_vec().as_slice()));
+    tt.append(&mut calculate_length_element_tt(N.to_vec().as_slice()));
+    tt.append(&mut calculate_length_element_tt(PAIRING_PA.lock().unwrap().to_vec().as_slice()));
+    tt.append(&mut calculate_length_element_tt(PAIRING_PB.lock().unwrap().to_vec().as_slice()));
+    tt.append(&mut calculate_length_element_tt(PAIRING_Z.lock().unwrap().to_vec().as_slice()));
+    tt.append(&mut calculate_length_element_tt(PAIRING_V.lock().unwrap().to_vec().as_slice()));
+    tt.append(&mut calculate_length_element_tt(W0.to_vec().as_slice()));
+    tt
+}
+
+pub fn calculate_c_b() -> [u8; 16] {
+    let tt = calculate_tt();
     let hash_tt = utils::calculate_sha256(&tt);
     let k_a = &hash_tt[0..16];
     let _k_b = &hash_tt[16..32];
     let derived_key = utils::calculate_derive_key(None, k_a, "ConfirmationKeys".as_bytes(), 32);
     let k_ca = &derived_key[0..16];
     let k_cb = &derived_key[16..32];
-    let c_a = utils::calculate_cmac(k_ca, &p_b).unwrap();
-    let c_b = utils::calculate_cmac(k_cb, p_a).unwrap();
+    let p_a = PAIRING_PA.lock().unwrap();
+    let p_b = PAIRING_PB.lock().unwrap();
+    let c_a = utils::calculate_cmac(k_ca, &p_b.to_vec()).unwrap();
+    let c_b = utils::calculate_cmac(k_cb, &p_a.to_vec()).unwrap();
     let mut pairing_c_a = PAIRING_CA.lock().unwrap();
     *pairing_c_a = c_a.clone();
     c_b.try_into().unwrap()
@@ -106,15 +191,13 @@ pub fn get_carkey_certificate() -> Vec<u8> {
 pub fn create_iccoa_pairing_data_request_package() -> Result<Vec<u8>> {
     let transaction_id = 0x0000;
     let p_b = calculate_p_b();
-    let p_b_payload = TLVPayloadBuilder::new().set_tag(0x51).set_value(&p_b).build();
-    let salt = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f];
-    let salt_payload = TLVPayloadBuilder::new().set_tag(0xC0).set_value(&salt).build();
-    let nscrypt = [0x01, 0x02, 0x03, 0x04];
-    let nscrypt_payload = TLVPayloadBuilder::new().set_tag(0xC1).set_value(&nscrypt).build();
-    let r = [0x01, 0x02];
-    let r_payload = TLVPayloadBuilder::new().set_tag(0xC2).set_value(&r).build();
-    let p = [0x02, 0x01];
-    let p_payload = TLVPayloadBuilder::new().set_tag(0xC3).set_value(&p).build();
+    let p_b_payload = TLVPayloadBuilder::new().set_tag(0x51).set_value(&p_b.to_vec()).build();
+    let mut pb = PAIRING_PB.lock().unwrap();
+    *pb = p_b;
+    let salt_payload = TLVPayloadBuilder::new().set_tag(0xC0).set_value(SALT.as_bytes()).build();
+    let nscrypt_payload = TLVPayloadBuilder::new().set_tag(0xC1).set_value(&SCRYPT_N.to_le_bytes()).build();
+    let r_payload = TLVPayloadBuilder::new().set_tag(0xC2).set_value(&SCRYPT_R.to_le_bytes()).build();
+    let p_payload = TLVPayloadBuilder::new().set_tag(0xC3).set_value(&SCRYPT_P.to_le_bytes()).build();
     let iccoa = create_iccoa_pairing_data_request(
         transaction_id,
         &[p_b_payload, salt_payload, nscrypt_payload, r_payload, p_payload])?;
@@ -220,7 +303,7 @@ pub fn create_iccoa_pairing_certificate_read_response(transaction_id: u16, statu
 }
 
 
-pub fn handle_iccoa_pairing_p_a_payload(iccoa: &ICCOA) -> Result<Vec<u8>> {
+pub fn handle_iccoa_pairing_p_a_payload(iccoa: &ICCOA) -> Result<()> {
     //handle pA
     let payload = iccoa.get_body().get_message_data().get_value();
     let p_a_tlv_payload = TLVPayload::deserialize(payload)?;
@@ -228,8 +311,8 @@ pub fn handle_iccoa_pairing_p_a_payload(iccoa: &ICCOA) -> Result<Vec<u8>> {
         return Err(ErrorKind::ICCOAPairingError("handle pairing pA payload error".to_string()).into());
     }
     let mut pairing_p_a = PAIRING_PA.lock().unwrap();
-    *pairing_p_a = p_a_tlv_payload.value.clone();
-    Ok(p_a_tlv_payload.value.to_vec())
+    *pairing_p_a = BigNum::from_slice(&p_a_tlv_payload.value).unwrap();
+    Ok(())
 }
 
 pub fn handle_iccoa_pairing_c_a_payload(iccoa: &ICCOA) -> Result<()> {
@@ -246,11 +329,7 @@ pub fn handle_iccoa_pairing_c_a_payload(iccoa: &ICCOA) -> Result<()> {
         return Err(ErrorKind::ICCOAPairingError("cA calculate error".to_string()).into());
     }
 
-    let p_a = PAIRING_PA.lock().unwrap();
-    let p_b = calculate_p_b().to_vec();
-    let mut tt = Vec::new();
-    tt.append(&mut p_a.to_vec());
-    tt.append(&mut p_b.to_vec());
+    let tt = calculate_tt();
     let hash_tt = utils::calculate_sha256(&tt);
     let _k_a = &hash_tt[0..16];
     let k_b = &hash_tt[16..32];
@@ -312,9 +391,10 @@ pub fn handle_iccoa_pairing_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA>
         },
         0x02 => {   //get pA
             //handle pA
-            let p_a = handle_iccoa_pairing_p_a_payload(iccoa)?;
+            handle_iccoa_pairing_p_a_payload(iccoa)?;
+            verify_p_a();
             //create spake2+ auth request cB
-            let c_b = calculate_c_b(&p_a);
+            let c_b = calculate_c_b();
             let c_b_payload = TLVPayloadBuilder::new().set_tag(0x53).set_value(&c_b).build();
             let response = create_iccoa_paring_auth_request(transaction_id, &[c_b_payload])?;
             return Ok(response)
@@ -413,7 +493,7 @@ mod tests {
     fn test_spake2_plus_data_request() {
         let transaction_id = 0x0001;
         let p_b = calculate_p_b();
-        let p_b_payload = TLVPayloadBuilder::new().set_tag(0x51).set_value(&p_b).build();
+        let p_b_payload = TLVPayloadBuilder::new().set_tag(0x51).set_value(&p_b.to_vec()).build();
         let salt = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f];
         let salt_payload = TLVPayloadBuilder::new().set_tag(0xC0).set_value(&salt).build();
         let nscrypt = [0x01, 0x02, 0x03, 0x04];
@@ -502,7 +582,8 @@ mod tests {
     #[test]
     fn test_spake2_plus_auth_request() {
         let transaction_id = 0x0002;
-        let c_b = calculate_c_b(&calculate_p_a());
+        calculate_p_a();
+        let c_b = calculate_c_b();
         let c_b_payload = TLVPayloadBuilder::new().set_tag(0x53).set_value(&c_b).build();
         let iccoa = create_iccoa_paring_auth_request(transaction_id, &[c_b_payload]).unwrap();
         assert_eq!(iccoa, ICCOA {
