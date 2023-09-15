@@ -11,6 +11,7 @@ lazy_static! {
     static ref ICCOA_FRAGMENTS: Mutex<Vec<ICCOA>> = Mutex::new(Vec::new());
 }
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PacketType {
     REQUEST_PACKET,
@@ -47,6 +48,7 @@ impl From<PacketType> for u8 {
     }
 }
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum EncryptType {
     NO_ENCRYPT,
@@ -265,6 +267,7 @@ impl Header {
     }
 }
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MessageType {
     OEM_DEFINED,

@@ -59,49 +59,49 @@ impl VehicleUnsafeEventBuilder {
             ..Default::default()
         }
     }
-    pub fn power_state(mut self, state: u8) -> VehicleUnsafeEventBuilder {
+    pub fn power_state(self, state: u8) -> VehicleUnsafeEventBuilder {
         VehicleUnsafeEventBuilder {
             tag: 0x03,
             value: vec![state],
         }
     }
-    pub fn door_lock_status(mut self, status: CarDoorLockStatus) -> VehicleUnsafeEventBuilder {
+    pub fn door_lock_status(self, status: CarDoorLockStatus) -> VehicleUnsafeEventBuilder {
         VehicleUnsafeEventBuilder {
             tag: 0x04,
             value: vec![status.as_u8()],
         }
     }
-    pub fn door_status(mut self, status: CarDoorStatus) -> VehicleUnsafeEventBuilder {
+    pub fn door_status(self, status: CarDoorStatus) -> VehicleUnsafeEventBuilder {
         VehicleUnsafeEventBuilder {
             tag: 0x05,
             value: vec![status.as_u8()],
         }
     }
-    pub fn door_window_status(mut self, status: CarDoorWindowStatus) -> VehicleUnsafeEventBuilder {
+    pub fn door_window_status(self, status: CarDoorWindowStatus) -> VehicleUnsafeEventBuilder {
         VehicleUnsafeEventBuilder {
             tag: 0x06,
             value: vec![status.as_u8()],
         }
     }
-    pub fn front_hatch_status(mut self, status: u8) -> VehicleUnsafeEventBuilder {
+    pub fn front_hatch_status(self, status: u8) -> VehicleUnsafeEventBuilder {
         VehicleUnsafeEventBuilder {
             tag: 0x07,
             value: vec![status],
         }
     }
-    pub fn back_trunk_status(mut self, status: u8) -> VehicleUnsafeEventBuilder {
+    pub fn back_trunk_status(self, status: u8) -> VehicleUnsafeEventBuilder {
         VehicleUnsafeEventBuilder {
             tag: 0x08,
             value: vec![status],
         }
     }
-    pub fn sunroof_status(mut self, status: u8) -> VehicleUnsafeEventBuilder {
+    pub fn sunroof_status(self, status: u8) -> VehicleUnsafeEventBuilder {
         VehicleUnsafeEventBuilder {
             tag: 0x09,
             value: vec![status],
         }
     }
-    pub fn headlights_status(mut self, status: u8) -> VehicleUnsafeEventBuilder {
+    pub fn headlights_status(self, status: u8) -> VehicleUnsafeEventBuilder {
         VehicleUnsafeEventBuilder {
             tag: 0x0A,
             value: vec![status],
@@ -143,7 +143,6 @@ pub fn create_iccoa_vehicle_unsafe_event_notification(transaction_id: u16, event
 pub fn create_iccoa_vehicle_unsafe_power_state_notification() -> Result<ICCOA> {
     let transaction_id = 0x0000;
     let event = VehicleUnsafeEventBuilder::new().power_state(0x5A).build();
-    let event_length = event.length() as u16;
     create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
 }
 
@@ -155,7 +154,6 @@ pub fn create_iccoa_vehicle_unsafe_door_lock_state_notification() -> Result<ICCO
         CarDoorLockStatus::BACK_LEFT_UNLOCK |
         CarDoorLockStatus::BACK_RIGHT_UNLOCK
     ).build();
-    let event_length = event.length() as u16;
     create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
 }
 
@@ -167,7 +165,6 @@ pub fn create_iccoa_vehicle_unsafe_door_open_state_notification() -> Result<ICCO
         CarDoorStatus::BACK_LEFT_OPEN |
         CarDoorStatus::BACK_RIGHT_OPEN
     ).build();
-    let event_length = event.length() as u16;
     create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
 }
 
@@ -179,35 +176,30 @@ pub fn create_iccoa_vehicle_unsafe_door_window_state_notification() -> Result<IC
         CarDoorWindowStatus::BACK_LEFT_OPEN |
         CarDoorWindowStatus::BACK_RIGHT_OPEN
     ).build();
-    let event_length = event.length() as u16;
     create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
 }
 
 pub fn create_iccoa_vehicle_unsafe_front_hatch_state_notification() -> Result<ICCOA> {
     let transaction_id = 0x0000;
     let event = VehicleUnsafeEventBuilder::new().front_hatch_status(0x01).build();
-    let event_length = event.length() as u16;
     create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
 }
 
 pub fn create_iccoa_vehicle_unsafe_back_trunk_state_notification() -> Result<ICCOA> {
     let transaction_id = 0x0000;
     let event = VehicleUnsafeEventBuilder::new().back_trunk_status(0x01).build();
-    let event_length = event.length() as u16;
     create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
 }
 
 pub fn create_iccoa_vehicle_unsafe_sunroof_state_notification() -> Result<ICCOA> {
     let transaction_id = 0x0000;
     let event = VehicleUnsafeEventBuilder::new().sunroof_status(0x01).build();
-    let event_length = event.length() as u16;
     create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
 }
 
 pub fn create_iccoa_vehicle_unsafe_headlight_state_notification() -> Result<ICCOA> {
     let transaction_id = 0x0000;
     let event = VehicleUnsafeEventBuilder::new().headlights_status(0x01).build();
-    let event_length = event.length() as u16;
     create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
 }
 

@@ -4,6 +4,7 @@ lazy_static! {
     static ref STATUS_LENGTH: usize = 2;
 }
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum StatusTag {
     SUCCESS,

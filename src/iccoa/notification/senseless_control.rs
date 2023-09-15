@@ -61,19 +61,19 @@ impl SenselessControlResultBuilder {
             ..Default::default()
         }
     }
-    pub fn success(mut self) -> SenselessControlResultBuilder {
+    pub fn success(self) -> SenselessControlResultBuilder {
         SenselessControlResultBuilder {
             tag: 0x00,
             value: vec![0x00],
         }
     }
-    pub fn executing(mut self) -> SenselessControlResultBuilder {
+    pub fn executing(self) -> SenselessControlResultBuilder {
         SenselessControlResultBuilder {
             tag: 0x02,
             value: vec![0x00],
         }
     }
-    pub fn failure(mut self, status: u8) -> SenselessControlResultBuilder {
+    pub fn failure(self, status: u8) -> SenselessControlResultBuilder {
         SenselessControlResultBuilder {
             tag: 0x03,
             value: vec![status],
@@ -142,37 +142,37 @@ impl SenselessControlEventBuilder {
             ..Default::default()
         }
     }
-    pub fn passive_unlock(mut self, result: SenselessControlResult) -> SenselessControlEventBuilder {
+    pub fn passive_unlock(self, result: SenselessControlResult) -> SenselessControlEventBuilder {
         SenselessControlEventBuilder {
             tag: 0x00,
             value: result,
         }
     }
-    pub fn passive_lock(mut self, result: SenselessControlResult) -> SenselessControlEventBuilder {
+    pub fn passive_lock(self, result: SenselessControlResult) -> SenselessControlEventBuilder {
         SenselessControlEventBuilder {
             tag: 0x01,
             value: result,
         }
     }
-    pub fn near_auto_unlock(mut self, result: SenselessControlResult) -> SenselessControlEventBuilder {
+    pub fn near_auto_unlock(self, result: SenselessControlResult) -> SenselessControlEventBuilder {
         SenselessControlEventBuilder {
             tag: 0x10,
             value: result,
         }
     }
-    pub fn far_auto_lock(mut self, result: SenselessControlResult) -> SenselessControlEventBuilder {
+    pub fn far_auto_lock(self, result: SenselessControlResult) -> SenselessControlEventBuilder {
         SenselessControlEventBuilder {
             tag: 0x11,
             value: result,
         }
     }
-    pub fn one_button_start(mut self, result: SenselessControlResult) -> SenselessControlEventBuilder {
+    pub fn one_button_start(self, result: SenselessControlResult) -> SenselessControlEventBuilder {
         SenselessControlEventBuilder {
             tag: 0x20,
             value: result,
         }
     }
-    pub fn welcome(mut self, result: SenselessControlResult) -> SenselessControlEventBuilder {
+    pub fn welcome(self, result: SenselessControlResult) -> SenselessControlEventBuilder {
         SenselessControlEventBuilder {
             tag: 0x30,
             value: result,
