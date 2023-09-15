@@ -97,8 +97,8 @@ pub fn set_pairing_key_mac(key: &[u8]) {
 }
 
 pub fn set_pairing_key_enc(key: &[u8]) {
-    let mut pairing_Key = PAIRING_KEY.lock().unwrap();
-    pairing_Key.set_key_enc(key);
+    let mut pairing_key = PAIRING_KEY.lock().unwrap();
+    pairing_key.set_key_enc(key);
 }
 
 pub fn get_pairing_key_mac() -> Vec<u8> {

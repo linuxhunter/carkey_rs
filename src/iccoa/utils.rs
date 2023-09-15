@@ -104,9 +104,6 @@ impl KeyDeriveMaterial {
             return Err(ErrorKind::ICCOAAuthError("not supported key mode error".to_string()).into());
         }
     }
-    pub fn set_vehicle_id(&mut self, vehicle_id: &[u8]) {
-        self.vehicle_id = Some(vehicle_id.to_vec());
-    }
     pub fn set_mobile_temp_public_key_pem(&mut self, public_key_pem: &[u8]) -> Result<()> {
         self.mobile_temp_public_key = Some(public_key_pem.to_vec());
         Ok(())
@@ -267,8 +264,4 @@ pub fn decrypt_aes_128_cbc(key: &[u8], cipher_text: &[u8], iv: &[u8]) -> Result<
 
 pub fn get_default_iv() -> [u8; 16] {
     [0x00; 16]
-}
-
-pub fn get_vehicle_id() -> [u8; 16] {
-    [0x10; 16]
 }
