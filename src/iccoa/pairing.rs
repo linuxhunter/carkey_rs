@@ -18,7 +18,7 @@ const SCRYPT_R: u16 = 1;
 const SCRYPT_P: u16 = 8;
 
 lazy_static! {
-    static ref W0: BigNum = BigNum::from_hex_str("1DDA099ADFB7464CB073503FCDFFBBEED9499646A37E3FA53271976AB407361C").unwrap();
+    static ref W0: BigNum = BigNum::from_hex_str("1DDA099A5FB7464CD1FFD2E91C006F558BE0E1A2AB6FC79BB44004C2B407361C").unwrap();
     static ref L: BigNum = BigNum::from_hex_str("1F2131221F850910EA2EBD8E744F3B1320B423310B49CAADE1A9338D829D29D963D910E6C41F6AEFA5EDCDEA7E12D52AEA2581D07D34C861C0776CE111DBE000").unwrap();
     static ref M: BigNum = BigNum::from_hex_str("02886e2f97ace46e55ba9dd7242579f2993b64e16ef3dcab95afd497333d8fa12f").unwrap();
     static ref N: BigNum = BigNum::from_hex_str("03d8bbd6c639c62937b04d997f38c3770719c629d7014d49a24b4f98baa1292b49").unwrap();
