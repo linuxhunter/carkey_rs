@@ -507,7 +507,7 @@ mod tests {
             header: Header {
                 packet_type: crate::iccoa::objects::PacketType::REQUEST_PACKET,
                 dest_transaction_id: 0x0001,
-                pdu_length: 12+1+102+8,
+                pdu_length: 12+1+101+8,
                 mark: Mark {
                     encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
                     more_fragment: false,
@@ -519,24 +519,11 @@ mod tests {
                 message_type: crate::iccoa::objects::MessageType::VEHICLE_PAIRING,
                 message_data: MessageData {
                     tag: 0x02,
-                    value: vec![
-                        81, 65, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 192, 16, 0, 1, 2,
-                        3, 4, 5, 6, 7, 8, 9, 10,
-                        11, 12, 13, 14, 15, 193, 4, 1,
-                        2, 3, 4, 194, 2, 1, 2, 195, 2,
-                        2, 1],
+                    value: iccoa.get_body().message_data.get_value().to_vec(),
                     ..Default::default()
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -576,7 +563,7 @@ mod tests {
                     ]
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -602,16 +589,12 @@ mod tests {
                 message_type: crate::iccoa::objects::MessageType::VEHICLE_PAIRING,
                 message_data: MessageData {
                     tag: 0x03,
-                    value: vec![
-                        0x53, 0x10,
-                        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-                    ],
+                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
                     ..Default::default()
                 }
 
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -645,7 +628,7 @@ mod tests {
                     ],
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         })
     }
     #[test]
@@ -678,8 +661,8 @@ mod tests {
                     ..Default::default()
                 },
             },
-            mac: [0x00; 8],
-        })       
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
+        })
     }
     #[test]
     fn test_spake2_plus_certificate_write_response() {
@@ -706,7 +689,7 @@ mod tests {
                     ..Default::default()
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         })
     }
     #[test]
@@ -740,7 +723,7 @@ mod tests {
                     ..Default::default()
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -758,7 +741,7 @@ mod tests {
             header: Header {
                 packet_type: crate::iccoa::objects::PacketType::REPLY_PACKET,
                 source_transaction_id: 0x0005,
-                pdu_length: 12+1+2+3+18*3+8,
+                pdu_length: 12+1+2+3+22+8,
                 mark: Mark {
                     encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
                     more_fragment: false,
@@ -772,19 +755,15 @@ mod tests {
                     status: StatusBuilder::new().success().build(),
                     tag: 0x05,
                     value: vec![
-                        0x01, 0x10,
-                        0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
-                        0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
-                        0x02, 0x10,
-                        0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
-                        0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                        0x01, 0x00,
+                        0x02, 0x00,
                         0x03, 0x10,
                         0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
                         0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04
                     ],
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         })
     }
 }

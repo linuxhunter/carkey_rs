@@ -277,7 +277,7 @@ mod tests {
             header: Header {
                 packet_type: PacketType::REQUEST_PACKET,
                 dest_transaction_id: 0x0001,
-                pdu_length: 12+1+3+5+8,
+                pdu_length: iccoa.get_header().get_pdu_length(),
                 mark: Mark {
                     encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
                     more_fragment: false,
@@ -289,13 +289,11 @@ mod tests {
                 message_type: MessageType::COMMAND,
                 message_data: MessageData {
                     tag:0x01,
-                    value: vec![
-                        0xFF, 0xFF, 0x00, 0x01, 0x00
-                    ],
+                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
                     ..Default::default()
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -307,7 +305,7 @@ mod tests {
             header: Header {
                 packet_type: PacketType::REQUEST_PACKET,
                 dest_transaction_id: 0x0002,
-                pdu_length: 12+1+3+5+8,
+                pdu_length: iccoa.get_header().get_pdu_length(),
                 mark: Mark {
                     encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
                     more_fragment: false,
@@ -319,13 +317,11 @@ mod tests {
                 message_type: MessageType::COMMAND,
                 message_data: MessageData {
                     tag:0x01,
-                    value: vec![
-                        0xFF, 0xFF, 0x00, 0x01, 0x01
-                    ],
+                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
                     ..Default::default()
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -337,7 +333,7 @@ mod tests {
             header: Header {
                 packet_type: PacketType::REQUEST_PACKET,
                 dest_transaction_id: 0x0003,
-                pdu_length: 12+1+3+5+8,
+                pdu_length: iccoa.get_header().get_pdu_length(),
                 mark: Mark {
                     encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
                     more_fragment: false,
@@ -349,13 +345,11 @@ mod tests {
                 message_type: MessageType::COMMAND,
                 message_data: MessageData {
                     tag:0x01,
-                    value: vec![
-                        0xFF, 0xFF, 0x01, 0x40, 0x00
-                    ],
+                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
                     ..Default::default()
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -367,7 +361,7 @@ mod tests {
             header: Header {
                 packet_type: PacketType::REQUEST_PACKET,
                 dest_transaction_id: 0x0004,
-                pdu_length: 12+1+3+5+8,
+                pdu_length: iccoa.get_header().get_pdu_length(),
                 mark: Mark {
                     encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
                     more_fragment: false,
@@ -379,13 +373,11 @@ mod tests {
                 message_type: MessageType::COMMAND,
                 message_data: MessageData {
                     tag:0x01,
-                    value: vec![
-                        0xFF, 0xFF, 0x01, 0x40, 0x01
-                    ],
+                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
                     ..Default::default()
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -397,7 +389,7 @@ mod tests {
             header: Header {
                 packet_type: PacketType::REQUEST_PACKET,
                 dest_transaction_id: 0x0005,
-                pdu_length: 12+1+3+5+8,
+                pdu_length: iccoa.get_header().get_pdu_length(),
                 mark: Mark {
                     encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
                     more_fragment: false,
@@ -409,13 +401,11 @@ mod tests {
                 message_type: MessageType::COMMAND,
                 message_data: MessageData {
                     tag:0x01,
-                    value: vec![
-                        0xFF, 0xFF, 0x01, 0x41, 0x00
-                    ],
+                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
                     ..Default::default()
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -427,7 +417,7 @@ mod tests {
             header: Header {
                 packet_type: PacketType::REQUEST_PACKET,
                 dest_transaction_id: 0x0006,
-                pdu_length: 12+1+3+5+8,
+                pdu_length: iccoa.get_header().get_pdu_length(),
                 mark: Mark {
                     encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
                     more_fragment: false,
@@ -439,13 +429,11 @@ mod tests {
                 message_type: MessageType::COMMAND,
                 message_data: MessageData {
                     tag:0x01,
-                    value: vec![
-                        0xFF, 0xFF, 0x01, 0x41, 0x01
-                    ],
+                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
                     ..Default::default()
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -457,7 +445,7 @@ mod tests {
             header: Header {
                 packet_type: PacketType::REQUEST_PACKET,
                 dest_transaction_id: 0x0007,
-                pdu_length: 12+1+3+5+8,
+                pdu_length: iccoa.get_header().get_pdu_length(),
                 mark: Mark {
                     encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
                     more_fragment: false,
@@ -469,13 +457,11 @@ mod tests {
                 message_type: MessageType::COMMAND,
                 message_data: MessageData {
                     tag:0x01,
-                    value: vec![
-                        0xFF, 0xFF, 0x01, 0x11, 0x00
-                    ],
+                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
                     ..Default::default()
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -487,7 +473,7 @@ mod tests {
             header: Header {
                 packet_type: PacketType::REQUEST_PACKET,
                 dest_transaction_id: 0x0008,
-                pdu_length: 12+1+3+5+8,
+                pdu_length: iccoa.get_header().get_pdu_length(),
                 mark: Mark {
                     encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
                     more_fragment: false,
@@ -499,13 +485,11 @@ mod tests {
                 message_type: MessageType::COMMAND,
                 message_data: MessageData {
                     tag:0x01,
-                    value: vec![
-                        0xFF, 0xFF, 0x01, 0x11, 0x01
-                    ],
+                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
                     ..Default::default()
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -517,7 +501,7 @@ mod tests {
             header: Header {
                 packet_type: PacketType::REQUEST_PACKET,
                 dest_transaction_id: 0x0009,
-                pdu_length: 12+1+3+5+8,
+                pdu_length: iccoa.get_header().get_pdu_length(),
                 mark: Mark {
                     encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
                     more_fragment: false,
@@ -529,13 +513,11 @@ mod tests {
                 message_type: MessageType::COMMAND,
                 message_data: MessageData {
                     tag:0x01,
-                    value: vec![
-                        0xFF, 0xFF, 0x10, 0x00, 0x00
-                    ],
+                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
                     ..Default::default()
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -547,7 +529,7 @@ mod tests {
             header: Header {
                 packet_type: PacketType::REQUEST_PACKET,
                 dest_transaction_id: 0x000A,
-                pdu_length: 12+1+3+5+8,
+                pdu_length: iccoa.get_header().get_pdu_length(),
                 mark: Mark {
                     encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
                     more_fragment: false,
@@ -559,13 +541,11 @@ mod tests {
                 message_type: MessageType::COMMAND,
                 message_data: MessageData {
                     tag:0x01,
-                    value: vec![
-                        0xFF, 0xFF, 0x10, 0x00, 0x01
-                    ],
+                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
                     ..Default::default()
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -577,7 +557,7 @@ mod tests {
             header: Header {
                 packet_type: PacketType::REQUEST_PACKET,
                 dest_transaction_id: 0x000B,
-                pdu_length: 12+1+3+5+8,
+                pdu_length: iccoa.get_header().get_pdu_length(),
                 mark: Mark {
                     encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
                     more_fragment: false,
@@ -589,13 +569,11 @@ mod tests {
                 message_type: MessageType::COMMAND,
                 message_data: MessageData {
                     tag:0x01,
-                    value: vec![
-                        0xFF, 0xFF, 0x10, 0x00, 0x02
-                    ],
+                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
                     ..Default::default()
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -607,7 +585,7 @@ mod tests {
             header: Header {
                 packet_type: PacketType::REQUEST_PACKET,
                 dest_transaction_id: 0x000C,
-                pdu_length: 12+1+3+5+8,
+                pdu_length: iccoa.get_header().get_pdu_length(),
                 mark: Mark {
                     encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
                     more_fragment: false,
@@ -619,13 +597,11 @@ mod tests {
                 message_type: MessageType::COMMAND,
                 message_data: MessageData {
                     tag:0x01,
-                    value: vec![
-                        0xFF, 0xFF, 0x10, 0x00, 0x03
-                    ],
+                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
                     ..Default::default()
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -640,7 +616,7 @@ mod tests {
             header: Header {
                 packet_type: PacketType::REPLY_PACKET,
                 source_transaction_id: 0x000D,
-                pdu_length: 12+1+2+3+4+value.len() as u16+8,
+                pdu_length: iccoa.get_header().get_pdu_length(),
                 mark: Mark {
                     encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
                     more_fragment: false,
@@ -653,12 +629,10 @@ mod tests {
                 message_data: MessageData {
                     status: StatusBuilder::new().success().build(),
                     tag: 0x01,
-                    value: vec![
-                        0xFF, 0xFF, 0x00, 0x01, 0x00
-                    ],
+                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
 }

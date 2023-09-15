@@ -320,7 +320,7 @@ mod tests {
         target_body.set_message_id(0x01);
         target_body.set_command_id(0x01);
         let mut target_payload = Payload::new();
-        target_payload.set_payload_type(0x01);
+        target_payload.set_payload_type(0x00);
         target_payload.set_payload_length(0x01);
         target_payload.set_payload_value(&vec![0x00]);
         target_body.set_payload(target_payload);

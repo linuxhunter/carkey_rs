@@ -412,7 +412,7 @@ mod tests {
                     ..Default::default()
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -458,7 +458,7 @@ mod tests {
                     ],
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -497,7 +497,7 @@ mod tests {
                     ..Default::default()
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -537,7 +537,7 @@ mod tests {
                     ],
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -576,7 +576,7 @@ mod tests {
                     ..Default::default()
                 }
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -616,7 +616,7 @@ mod tests {
                     ],
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -651,7 +651,7 @@ mod tests {
                     ..Default::default()
                 }
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -679,7 +679,7 @@ mod tests {
                     value: vec![],
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -714,7 +714,7 @@ mod tests {
                     ..Default::default()
                 }
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -758,7 +758,7 @@ mod tests {
                     ],
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -803,7 +803,7 @@ mod tests {
                     ..Default::default()
                 }
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -849,7 +849,7 @@ mod tests {
                     ],
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -882,7 +882,7 @@ mod tests {
                     ..Default::default()
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
     #[test]
@@ -910,7 +910,7 @@ mod tests {
                     value: vec![],
                 },
             },
-            mac: [0x00; 8],
+            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
         });
     }
 }
