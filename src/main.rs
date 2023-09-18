@@ -89,7 +89,6 @@ async fn main() -> bluer::Result<()> {
     let (bt_write_tx, mut bt_write_rx) = mpsc::channel(32);
     let (bt_notify_tx, _) = broadcast::channel::<Vec<u8>>(32);
     let bt_notify_tx2 = bt_notify_tx.clone();
-    let bt_notify_tx3 = bt_notify_tx.clone();
     let (bt_send_package_tx, mut bt_send_package_rx) = mpsc::channel::<Vec<u8>>(32);
 
     let session = bluer::Session::new().await?;
@@ -149,7 +148,7 @@ async fn main() -> bluer::Result<()> {
                 notify: Some(CharacteristicNotify {
                     notify: true,
                     method: bluer::gatt::local::CharacteristicNotifyMethod::Fun(Box::new(move |mut notifier| {
-                        let bt_notify_tx = bt_notify_tx2.clone();
+                        let mut bt_notify_rx = bt_notify_tx.clone().subscribe();
                         async move {
                             tokio::spawn(async move {
                                 if notifier.is_stopped() == false {
@@ -165,7 +164,6 @@ async fn main() -> bluer::Result<()> {
                                         println!("Notification error when setting get process data request: {}", err);
                                     }
                                 }
-                                let mut bt_notify_rx = bt_notify_tx.subscribe();
                                 while let Ok(notify_data) = bt_notify_rx.recv().await {
                                     if let Err(err) = notifier.notify(notify_data).await {
                                         println!("Notification error: {}", err);
@@ -359,10 +357,10 @@ async fn main() -> bluer::Result<()> {
                 if let Ok(response) = bluetooth_io::handle_data_package_from_mobile(&data_package) {
                     if let Some(splitted_response) = objects::split_iccoa(&response) {
                         for response in splitted_response {
-                            let _ = bt_notify_tx.send(response.serialize());
+                            let _ = bt_notify_tx2.send(response.serialize());
                         }
                     } else {
-                        let _ = bt_notify_tx.send(response.serialize());
+                        let _ = bt_notify_tx2.send(response.serialize());
                     }
                 }
                 /*
@@ -409,7 +407,7 @@ async fn main() -> bluer::Result<()> {
             },
             Some(icce_package) = bt_send_package_rx.recv() => {
                 println!("GOT ICCE Package from Vehicle = {:02X?}", icce_package);
-                let _ = bt_notify_tx3.send(icce_package);
+                let _ = bt_notify_tx2.clone().send(icce_package);
             },
             Ok(_) = tokio::signal::ctrl_c() => break,
             else => break,
