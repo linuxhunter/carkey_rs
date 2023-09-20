@@ -533,11 +533,11 @@ impl ICCOA {
             false
         };
         let body = Body::deserialize(&buffer[*ICCOA_HEADER_LENGTH..buffer.len()-8], request, fragment)?;
-        let mac = buffer[buffer.len()-8..].try_into().map_err(|_| ErrorKind::ICCOAObjectError("deserialized ICCOA mac error".to_string()))?;
-        //debug
+        let mac = buffer[buffer.len()-8..].try_into()
+            .map_err(|e| ErrorKind::ICCOAObjectError(format!("deserialized ICCOA mac error: {:?}", e)))?;
         let iccoa = ICCOA {
             header,
-            body: body.clone(),
+            body,
             mac
         };
         if iccoa.verify_mac() {
@@ -545,12 +545,7 @@ impl ICCOA {
         } else {
             println!("Verify MAC Failed......");
         }
-        //debug
-        Ok(ICCOA {
-            header,
-            body,
-            mac,
-        })
+        Ok(iccoa)
     }
 }
 

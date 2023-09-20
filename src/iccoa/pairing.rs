@@ -4,7 +4,7 @@ use std::sync::Mutex;
 use openssl::bn::{BigNum, BigNumContext};
 use openssl::ec::EcGroup;
 use openssl::nid::Nid;
-use rand::Rng;
+use rand::{random, Rng};
 
 use crate::iccoa::utils::CipherKey;
 
@@ -52,7 +52,7 @@ impl Spake2Plus {
             n: BigNum::from_hex_str(n).unwrap(),
             p: BigNum::new().unwrap(),
             h: 0x01,
-            random_y: rand::thread_rng().gen::<u32>(),
+            random_y: random::<u32>(),
             pa: BigNum::new().unwrap(),
             pb: BigNum::new().unwrap(),
             z: BigNum::new().unwrap(),
@@ -63,25 +63,36 @@ impl Spake2Plus {
     }
     pub fn calculate_pb(&mut self) -> Result<()> {
         let nid = Nid::X9_62_PRIME256V1;
-        let group = EcGroup::from_curve_name(nid).map_err(|_| ErrorKind::ICCOAPairingError("create prime 256 v1 ec group error".to_string()))?;
-        let mut ctx = BigNumContext::new().map_err(|_| ErrorKind::ICCOAPairingError("create openssl big num context error".to_string()))?;
+        let group = EcGroup::from_curve_name(nid)
+            .map_err(|e| ErrorKind::ICCOAPairingError(format!("create prime 256 v1 ec group error: {:?}", e)))?;
+        let mut ctx = BigNumContext::new()
+            .map_err(|e| ErrorKind::ICCOAPairingError(format!("create openssl big num context error: {:?}", e)))?;
 
         //calculate base point P
         let base_point = group.generator();
-        let mut x = BigNum::new().map_err(|_| ErrorKind::ICCOAPairingError("crate big number x error".to_string()))?;
-        let mut y = BigNum::new().map_err(|_| ErrorKind::ICCOAPairingError("create big number y error".to_string()))?;
-        base_point.affine_coordinates_gfp(&group, &mut x, &mut y, &mut ctx).map_err(|_| ErrorKind::ICCOAPairingError("get affine coorderinate prime on ec group error".to_string()))?;
+        let mut x = BigNum::new()
+            .map_err(|e| ErrorKind::ICCOAPairingError(format!("crate big number x error: {:?}", e)))?;
+        let mut y = BigNum::new()
+            .map_err(|e| ErrorKind::ICCOAPairingError(format!("create big number y error: {:?}", e)))?;
+        base_point.affine_coordinates_gfp(&group, &mut x, &mut y, &mut ctx)
+            .map_err(|e| ErrorKind::ICCOAPairingError(format!("get affine coordinate prime on ec group error: {:?}", e)))?;
         self.p = x;
  
         //calculate p_b
-        let mut tmp_y = BigNum::new().map_err(|_| ErrorKind::ICCOAPairingError("create openssl big num error".to_string()))?;
-        tmp_y.checked_mul(&self.p, &BigNum::from_u32(self.random_y).unwrap(), &mut ctx).map_err(|_| ErrorKind::ICCOAPairingError("multipy big number y with P error".to_string()))?;
+        let mut tmp_y = BigNum::new()
+            .map_err(|e| ErrorKind::ICCOAPairingError(format!("create openssl big num error: {:?}", e)))?;
+        tmp_y.checked_mul(&self.p, &BigNum::from_u32(self.random_y).unwrap(), &mut ctx)
+            .map_err(|e| ErrorKind::ICCOAPairingError(format!("multipy big number y with P error: {:?}", e)))?;
 
-        let mut tmp_n = BigNum::new().map_err(|_| ErrorKind::ICCOAPairingError("create openssl big num error".to_string()))?;
-        tmp_n.checked_mul(&self.n, &self.w0, &mut ctx).map_err(|_| ErrorKind::ICCOAPairingError("multipy N with W0 error".to_string()))?;
+        let mut tmp_n = BigNum::new()
+            .map_err(|e| ErrorKind::ICCOAPairingError(format!("create openssl big num error: {:?}", e)))?;
+        tmp_n.checked_mul(&self.n, &self.w0, &mut ctx)
+            .map_err(|e| ErrorKind::ICCOAPairingError(format!("multipy N with W0 error: {:?}", e)))?;
 
-        let mut p_b = BigNum::new().map_err(|_| ErrorKind::ICCOAPairingError("create openssl big num error".to_string()))?;
-        p_b.checked_add(&tmp_y, &tmp_n).map_err(|_| ErrorKind::ICCOAPairingError("add big number y*P and N*W0 error".to_string()))?;
+        let mut p_b = BigNum::new()
+            .map_err(|e| ErrorKind::ICCOAPairingError(format!("create openssl big num error: {:?}", e)))?;
+        p_b.checked_add(&tmp_y, &tmp_n)
+            .map_err(|e| ErrorKind::ICCOAPairingError(format!("add big number y*P and N*W0 error: {:?}", e)))?;
         self.pb = p_b;
         Ok(())
     }
@@ -89,18 +100,27 @@ impl Spake2Plus {
         self.pa = pa;
     }
     pub fn calculate_z_v(&mut self) -> Result<()> {
-        let mut ctx = BigNumContext::new().map_err(|_| ErrorKind::ICCOAPairingError("create openssl big num context error".to_string()))?;
+        let mut ctx = BigNumContext::new()
+            .map_err(|e| ErrorKind::ICCOAPairingError(format!("create openssl big num context error: {:?}", e)))?;
 
-        let mut tmp_m = BigNum::new().map_err(|_| ErrorKind::ICCOAPairingError("create openssl big num error".to_string()))?;
-        tmp_m.checked_mul(&self.w0, &self.m, &mut ctx).map_err(|_| ErrorKind::ICCOAPairingError("multipy big number W0 and M error".to_string()))?;
+        let mut tmp_m = BigNum::new()
+            .map_err(|e| ErrorKind::ICCOAPairingError(format!("create openssl big num error: {:?}", e)))?;
+        tmp_m.checked_mul(&self.w0, &self.m, &mut ctx)
+            .map_err(|e| ErrorKind::ICCOAPairingError(format!("multipy big number W0 and M error: {:?}", e)))?;
 
-        let mut tmp_z = BigNum::new().map_err(|_| ErrorKind::ICCOAPairingError("create openssl big num error".to_string()))?;
-        tmp_z.checked_sub(&self.pa, &tmp_m).map_err(|_| ErrorKind::ICCOAPairingError("substract PA with W0*M error".to_string()))?;
+        let mut tmp_z = BigNum::new()
+            .map_err(|e| ErrorKind::ICCOAPairingError(format!("create openssl big num error: {:?}", e)))?;
+        tmp_z.checked_sub(&self.pa, &tmp_m)
+            .map_err(|e| ErrorKind::ICCOAPairingError(format!("substract PA with W0*M error: {:?}", e)))?;
 
-        let mut ec_z = BigNum::new().map_err(|_| ErrorKind::ICCOAPairingError("create openssl big num error".to_string()))?;
-        ec_z.checked_mul(&BigNum::from_u32(self.h*self.random_y).unwrap(), &tmp_z, &mut ctx).map_err(|_| ErrorKind::ICCOAPairingError("multipy h*y with z error".to_string()))?;
-        let mut ec_v = BigNum::new().map_err(|_| ErrorKind::ICCOAPairingError("create openssl big num error".to_string()))?;
-        ec_v.checked_mul(&self.l, &BigNum::from_u32(self.h*self.random_y).unwrap(), &mut ctx).map_err(|_| ErrorKind::ICCOAPairingError("multipy L with h*y error".to_string()))?;
+        let mut ec_z = BigNum::new()
+            .map_err(|e| ErrorKind::ICCOAPairingError(format!("create openssl big num error: {:?}", e)))?;
+        ec_z.checked_mul(&BigNum::from_u32(self.h*self.random_y).unwrap(), &tmp_z, &mut ctx)
+            .map_err(|e| ErrorKind::ICCOAPairingError(format!("multipy h*y with z error: {:?}", e)))?;
+        let mut ec_v = BigNum::new()
+            .map_err(|e| ErrorKind::ICCOAPairingError(format!("create openssl big num error: {:?}", e)))?;
+        ec_v.checked_mul(&self.l, &BigNum::from_u32(self.h*self.random_y).unwrap(), &mut ctx)
+            .map_err(|e| ErrorKind::ICCOAPairingError(format!("multipy L with h*y error: {:?}", e)))?;
 
         self.z = ec_z;
         self.v = ec_v;
@@ -126,14 +146,16 @@ impl Spake2Plus {
     }
     pub fn calculate_ca_cb(&mut self) -> Result<()> {
         let tt = self.calculate_tt()?;
-        let hash_tt = utils::calculate_sha256(&tt);
+        let hash_tt = utils::calculate_sha256(&tt)?;
         let k_a = &hash_tt[0..16];
         let _k_b = &hash_tt[16..32];
-        let derived_key = utils::calculate_derive_key(None, k_a, "ConfirmationKeys".as_bytes(), 32);
+        let derived_key = utils::calculate_derive_key(None, k_a, "ConfirmationKeys".as_bytes(), 32)?;
         let k_ca = &derived_key[0..16];
         let k_cb = &derived_key[16..32];
-        let c_a = utils::calculate_cmac(k_ca, &self.pb.to_vec()).map_err(|_| ErrorKind::ICCOAPairingError("calculate cmac on PB with k_ca error".to_string()))?;
-        let c_b = utils::calculate_cmac(k_cb, &self.pa.to_vec()).map_err(|_| ErrorKind::ICCOAPairingError("calculate cmakc on PA with k_cb error".to_string()))?;
+        let c_a = utils::calculate_cmac(k_ca, &self.pb.to_vec())
+            .map_err(|e| ErrorKind::ICCOAPairingError(format!("calculate cmac on PB with k_ca error: {:?}", e)))?;
+        let c_b = utils::calculate_cmac(k_cb, &self.pa.to_vec())
+            .map_err(|e| ErrorKind::ICCOAPairingError(format!("calculate cmakc on PA with k_cb error: {:?}", e)))?;
         self.ca = c_a;
         self.cb = c_b;
         Ok(())
@@ -318,7 +340,8 @@ pub fn handle_iccoa_pairing_p_a_payload(iccoa: &ICCOA, spake2_plus_object: &mut 
         return Err(ErrorKind::ICCOAPairingError("handle pairing pA payload error".to_string()).into());
     }
 
-    spake2_plus_object.set_pa(BigNum::from_slice(&p_a_tlv_payload.value).map_err(|_| ErrorKind::ICCOAPairingError("create Big Number from mobild PA TLV payload error".to_string()))?);
+    spake2_plus_object.set_pa(BigNum::from_slice(&p_a_tlv_payload.value)
+        .map_err(|e| ErrorKind::ICCOAPairingError(format!("create Big Number from mobild PA TLV payload error: {:?}", e)))?);
     spake2_plus_object.calculate_z_v()
 }
 
@@ -337,10 +360,10 @@ pub fn handle_iccoa_pairing_c_a_payload(iccoa: &ICCOA, spake2_plus_object: &Spak
     }
 
     let tt = spake2_plus_object.calculate_tt()?;
-    let hash_tt = utils::calculate_sha256(&tt);
+    let hash_tt = utils::calculate_sha256(&tt)?;
     let _k_a = &hash_tt[0..16];
     let k_b = &hash_tt[16..32];
-    let derived_key = utils::calculate_derive_key(None, k_b, "ConfirmationKeys".as_bytes(), 32);
+    let derived_key = utils::calculate_derive_key(None, k_b, "ConfirmationKeys".as_bytes(), 32)?;
     let k_enc= &derived_key[0..16];
     let k_mac= &derived_key[16..32];
     set_pairing_key_enc(k_enc);
@@ -359,27 +382,21 @@ pub fn handle_iccoa_pairing_read_response_payload(iccoa: &ICCOA) -> Result<()> {
         match cert_payload.get_tag() {
             0x01 => {
                 let mut file = std::fs::File::create("/etc/certs/mobile_server_ca.crt")
-                    .map_err(|_| ErrorKind::ICCOAPairingError("create mobile server ca cert file error".to_string()))
-                    .unwrap();
+                    .map_err(|e| ErrorKind::ICCOAPairingError(format!("create mobile server ca cert file error: {:?}", e)))?;
                 file.write_all(&plain_text)
-                    .map_err(|_| ErrorKind::ICCOAPairingError("write cert data to mobile server ca cert file error".to_string()))
-                    .unwrap();
+                    .map_err(|e| ErrorKind::ICCOAPairingError(format!("write cert data to mobile server ca cert file error: {:?}", e)))?;
             },
             0x02 => {
                 let mut file = std::fs::File::create("/etc/certs/mobile_tee_ca.crt")
-                    .map_err(|_| ErrorKind::ICCOAPairingError("create mobile tee ca cert file error".to_string()))
-                    .unwrap();
+                    .map_err(|e| ErrorKind::ICCOAPairingError(format!("create mobile tee ca cert file error: {:?}", e)))?;
                 file.write_all(&plain_text)
-                    .map_err(|_| ErrorKind::ICCOAPairingError("write cert data to moile tee ca cert file error".to_string()))
-                    .unwrap();
+                    .map_err(|e| ErrorKind::ICCOAPairingError(format!("write cert data to moile tee ca cert file error: {:?}", e)))?;
             },
             0x03 => {
                 let mut file = std::fs::File::create("/etc/certs/carkey_public.crt")
-                    .map_err(|_| ErrorKind::ICCOAPairingError("create carkey public cert file error".to_string()))
-                    .unwrap();
+                    .map_err(|e| ErrorKind::ICCOAPairingError(format!("create carkey public cert file error: {:?}", e)))?;
                 file.write_all(&plain_text)
-                    .map_err(|_| ErrorKind::ICCOAPairingError("write cert data to carkey public cert file error".to_string()))
-                    .unwrap();
+                    .map_err(|e| ErrorKind::ICCOAPairingError(format!("write cert data to carkey public cert file error: {:?}", e)))?;
             },
             _ => {},
         }

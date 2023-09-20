@@ -98,13 +98,15 @@ pub fn calculate_session_key(dkey: &[u8], card_iv: &[u8], session_iv: &[u8], rea
 //decrypt encrypted text with Session Key and Session IV
 pub fn decrypt_with_session_key(session_key: &[u8], session_iv: &[u8], encrypted_text: &[u8]) -> Result<Vec<u8>> {
     let cipher = Cipher::aes_128_cbc();
-    let plain_text = decrypt(cipher, session_key, Some(session_iv), encrypted_text).map_err(|_| "decrypt error")?;
+    let plain_text = decrypt(cipher, session_key, Some(session_iv), encrypted_text)
+        .map_err(|e| format!("decrypt error: {:?}", e))?;
     Ok(plain_text)
 }
 
 //encrypt plain text with Session Key and Session IV
 pub fn encrypt_with_session_key(session_key: &[u8], session_iv: &[u8], plain_text: &[u8]) -> Result<Vec<u8>> {
     let cipher = Cipher::aes_128_cbc();
-    let encrypted_text = encrypt(cipher, session_key, Some(session_iv), plain_text).map_err(|_| "encrypt error")?;
+    let encrypted_text = encrypt(cipher, session_key, Some(session_iv), plain_text)
+        .map_err(|e| format!("encrypt error: {:?}", e))?;
     Ok(encrypted_text)
 }

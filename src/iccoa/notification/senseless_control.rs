@@ -42,7 +42,8 @@ impl SenselessControlResult {
         }
         let mut senseless_result = SenselessControlResult::new();
         senseless_result.tag = buffer[0];
-        let length = u16::from_be_bytes(buffer[1..3].try_into().map_err(|_| ErrorKind::ICCOANotificationError("senseless result length error".to_string()))?);
+        let length = u16::from_be_bytes(buffer[1..3].try_into()
+            .map_err(|e| ErrorKind::ICCOANotificationError(format!("senseless result length error: {:?}", e)))?);
         senseless_result.value = buffer[3..3+length as usize].to_vec();
 
         Ok(senseless_result)

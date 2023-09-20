@@ -57,8 +57,10 @@ impl RKECommandRequest {
             return Err(ErrorKind::ICCOACommandError("rke command request data length error".to_string()).into());
         }
         let mut request = RKECommandRequest::new();
-        request.event_id = u16::from_be_bytes(plain_text[0..2].try_into().map_err(|_| ErrorKind::ICCOACommandError("deserialize event id error".to_string()))?);
-        request.function_id = u16::from_be_bytes(plain_text[2..4].try_into().map_err(|_| ErrorKind::ICCOACommandError("deserialize function id error".to_string()))?);
+        request.event_id = u16::from_be_bytes(plain_text[0..2].try_into()
+            .map_err(|e| ErrorKind::ICCOACommandError(format!("deserialize event id error: {:?}", e)))?);
+        request.function_id = u16::from_be_bytes(plain_text[2..4].try_into()
+            .map_err(|e| ErrorKind::ICCOACommandError(format!("deserialize function id error: {:?}", e)))?);
         request.action_id = plain_text[4];
 
         Ok(request)
@@ -110,7 +112,8 @@ impl RKECommandResponse {
             return Err(ErrorKind::ICCOACommandError("deserialize rke response data length less than minium length".to_string()).into());
         }
         let mut response = RKECommandResponse::new();
-        response.event_id = u16::from_be_bytes(buffer[0..2].try_into().map_err(|_| ErrorKind::ICCOACommandError("deserialize event id error".to_string()))?);
+        response.event_id = u16::from_be_bytes(buffer[0..2].try_into()
+            .map_err(|e| ErrorKind::ICCOACommandError(format!("deserialize event id error: {:?}", e)))?);
         response.tag = buffer[2];
         let length = buffer[3] as usize;
         response.value = buffer[4..4+length].to_vec();
