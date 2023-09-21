@@ -1,8 +1,11 @@
 [package]
-name = "bluetooth_icce_rs"
+name = "carkey_rs"
 version = "0.1.0"
 edition = "2021"
+repository = "https://github.com/linuxhunter/carkey_rs.git"
 
+[profile.release]
+lto = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
