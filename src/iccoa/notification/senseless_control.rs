@@ -51,40 +51,31 @@ impl SenselessControlResult {
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct SenselessControlResultBuilder {
-    tag: u8,
-    value: Vec<u8>,
-}
+pub struct SenselessControlResultBuilder(SenselessControlResult);
 
 impl SenselessControlResultBuilder {
     pub fn new() -> Self {
-        SenselessControlResultBuilder {
+        SenselessControlResultBuilder(SenselessControlResult {
             ..Default::default()
-        }
+        })
     }
-    pub fn success(self) -> SenselessControlResultBuilder {
-        SenselessControlResultBuilder {
-            tag: 0x00,
-            value: vec![0x00],
-        }
+    pub fn success(mut self) -> Self {
+        self.0.tag = 0x00;
+        self.0.value = vec![0x00];
+        self
     }
-    pub fn executing(self) -> SenselessControlResultBuilder {
-        SenselessControlResultBuilder {
-            tag: 0x02,
-            value: vec![0x00],
-        }
+    pub fn executing(mut self) -> Self {
+        self.0.tag = 0x02;
+        self.0.value = vec![0x00];
+        self
     }
-    pub fn failure(self, status: u8) -> SenselessControlResultBuilder {
-        SenselessControlResultBuilder {
-            tag: 0x03,
-            value: vec![status],
-        }
+    pub fn failure(mut self, status: u8) -> Self {
+        self.0.tag = 0x03;
+        self.0.value = vec![status];
+        self
     }
-    pub fn build(&self) -> SenselessControlResult {
-        SenselessControlResult {
-            tag: self.tag,
-            value: self.value.to_vec(),
-        }
+    pub fn build(self) -> SenselessControlResult {
+        self.0
     }
 }
 
@@ -132,58 +123,46 @@ impl SenselessControlEvent {
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct SenselessControlEventBuilder {
-    tag: u8,
-    value: SenselessControlResult,
-}
+pub struct SenselessControlEventBuilder(SenselessControlEvent);
 
 impl SenselessControlEventBuilder {
     pub fn new() -> Self {
-        SenselessControlEventBuilder {
+        SenselessControlEventBuilder(SenselessControlEvent {
             ..Default::default()
-        }
+        })
     }
-    pub fn passive_unlock(self, result: SenselessControlResult) -> SenselessControlEventBuilder {
-        SenselessControlEventBuilder {
-            tag: 0x00,
-            value: result,
-        }
+    pub fn passive_unlock(mut self, result: SenselessControlResult) -> Self {
+        self.0.tag = 0x00;
+        self.0.value = result;
+        self
     }
-    pub fn passive_lock(self, result: SenselessControlResult) -> SenselessControlEventBuilder {
-        SenselessControlEventBuilder {
-            tag: 0x01,
-            value: result,
-        }
+    pub fn passive_lock(mut self, result: SenselessControlResult) -> Self {
+        self.0.tag = 0x01;
+        self.0.value = result;
+        self
     }
-    pub fn near_auto_unlock(self, result: SenselessControlResult) -> SenselessControlEventBuilder {
-        SenselessControlEventBuilder {
-            tag: 0x10,
-            value: result,
-        }
+    pub fn near_auto_unlock(mut self, result: SenselessControlResult) -> Self {
+        self.0.tag = 0x10;
+        self.0.value = result;
+        self
     }
-    pub fn far_auto_lock(self, result: SenselessControlResult) -> SenselessControlEventBuilder {
-        SenselessControlEventBuilder {
-            tag: 0x11,
-            value: result,
-        }
+    pub fn far_auto_lock(mut self, result: SenselessControlResult) -> Self {
+        self.0.tag = 0x11;
+        self.0.value = result;
+        self
     }
-    pub fn one_button_start(self, result: SenselessControlResult) -> SenselessControlEventBuilder {
-        SenselessControlEventBuilder {
-            tag: 0x20,
-            value: result,
-        }
+    pub fn one_button_start(mut self, result: SenselessControlResult) -> Self {
+        self.0.tag = 0x20;
+        self.0.value = result;
+        self
     }
-    pub fn welcome(self, result: SenselessControlResult) -> SenselessControlEventBuilder {
-        SenselessControlEventBuilder {
-            tag: 0x30,
-            value: result,
-        }
+    pub fn welcome(mut self, result: SenselessControlResult) -> Self {
+        self.0.tag = 0x30;
+        self.0.value = result;
+        self
     }
-    pub fn build(&self) -> SenselessControlEvent {
-        SenselessControlEvent {
-            tag: self.tag,
-            value: self.value.to_owned(),
-        }
+    pub fn build(self) -> SenselessControlEvent {
+        self.0
     }
 }
 

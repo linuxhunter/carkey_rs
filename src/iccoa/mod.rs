@@ -105,30 +105,24 @@ impl TLVPayload {
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct TLVPayloadBuilder {
-    tag: u8,
-    value: Vec<u8>,
-}
+pub struct TLVPayloadBuilder(TLVPayload);
 
 impl TLVPayloadBuilder {
     pub fn new() -> Self {
-        TLVPayloadBuilder {
+        TLVPayloadBuilder(TLVPayload {
             ..Default::default()
-        }
+        })
     }
-    pub fn set_tag(mut self, tag: u8) -> TLVPayloadBuilder {
-        self.tag = tag;
+    pub fn set_tag(mut self, tag: u8) -> Self {
+        self.0.tag = tag;
         self
     }
-    pub fn set_value(mut self, value: &[u8]) -> TLVPayloadBuilder {
-        self.value = value.to_vec();
+    pub fn set_value(mut self, value: &[u8]) -> Self {
+        self.0.value = value.to_vec();
         self
     }
-    pub fn build(&self) -> TLVPayload {
-        TLVPayload {
-            tag: self.tag,
-            value: self.value.to_vec(),
-        }
+    pub fn build(self) -> TLVPayload {
+        self.0
     }
 }
 

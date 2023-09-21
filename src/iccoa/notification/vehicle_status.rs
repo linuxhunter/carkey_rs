@@ -46,77 +46,71 @@ impl VehicleStatus {
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct VehicleStatusBuilder {
-    tag: u8,
-    value: Vec<u8>,
-}
+pub struct VehicleStatusBuilder(VehicleStatus);
 
 impl VehicleStatusBuilder {
     pub fn new() -> Self {
-        VehicleStatusBuilder {
+        VehicleStatusBuilder(VehicleStatus {
             ..Default::default()
-        }
+        })
     }
-    pub fn total_mileage(mut self, total_mileage: u32) -> VehicleStatusBuilder {
-        self.tag = 0x00;
-        self.value = total_mileage.to_be_bytes().to_vec();
+    pub fn total_mileage(mut self, total_mileage: u32) -> Self {
+        self.0.tag = 0x00;
+        self.0.value = total_mileage.to_be_bytes().to_vec();
         self
     }
-    pub fn rechange_mileage(mut self, rechange_mileage: u16) -> VehicleStatusBuilder {
-        self.tag = 0x01;
-        self.value = rechange_mileage.to_be_bytes().to_vec();
+    pub fn rechange_mileage(mut self, rechange_mileage: u16) -> Self {
+        self.0.tag = 0x01;
+        self.0.value = rechange_mileage.to_be_bytes().to_vec();
         self
     }
-    pub fn remaining_battery(mut self, status: u8) -> VehicleStatusBuilder {
-        self.tag = 0x02;
-        self.value = vec![status];
+    pub fn remaining_battery(mut self, status: u8) -> Self {
+        self.0.tag = 0x02;
+        self.0.value = vec![status];
         self
     }
-    pub fn power_state(mut self, state: u8) -> VehicleStatusBuilder {
-        self.tag = 0x03;
-        self.value = vec![state];
+    pub fn power_state(mut self, state: u8) -> Self {
+        self.0.tag = 0x03;
+        self.0.value = vec![state];
         self
     }
-    pub fn door_lock_status(mut self, status: CarDoorLockStatus) -> VehicleStatusBuilder {
-        self.tag = 0x04;
-        self.value = vec![status.as_u8()];
+    pub fn door_lock_status(mut self, status: CarDoorLockStatus) -> Self {
+        self.0.tag = 0x04;
+        self.0.value = vec![status.as_u8()];
         self
     }
-    pub fn door_open_status(mut self, status: CarDoorStatus) -> VehicleStatusBuilder {
-        self.tag = 0x05;
-        self.value = vec![status.as_u8()];
+    pub fn door_open_status(mut self, status: CarDoorStatus) -> Self {
+        self.0.tag = 0x05;
+        self.0.value = vec![status.as_u8()];
         self
     }
-    pub fn door_window_status(mut self, status: CarDoorWindowStatus) -> VehicleStatusBuilder {
-        self.tag = 0x06;
-        self.value = vec![status.as_u8()];
+    pub fn door_window_status(mut self, status: CarDoorWindowStatus) -> Self {
+        self.0.tag = 0x06;
+        self.0.value = vec![status.as_u8()];
         self
     }
-    pub fn front_hatch_status(mut self, status: u8) -> VehicleStatusBuilder {
-        self.tag = 0x07;
-        self.value = vec![status];
+    pub fn front_hatch_status(mut self, status: u8) -> Self {
+        self.0.tag = 0x07;
+        self.0.value = vec![status];
         self
     }
-    pub fn back_trunk_status(mut self, status: u8) -> VehicleStatusBuilder {
-        self.tag = 0x08;
-        self.value = vec![status];
+    pub fn back_trunk_status(mut self, status: u8) -> Self {
+        self.0.tag = 0x08;
+        self.0.value = vec![status];
         self
     }
-    pub fn sunroof_status(mut self, status: u8) -> VehicleStatusBuilder {
-        self.tag = 0x09;
-        self.value = vec![status];
+    pub fn sunroof_status(mut self, status: u8) -> Self {
+        self.0.tag = 0x09;
+        self.0.value = vec![status];
         self
     }
-    pub fn headlights_status(mut self, status: u8) -> VehicleStatusBuilder {
-        self.tag = 0x0A;
-        self.value = vec![status];
+    pub fn headlights_status(mut self, status: u8) -> Self {
+        self.0.tag = 0x0A;
+        self.0.value = vec![status];
         self
     }
-    pub fn build(&self) -> VehicleStatus {
-        VehicleStatus {
-            tag: self.tag,
-            value: self.value.to_vec(),
-        }
+    pub fn build(self) -> VehicleStatus {
+        self.0
     }
 }
 

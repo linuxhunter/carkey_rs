@@ -1,3 +1,4 @@
+use std::os::linux::raw::stat;
 use crate::iccoa::{objects::{ICCOA, create_iccoa_header, Mark, create_iccoa_body_message_data, create_iccoa_body, MessageType, create_iccoa}, status::StatusBuilder};
 
 use super::{super::errors::*, CarDoorWindowStatus, CarDoorStatus, CarDoorLockStatus};
@@ -48,70 +49,56 @@ impl VehicleUnsafeEvent {
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct VehicleUnsafeEventBuilder {
-    tag: u8,
-    value: Vec<u8>,
-}
+pub struct VehicleUnsafeEventBuilder(VehicleUnsafeEvent);
 
 impl VehicleUnsafeEventBuilder {
     pub fn new() -> Self {
-        VehicleUnsafeEventBuilder {
+        VehicleUnsafeEventBuilder(VehicleUnsafeEvent {
             ..Default::default()
-        }
+        })
     }
-    pub fn power_state(self, state: u8) -> VehicleUnsafeEventBuilder {
-        VehicleUnsafeEventBuilder {
-            tag: 0x03,
-            value: vec![state],
-        }
+    pub fn power_state(mut self, state: u8) -> Self {
+        self.0.tag = 0x03;
+        self.0.value = vec![state];
+        self
     }
-    pub fn door_lock_status(self, status: CarDoorLockStatus) -> VehicleUnsafeEventBuilder {
-        VehicleUnsafeEventBuilder {
-            tag: 0x04,
-            value: vec![status.as_u8()],
-        }
+    pub fn door_lock_status(mut self, status: CarDoorLockStatus) -> Self {
+        self.0.tag = 0x04;
+        self.0.value = vec![status.as_u8()];
+        self
     }
-    pub fn door_status(self, status: CarDoorStatus) -> VehicleUnsafeEventBuilder {
-        VehicleUnsafeEventBuilder {
-            tag: 0x05,
-            value: vec![status.as_u8()],
-        }
+    pub fn door_status(mut self, status: CarDoorStatus) -> Self {
+        self.0.tag = 0x05;
+        self.0.value = vec![status.as_u8()];
+        self
     }
-    pub fn door_window_status(self, status: CarDoorWindowStatus) -> VehicleUnsafeEventBuilder {
-        VehicleUnsafeEventBuilder {
-            tag: 0x06,
-            value: vec![status.as_u8()],
-        }
+    pub fn door_window_status(mut self, status: CarDoorWindowStatus) -> Self {
+        self.0.tag = 0x06;
+        self.0.value = vec![status.as_u8()];
+        self
     }
-    pub fn front_hatch_status(self, status: u8) -> VehicleUnsafeEventBuilder {
-        VehicleUnsafeEventBuilder {
-            tag: 0x07,
-            value: vec![status],
-        }
+    pub fn front_hatch_status(mut self, status: u8) -> Self {
+        self.0.tag = 0x07;
+        self.0.value = vec![status];
+        self
     }
-    pub fn back_trunk_status(self, status: u8) -> VehicleUnsafeEventBuilder {
-        VehicleUnsafeEventBuilder {
-            tag: 0x08,
-            value: vec![status],
-        }
+    pub fn back_trunk_status(mut self, status: u8) -> Self {
+        self.0.tag = 0x08;
+        self.0.value = vec![status];
+        self
     }
-    pub fn sunroof_status(self, status: u8) -> VehicleUnsafeEventBuilder {
-        VehicleUnsafeEventBuilder {
-            tag: 0x09,
-            value: vec![status],
-        }
+    pub fn sunroof_status(mut self, status: u8) -> Self {
+        self.0.tag = 0x09;
+        self.0.value = vec![status];
+        self
     }
-    pub fn headlights_status(self, status: u8) -> VehicleUnsafeEventBuilder {
-        VehicleUnsafeEventBuilder {
-            tag: 0x0A,
-            value: vec![status],
-        }
+    pub fn headlights_status(mut self, status: u8) -> Self {
+        self.0.tag = 0x0A;
+        self.0.value = vec![status];
+        self
     }
-    pub fn build(&self) -> VehicleUnsafeEvent {
-        VehicleUnsafeEvent {
-            tag: self.tag,
-            value: self.value.to_vec(),
-        }
+    pub fn build(self) -> VehicleUnsafeEvent {
+        self.0
     }
 }
 

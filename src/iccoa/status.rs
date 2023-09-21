@@ -93,53 +93,47 @@ impl Status {
 }
 
 #[derive(Debug, Default, Clone, Copy)]
-pub struct StatusBuilder {
-    tag: StatusTag,
-    code: u8,
-}
+pub struct StatusBuilder(Status);
 
 impl StatusBuilder {
     pub fn new() -> Self {
-        StatusBuilder {
+        StatusBuilder(Status {
             ..Default::default()
-        }
+        })
     }
-    pub fn success(mut self) -> StatusBuilder {
-        self.tag = StatusTag::SUCCESS;
-        self.code = 0x00;
+    pub fn success(mut self) -> Self {
+        self.0.tag = StatusTag::SUCCESS;
+        self.0.code = 0x00;
         self
     }
-    pub fn communication_protocol_error(mut self, code: u8) -> StatusBuilder {
-        self.tag = StatusTag::COMMUNICATION_PROTOCOL_ERROR;
-        self.code = code;
+    pub fn communication_protocol_error(mut self, code: u8) -> Self {
+        self.0.tag = StatusTag::COMMUNICATION_PROTOCOL_ERROR;
+        self.0.code = code;
         self
 
     }
-    pub fn data_error(mut self, code: u8) -> StatusBuilder {
-        self.tag = StatusTag::DATA_ERROR;
-        self.code = code;
+    pub fn data_error(mut self, code: u8) -> Self {
+        self.0.tag = StatusTag::DATA_ERROR;
+        self.0.code = code;
         self
     }
-    pub fn request_error(mut self, code: u8) -> StatusBuilder {
-        self.tag = StatusTag::REQUEST_ERROR;
-        self.code = code;
+    pub fn request_error(mut self, code: u8) -> Self {
+        self.0.tag = StatusTag::REQUEST_ERROR;
+        self.0.code = code;
         self
     }
-    pub fn business_error(mut self, code: u8) -> StatusBuilder {
-        self.tag = StatusTag::BUSINESS_ERROR;
-        self.code = code;
+    pub fn business_error(mut self, code: u8) -> Self {
+        self.0.tag = StatusTag::BUSINESS_ERROR;
+        self.0.code = code;
         self
     }
-    pub fn rfu(mut self) -> StatusBuilder {
-        self.tag = StatusTag::RFU;
-        self.code = 0x00;
+    pub fn rfu(mut self) -> Self {
+        self.0.tag = StatusTag::RFU;
+        self.0.code = 0x00;
         self
     }
-    pub fn build(&self) -> Status {
-        Status {
-            tag: self.tag,
-            code: self.code,
-        }
+    pub fn build(self) -> Status {
+        self.0
     }
 }
 
