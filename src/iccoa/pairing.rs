@@ -5,6 +5,7 @@ use openssl::bn::{BigNum, BigNumContext};
 use openssl::ec::EcGroup;
 use openssl::nid::Nid;
 use rand::{random, Rng};
+use crate::iccoa::objects::EncryptType;
 
 use crate::iccoa::utils::CipherKey;
 
@@ -241,15 +242,15 @@ fn create_iccoa_pairing_request(transaction_id: u16, tag: u8, payloads: &[TLVPay
         payload_data.append(&mut p.serialize());
     });
 
+    let mut mark = Mark::new();
+    mark.set_encrypt_type(EncryptType::ENCRYPT_BEFORE_AUTH);
+    mark.set_more_fragment(false);
+    mark.set_fragment_offset(0x0000);
     let header = create_iccoa_header(
         super::objects::PacketType::REQUEST_PACKET,
         transaction_id,
         1+3+payload_length as u16,
-        Mark {
-            encrypt_type: super::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
+        mark,
     );
 
     let message_data = create_iccoa_body_message_data(
@@ -274,15 +275,15 @@ fn create_iccoa_pairing_response(transaction_id: u16, status: Status, tag: u8, p
         payload_data.append(&mut p.serialize());
     });
 
+    let mut mark = Mark::new();
+    mark.set_encrypt_type(EncryptType::ENCRYPT_BEFORE_AUTH);
+    mark.set_more_fragment(false);
+    mark.set_fragment_offset(0x0000);
     let header = create_iccoa_header(
         super::objects::PacketType::REPLY_PACKET,
         transaction_id,
         1+2+3+payload_length as u16,
-        Mark {
-            encrypt_type: super::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
+        mark,
     );
 
     let message_data = create_iccoa_body_message_data(
@@ -408,7 +409,7 @@ pub fn handle_iccoa_pairing_read_response_payload(iccoa: &ICCOA) -> Result<()> {
 
 pub fn handle_iccoa_pairing_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
     let transaction_id = 0x00000;
-    let message_data = &iccoa.body.message_data;
+    let message_data = iccoa.get_body().get_message_data();
     let mut spake2_plus_object = SPAKE2_PLUS_OBJECT.lock().unwrap();
     match message_data.get_tag() {
         0x01 => {
@@ -479,7 +480,8 @@ pub fn handle_iccoa_pairing_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA>
 
 #[cfg(test)]
 mod tests {
-    use crate::iccoa::{objects::{Header, Body, MessageData}, TLVPayloadBuilder};
+    use crate::iccoa::{objects::{Header, Body, MessageData}, objects, TLVPayloadBuilder};
+    use crate::iccoa::objects::{MessageType, PacketType};
 
     use super::*;
 
@@ -528,28 +530,28 @@ mod tests {
         let p = [0x02, 0x01];
         let p_payload = TLVPayloadBuilder::new().set_tag(0xC3).set_value(&p).build();
         let iccoa = create_iccoa_pairing_data_request(transaction_id, &[p_b_payload, salt_payload, nscrypt_payload, r_payload, p_payload]).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: crate::iccoa::objects::PacketType::REQUEST_PACKET,
-                dest_transaction_id: 0x0001,
-                pdu_length: 12+1+101+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: crate::iccoa::objects::MessageType::VEHICLE_PAIRING,
-                message_data: MessageData {
-                    tag: 0x02,
-                    value: iccoa.get_body().message_data.get_value().to_vec(),
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(EncryptType::ENCRYPT_BEFORE_AUTH);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::REQUEST_PACKET,
+            0x0001,
+            1+101,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x02,
+            iccoa.get_body().get_message_data().get_value(),
+        );
+        let body = objects::create_iccoa_body(
+            objects::MessageType::VEHICLE_PAIRING,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_spake2_plus_data_response() {
@@ -558,38 +560,38 @@ mod tests {
         let p_a = [0x00; 65];
         let p_a_payload = TLVPayloadBuilder::new().set_tag(0x52).set_value(&p_a).build();
         let iccoa = create_iccoa_pairing_data_response(transaction_id, status, &[p_a_payload]).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: crate::iccoa::objects::PacketType::REPLY_PACKET,
-                source_transaction_id: 0x0002,
-                pdu_length: 12+73+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: crate::iccoa::objects::MessageType::VEHICLE_PAIRING,
-                message_data: MessageData {
-                    status: StatusBuilder::new().success().build(),
-                    tag: 0x02,
-                    value: vec![
-                        82, 65, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0
-                    ]
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(EncryptType::ENCRYPT_BEFORE_AUTH);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::REPLY_PACKET,
+            0002,
+            73,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            true,
+            StatusBuilder::new().success().build(),
+            0x02,
+            vec![
+                82, 65, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0
+            ].as_slice()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::VEHICLE_PAIRING,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_spake2_plus_auth_request() {
@@ -599,29 +601,28 @@ mod tests {
         spake2_plus_object.calculate_ca_cb().unwrap();
         let c_b_payload = TLVPayloadBuilder::new().set_tag(0x53).set_value(&spake2_plus_object.cb).build();
         let iccoa = create_iccoa_paring_auth_request(transaction_id, &[c_b_payload]).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: crate::iccoa::objects::PacketType::REQUEST_PACKET,
-                dest_transaction_id: 0x0002,
-                pdu_length: 12+1+21+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
-                    more_fragment:false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: crate::iccoa::objects::MessageType::VEHICLE_PAIRING,
-                message_data: MessageData {
-                    tag: 0x03,
-                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
-                    ..Default::default()
-                }
-
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(EncryptType::ENCRYPT_BEFORE_AUTH);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::REQUEST_PACKET,
+            0x0002,
+            1+21,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x03,
+            iccoa.get_body().get_message_data().get_value(),
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::VEHICLE_PAIRING,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_spake2_plus_auth_response() {
@@ -630,92 +631,92 @@ mod tests {
         let spake2_plus_object = SPAKE2_PLUS_OBJECT.lock().unwrap();
         let c_a_payload = TLVPayloadBuilder::new().set_tag(0x54).set_value(&spake2_plus_object.ca).build();
         let iccoa = create_iccoa_pairing_auth_response(transaction_id, status, &[c_a_payload]).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: crate::iccoa::objects::PacketType::REPLY_PACKET,
-                source_transaction_id: 0x0003,
-                pdu_length: 12+1+23+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: crate::iccoa::objects::MessageType::VEHICLE_PAIRING,
-                message_data: MessageData {
-                    status: StatusBuilder::new().success().build(),
-                    tag: 0x03,
-                    value: vec![
-                        0x54, 0x10,
-                        176, 48, 166, 194, 104, 114, 227, 104, 41, 107, 52, 134, 118, 72, 14, 16
-                    ],
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        })
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(EncryptType::ENCRYPT_BEFORE_AUTH);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::REPLY_PACKET,
+            0x0003,
+            1+23,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            true,
+            StatusBuilder::new().success().build(),
+            0x03,
+            vec![
+                0x54, 0x10,
+                176, 48, 166, 194, 104, 114, 227, 104, 41, 107, 52, 134, 118, 72, 14, 16
+            ].as_slice(),
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::VEHICLE_PAIRING,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_spake2_plus_certificate_write_request() {
         let transaction_id = 0x0004;
         let vehicle_certificate = get_vehicle_certificate();
         let vehicle_certificate_payload = TLVPayloadBuilder::new().set_tag(0x55).set_value(&vehicle_certificate).build();
-        let iccoa = create_iccoa_pairing_certificate_write_request(transaction_id, &[vehicle_certificate_payload]).unwrap(); 
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: crate::iccoa::objects::PacketType::REQUEST_PACKET,
-                dest_transaction_id: 0x0004,
-                pdu_length: 12+1+21+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: crate::iccoa::objects::MessageType::VEHICLE_PAIRING,
-                message_data: MessageData {
-                    tag: 0x04,
-                    value: vec![
-                        0x55, 0x10,
-                        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
-                        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01
-                    ],
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        })
+        let iccoa = create_iccoa_pairing_certificate_write_request(transaction_id, &[vehicle_certificate_payload]).unwrap();
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(EncryptType::ENCRYPT_BEFORE_AUTH);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::REQUEST_PACKET,
+            0x0004,
+            1+21,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x04,
+            vec![
+                0x55, 0x10,
+                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01
+            ].as_slice(),
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::VEHICLE_PAIRING,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_spake2_plus_certificate_write_response() {
         let transaction_id = 0x0004;
         let status = StatusBuilder::new().success().build();
         let iccoa = create_iccoa_pairing_certificate_write_response(transaction_id, status).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: crate::iccoa::objects::PacketType::REPLY_PACKET,
-                source_transaction_id: 0x0004,
-                pdu_length: 12+1+5+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: crate::iccoa::objects::MessageType::VEHICLE_PAIRING,
-                message_data: MessageData {
-                    status: StatusBuilder::new().success().build(),
-                    tag: 0x04,
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        })
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(EncryptType::ENCRYPT_BEFORE_AUTH);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::REPLY_PACKET,
+            0x0004,
+            1+5,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            true,
+            StatusBuilder::new().success().build(),
+            0x04,
+            &[]
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::VEHICLE_PAIRING,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_spake2_plus_certificate_read_request() {
@@ -724,32 +725,32 @@ mod tests {
         let cert_type_payload2 = TLVPayloadBuilder::new().set_tag(0x02).build();
         let cert_type_payload3 = TLVPayloadBuilder::new().set_tag(0x03).build();
         let iccoa = create_iccoa_pairing_certificate_read_request(transaction_id, &[cert_type_payload1, cert_type_payload2, cert_type_payload3]).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: crate::iccoa::objects::PacketType::REQUEST_PACKET,
-                dest_transaction_id: 0x0005,
-                pdu_length: 12+1+3+6+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: crate::iccoa::objects::MessageType::VEHICLE_PAIRING,
-                message_data: MessageData {
-                    tag: 0x05,
-                    value: vec![
-                        0x01, 0x00,
-                        0x02, 0x00,
-                        0x03, 0x00
-                    ],
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(EncryptType::ENCRYPT_BEFORE_AUTH);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::REQUEST_PACKET,
+            0x0005,
+            1+3+6,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x05,
+            vec![
+                0x01, 0x00,
+                0x02, 0x00,
+                0x03, 0x00
+            ].as_slice()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::VEHICLE_PAIRING,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_spake2_plus_certificate_read_response() {
@@ -762,33 +763,33 @@ mod tests {
         let payload2 = TLVPayloadBuilder::new().set_tag(0x02).set_value(&mobile_tee_certificate).build();
         let payload3 = TLVPayloadBuilder::new().set_tag(0x03).set_value(&carkey_certificate).build();
         let iccoa = create_iccoa_pairing_certificate_read_response(transaction_id, status, &[payload1, payload2, payload3]).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: crate::iccoa::objects::PacketType::REPLY_PACKET,
-                source_transaction_id: 0x0005,
-                pdu_length: 12+1+2+3+22+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_BEFORE_AUTH,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: crate::iccoa::objects::MessageType::VEHICLE_PAIRING,
-                message_data: MessageData {
-                    status: StatusBuilder::new().success().build(),
-                    tag: 0x05,
-                    value: vec![
-                        0x01, 0x00,
-                        0x02, 0x00,
-                        0x03, 0x10,
-                        0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
-                        0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04
-                    ],
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        })
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(EncryptType::ENCRYPT_BEFORE_AUTH);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::REPLY_PACKET,
+            0x0005,
+            1+2+3+22,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            true,
+            StatusBuilder::new().success().build(),
+            0x05,
+            vec![
+                0x01, 0x00,
+                0x02, 0x00,
+                0x03, 0x10,
+                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04
+            ].as_slice()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::VEHICLE_PAIRING,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
 }

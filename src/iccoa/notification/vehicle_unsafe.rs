@@ -1,5 +1,5 @@
 use std::os::linux::raw::stat;
-use crate::iccoa::{objects::{ICCOA, create_iccoa_header, Mark, create_iccoa_body_message_data, create_iccoa_body, MessageType, create_iccoa}, status::StatusBuilder};
+use crate::iccoa::{objects::{ICCOA, create_iccoa_header, Mark, create_iccoa_body_message_data, create_iccoa_body, MessageType, create_iccoa}, objects, status::StatusBuilder};
 
 use super::{super::errors::*, CarDoorWindowStatus, CarDoorStatus, CarDoorLockStatus};
 
@@ -103,15 +103,15 @@ impl VehicleUnsafeEventBuilder {
 }
 
 pub fn create_iccoa_vehicle_unsafe_event_notification(transaction_id: u16, event: &VehicleUnsafeEvent) -> Result<ICCOA> {
+    let mut mark = Mark::new();
+    mark.set_encrypt_type(objects::EncryptType::NO_ENCRYPT);
+    mark.set_more_fragment(false);
+    mark.set_fragment_offset(0x0000);
     let header = create_iccoa_header(
         crate::iccoa::objects::PacketType::EVENT_PACKET,
         transaction_id,
         1+3+event.length() as u16,
-        Mark {
-            encrypt_type: crate::iccoa::objects::EncryptType::NO_ENCRYPT,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
+        mark
     );
     let message_data = create_iccoa_body_message_data(
         false,
@@ -202,30 +202,30 @@ mod tests {
         let event = VehicleUnsafeEventBuilder::new().power_state(0x5A).build();
         let event_length = event.length() as u16;
         let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::EVENT_PACKET,
-                dest_transaction_id: 0x0001,
-                pdu_length: 12+1+3+event_length+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::NO_ENCRYPT,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::NOTIFICATION,
-                message_data: MessageData {
-                    tag: 0x03,
-                    value: vec![
-                        0x03, 0x01, 0x5A
-                    ],
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::NO_ENCRYPT);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::EVENT_PACKET,
+            0x0001,
+            1+3+event_length,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x03,
+            vec![
+                0x03, 0x01, 0x5A
+            ].as_slice()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::NOTIFICATION,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_vehicle_unsafe_event_door_lock_status() {
@@ -238,30 +238,30 @@ mod tests {
         ).build();
         let event_length = event.length() as u16;
         let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::EVENT_PACKET,
-                dest_transaction_id: 0x0002,
-                pdu_length: 12+1+3+event_length+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::NO_ENCRYPT,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::NOTIFICATION,
-                message_data: MessageData {
-                    tag: 0x03,
-                    value: vec![
-                        0x04, 0x01, 0x0F
-                    ],
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::NO_ENCRYPT);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::EVENT_PACKET,
+            0x0002,
+            1+3+event_length,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x03,
+            vec![
+                0x04, 0x01, 0x0F
+            ].as_slice()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::NOTIFICATION,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_vehicle_unsafe_event_door_open_status() {
@@ -274,30 +274,30 @@ mod tests {
         ).build();
         let event_length = event.length() as u16;
         let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::EVENT_PACKET,
-                dest_transaction_id: 0x0003,
-                pdu_length: 12+1+3+event_length+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::NO_ENCRYPT,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::NOTIFICATION,
-                message_data: MessageData {
-                    tag: 0x03,
-                    value: vec![
-                        0x05, 0x01, 0x0F
-                    ],
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::NO_ENCRYPT);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::EVENT_PACKET,
+            0x0003,
+            1+3+event_length,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x03,
+            vec![
+                0x05, 0x01, 0x0F
+            ].as_slice()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::NOTIFICATION,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_vehicle_unsafe_event_door_window() {
@@ -310,30 +310,30 @@ mod tests {
         ).build();
         let event_length = event.length() as u16;
         let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::EVENT_PACKET,
-                dest_transaction_id: 0x0004,
-                pdu_length: 12+1+3+event_length+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::NO_ENCRYPT,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::NOTIFICATION,
-                message_data: MessageData {
-                    tag: 0x03,
-                    value: vec![
-                        0x06, 0x01, 0x0F
-                    ],
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::NO_ENCRYPT);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::EVENT_PACKET,
+            0x0004,
+            1+3+event_length,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x03,
+           vec![
+                0x06, 0x01, 0x0F
+            ].as_slice()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::NOTIFICATION,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_vehicle_unsafe_event_front_hatch_status() {
@@ -341,30 +341,30 @@ mod tests {
         let event = VehicleUnsafeEventBuilder::new().front_hatch_status(0x01).build();
         let event_length = event.length() as u16;
         let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::EVENT_PACKET,
-                dest_transaction_id: 0x0005,
-                pdu_length: 12+1+3+event_length+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::NO_ENCRYPT,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::NOTIFICATION,
-                message_data: MessageData {
-                    tag: 0x03,
-                    value: vec![
-                        0x07, 0x01, 0x01
-                    ],
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::NO_ENCRYPT);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::EVENT_PACKET,
+            0x0005,
+            1+3+event_length,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x03,
+            vec![
+                0x07, 0x01, 0x01
+            ].as_slice()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::NOTIFICATION,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_vehicle_unsafe_event_back_trunk_status() {
@@ -372,30 +372,30 @@ mod tests {
         let event = VehicleUnsafeEventBuilder::new().back_trunk_status(0x01).build();
         let event_length = event.length() as u16;
         let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::EVENT_PACKET,
-                dest_transaction_id: 0x0006,
-                pdu_length: 12+1+3+event_length+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::NO_ENCRYPT,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::NOTIFICATION,
-                message_data: MessageData {
-                    tag: 0x03,
-                    value: vec![
-                        0x08, 0x01, 0x01,
-                    ],
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::NO_ENCRYPT);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::EVENT_PACKET,
+            0x0006,
+            1+3+event_length,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x03,
+           vec![
+                0x08, 0x01, 0x01,
+            ].as_slice()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::NOTIFICATION,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_vehicle_unsafe_event_sunroof_status() {
@@ -403,30 +403,30 @@ mod tests {
         let event = VehicleUnsafeEventBuilder::new().sunroof_status(0x01).build();
         let event_length = event.length() as u16;
         let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::EVENT_PACKET,
-                dest_transaction_id: 0x0007,
-                pdu_length: 12+1+3+event_length+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::NO_ENCRYPT,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::NOTIFICATION,
-                message_data: MessageData {
-                    tag: 0x03,
-                    value: vec![
-                        0x09, 0x01, 0x01
-                    ],
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::NO_ENCRYPT);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::EVENT_PACKET,
+            0x0007,
+            1+3+event_length,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x03,
+            vec![
+                0x09, 0x01, 0x01
+            ].as_slice()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::NOTIFICATION,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_vehicle_unsafe_event_headlights_status() {
@@ -434,29 +434,29 @@ mod tests {
         let event = VehicleUnsafeEventBuilder::new().headlights_status(0x01).build();
         let event_length = event.length() as u16;
         let iccoa = create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::EVENT_PACKET,
-                dest_transaction_id: 0x0008,
-                pdu_length: 12+1+3+event_length+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::NO_ENCRYPT,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::NOTIFICATION,
-                message_data: MessageData {
-                    tag: 0x03,
-                    value: vec![
-                        0x0A, 0x01, 0x01
-                    ],
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::NO_ENCRYPT);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::EVENT_PACKET,
+            0x0008,
+            1+3+event_length,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x03,
+            vec![
+                0x0A, 0x01, 0x01
+            ].as_slice()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::NOTIFICATION,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
 }

@@ -90,9 +90,9 @@ impl From<EncryptType> for u8 {
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct Mark {
-    pub encrypt_type: EncryptType,
-    pub more_fragment: bool,
-    pub fragment_offset: u16,
+    encrypt_type: EncryptType,
+    more_fragment: bool,
+    fragment_offset: u16,
 }
 
 impl Mark {
@@ -151,14 +151,14 @@ impl Mark {
 
 #[derive(Debug, Default, Copy, Clone, PartialEq)]
 pub struct Header {
-    pub version: u8,
-    pub connection_id: u8,
-    pub packet_type: PacketType,
-    pub rfu: u8,
-    pub source_transaction_id: u16,
-    pub dest_transaction_id: u16,
-    pub pdu_length: u16,
-    pub mark: Mark,
+    version: u8,
+    connection_id: u8,
+    packet_type: PacketType,
+    rfu: u8,
+    source_transaction_id: u16,
+    dest_transaction_id: u16,
+    pdu_length: u16,
+    mark: Mark,
 }
 
 impl Header {
@@ -314,9 +314,9 @@ impl From<MessageType> for u8 {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct MessageData {
-    pub status: Status,
-    pub tag: u8,
-    pub value: Vec<u8>,
+    status: Status,
+    tag: u8,
+    value: Vec<u8>,
 }
 
 impl MessageData {
@@ -382,8 +382,8 @@ impl MessageData {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Body {
-    pub message_type: MessageType,
-    pub message_data: MessageData,
+    message_type: MessageType,
+    message_data: MessageData,
 }
 
 impl Body {
@@ -429,9 +429,9 @@ impl Body {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct ICCOA {
-    pub header: Header,
-    pub body: Body,
-    pub mac: [u8; 8],
+    header: Header,
+    body: Body,
+    mac: [u8; 8],
 }
 
 impl ICCOA {

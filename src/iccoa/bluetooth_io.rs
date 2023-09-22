@@ -6,51 +6,57 @@ use super::pairing;
 use super::auth;
 
 pub fn handle_iccoa_request_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
-    match iccoa.body.message_type {
-        MessageType::OEM_DEFINED => {
+    match MessageType::try_from(iccoa.get_body().get_message_type()) {
+        Ok(MessageType::OEM_DEFINED) => {
             return Err(ErrorKind::ICCOAObjectError("OEM defined message type is not implemented".to_string()).into());
-        },
-        MessageType::VEHICLE_PAIRING => {
+        }
+        Ok(MessageType::VEHICLE_PAIRING) => {
             return Err(ErrorKind::ICCOAObjectError("Request Pairing message from mobile is not implemented".to_string()).into());
-        },
-        MessageType::AUTH => {
+        }
+        Ok(MessageType::AUTH) => {
             return Err(ErrorKind::ICCOAObjectError("Request Auth message from mobile is not implemented".to_string()).into());
-        },
-        MessageType::COMMAND => {
+        }
+        Ok(MessageType::COMMAND) => {
             return rke::handle_iccoa_rke_command_request_from_mobile(iccoa);
-        },
-        MessageType::NOTIFICATION => {
+        }
+        Ok(MessageType::NOTIFICATION) => {
             return Err(ErrorKind::ICCOAObjectError("Notification message from mobile is not implemented".to_string()).into());
-        },
-        MessageType::RFU => {
+        }
+        Ok(MessageType::RFU) => {
             return Err(ErrorKind::ICCOAObjectError("RFU message type is not implemented".to_string()).into());
-        },
+        }
+        _ => {
+            return Err(ErrorKind::ICCOAObjectError("Unsupported message type".to_string()).into());
+        }
     }
 }
 
 pub fn handle_iccoa_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
-    let status = iccoa.body.message_data.status;
+    let status = iccoa.get_body().get_message_data().get_status();
     match status.get_tag() {
         StatusTag::SUCCESS => {
-            match iccoa.body.message_type {
-                MessageType::OEM_DEFINED => {
+            match MessageType::try_from(iccoa.get_body().get_message_type()) {
+                Ok(MessageType::OEM_DEFINED) => {
                     return Err(ErrorKind::ICCOAObjectError("OEM defined message type is not implemented".to_string()).into());
-                },
-                MessageType::VEHICLE_PAIRING => {
+                }
+                Ok(MessageType::VEHICLE_PAIRING) => {
                     return pairing::handle_iccoa_pairing_response_from_mobile(iccoa);
-                },
-                MessageType::AUTH => {
+                }
+                Ok(MessageType::AUTH) => {
                     return auth::handle_iccoa_auth_response_from_mobile(iccoa);
-                },
-                MessageType::COMMAND => {
+                }
+                Ok(MessageType::COMMAND) => {
                     return command::ranging::handle_iccoa_ranging_command_response_from_mobile(iccoa);
-                },
-                MessageType::NOTIFICATION => {
+                }
+                Ok(MessageType::NOTIFICATION) => {
                     return Err(ErrorKind::ICCOAObjectError("Notification message type is not implemented".to_string()).into());
-                },
-                MessageType::RFU => {
+                }
+                Ok(MessageType::RFU) => {
                     return Err(ErrorKind::ICCOAObjectError("RFU message type is not implemented".to_string()).into());
-                },
+                }
+                _ => {
+                    return Err(ErrorKind::ICCOAObjectError("Unsupported message type".to_string()).into());
+                }
             }
         },
         StatusTag::COMMUNICATION_PROTOCOL_ERROR => {
@@ -126,7 +132,7 @@ pub fn handle_data_package_from_mobile(data_package: &[u8]) -> Result<ICCOA> {
             objects::collect_iccoa_fragments(iccoa);
             iccoa = objects::reassemble_iccoa_fragments();
         }
-        match iccoa.header.packet_type {
+        match iccoa.get_header().get_packet_type() {
             PacketType::REQUEST_PACKET => {
                 return handle_iccoa_request_from_mobile(&iccoa)
             },
@@ -153,30 +159,29 @@ mod tests {
         let event_id = 0xFFFF;
         let rke_request = create_iccoa_rke_central_lock_request(transaction_id, event_id).unwrap();
         let rke_response = handle_data_package_from_mobile(&rke_request.serialize()).unwrap();
-        assert_eq!(rke_response, ICCOA {
-            header: Header {
-                packet_type: PacketType::REPLY_PACKET,
-                source_transaction_id: rke_response.get_header().get_source_transaction_id(),
-                pdu_length: 12+1+2+3+4+1+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
-                    more_fragment: false,
-                    fragment_offset: 0x0000, 
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::COMMAND,
-                message_data: MessageData {
-                    status: StatusBuilder::new().success().build(),
-                    tag: 0x01,
-                    value: vec![
-                        0xFF, 0xFF, 0x00, 0x01, 0x00
-                    ],
-                },
-            },
-            mac: rke_response.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = objects::Mark::new();
+        mark.set_encrypt_type(EncryptType::ENCRYPT_AFTER_AUTH);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let mut header = objects::Header::new();
+        header.set_packet_type(PacketType::REPLY_PACKET);
+        header.set_source_transaction_id(rke_response.get_header().get_source_transaction_id());
+        header.set_pdu_length(12+1+2+3+4+1+8);
+        header.set_mark(mark);
+        let message_data = objects::create_iccoa_body_message_data(
+            true,
+            StatusBuilder::new().success().build(),
+            0x01,
+            vec![
+                0xFF, 0xFF, 0x00, 0x01, 0x00
+            ].as_slice()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::COMMAND,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(rke_response, standard_iccoa);
     }
     #[test]
     fn test_ranging_command_response_success_from_mobile() {
@@ -202,15 +207,15 @@ mod tests {
     #[test]
     fn test_fragments_from_mobile() {
         let transaction_id = 0x0011;
+        let mut mark = objects::Mark::new();
+        mark.set_encrypt_type(EncryptType::NO_ENCRYPT);
+        mark.set_more_fragment(true);
+        mark.set_fragment_offset(0x0000);
         let header = create_iccoa_header(
             PacketType::REQUEST_PACKET,
             transaction_id,
             1+3+3,
-            Mark {
-                encrypt_type: EncryptType::NO_ENCRYPT,
-                more_fragment: true,
-                fragment_offset: 0x0000,
-            }
+            mark
         );
         let payload = create_iccoa_body_message_data(
             false,
@@ -227,15 +232,15 @@ mod tests {
         let result = handle_data_package_from_mobile(&request.serialize());
         println!("result = {:?}", result);
 
+        let mut mark = objects::Mark::new();
+        mark.set_encrypt_type(EncryptType::NO_ENCRYPT);
+        mark.set_more_fragment(true);
+        mark.set_fragment_offset(0x0003);
         let header2 = create_iccoa_header(
             PacketType::REQUEST_PACKET,
             transaction_id,
             3,
-            Mark {
-                encrypt_type: EncryptType::NO_ENCRYPT,
-                more_fragment: true,
-                fragment_offset: 0x0003,
-            }
+            mark
         );
         let payload2 = create_iccoa_body_message_data(
             false,
@@ -252,15 +257,15 @@ mod tests {
         let result2 = handle_data_package_from_mobile(&request2.serialize());
         println!("result2 = {:?}", result2);
 
+        let mut mark = objects::Mark::new();
+        mark.set_encrypt_type(EncryptType::NO_ENCRYPT);
+        mark.set_more_fragment(true);
+        mark.set_fragment_offset(0x0006);
         let header3 = create_iccoa_header(
             PacketType::REQUEST_PACKET,
             transaction_id,
             3,
-            Mark {
-                encrypt_type: EncryptType::NO_ENCRYPT,
-                more_fragment: false,
-                fragment_offset: 0x0006,
-            }
+            mark
         );
         let payload3 = create_iccoa_body_message_data(
             false,
@@ -280,15 +285,15 @@ mod tests {
     #[test]
     fn test_split_request_iccoa() {
         let transaction_id = 0x0012;
+        let mut mark = objects::Mark::new();
+        mark.set_encrypt_type(EncryptType::NO_ENCRYPT);
+        mark.set_more_fragment(true);
+        mark.set_fragment_offset(0x0000);
         let header = create_iccoa_header(
             PacketType::REQUEST_PACKET,
             transaction_id,
             1+3+1024,
-            Mark {
-                encrypt_type: EncryptType::NO_ENCRYPT,
-                more_fragment: false,
-                fragment_offset: 0x0000,
-            }
+            mark
         );
         let payload = create_iccoa_body_message_data(
             false,
@@ -318,15 +323,15 @@ mod tests {
     #[test]
     fn test_split_response_iccoa() {
         let transaction_id = 0x0013;
+        let mut mark = objects::Mark::new();
+        mark.set_encrypt_type(EncryptType::NO_ENCRYPT);
+        mark.set_more_fragment(true);
+        mark.set_fragment_offset(0x0000);
         let header = create_iccoa_header(
             PacketType::REPLY_PACKET,
             transaction_id,
             1+2+3+1024,
-            Mark {
-                encrypt_type: EncryptType::NO_ENCRYPT,
-                more_fragment: false,
-                fragment_offset: 0x0000,
-            }
+            mark
         );
         let payload = create_iccoa_body_message_data(
             false,

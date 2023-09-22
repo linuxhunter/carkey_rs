@@ -124,15 +124,15 @@ impl RKECommandResponse {
 
 fn create_iccoa_rke_command_request(transaction_id: u16, request: RKECommandRequest) -> Result<ICCOA> {
     let serialized_request = request.serialize();
+    let mut mark = Mark::new();
+    mark.set_encrypt_type(objects::EncryptType::ENCRYPT_AFTER_AUTH);
+    mark.set_more_fragment(false);
+    mark.set_fragment_offset(0x0000);
     let header = create_iccoa_header(
         objects::PacketType::REQUEST_PACKET,
         transaction_id,
         1+3+serialized_request.len() as u16,
-        Mark {
-            encrypt_type: objects::EncryptType::ENCRYPT_AFTER_AUTH,
-            more_fragment: false,
-            fragment_offset: 0x0000, 
-        },
+        mark
     );
     let message_data = create_iccoa_body_message_data(
         false,
@@ -150,15 +150,15 @@ fn create_iccoa_rke_command_request(transaction_id: u16, request: RKECommandRequ
 
 fn create_iccoa_rke_command_response(transaction_id: u16, status: Status, response: RKECommandResponse) -> Result<ICCOA> {
     let serialized_response = response.serialize();
+    let mut mark = Mark::new();
+    mark.set_encrypt_type(objects::EncryptType::ENCRYPT_AFTER_AUTH);
+    mark.set_more_fragment(false);
+    mark.set_fragment_offset(0x0000);
     let header = create_iccoa_header(
         objects::PacketType::REPLY_PACKET,
         transaction_id,
         1+2+3+serialized_response.len() as u16,
-        Mark {
-            encrypt_type: objects::EncryptType::ENCRYPT_AFTER_AUTH,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        },
+        mark
     );
     let message_data = create_iccoa_body_message_data(
         true,
@@ -240,7 +240,7 @@ pub fn create_iccoa_rke_response(transaction_id: u16, status: Status, event_id: 
 
 pub fn handle_iccoa_rke_command(iccoa: &ICCOA) -> Result<TLVPayload> {
     //handle rke command from iccoa object
-    let rke_command = RKECommandRequest::deserialize(iccoa.body.message_data.get_value())?;
+    let rke_command = RKECommandRequest::deserialize(iccoa.get_body().get_message_data().get_value())?;
     println!("[RKE Command]:");
     println!("\tevent_id: {:02X?}", rke_command.get_event_id());
     println!("\tfunction_id: {:02X?}", rke_command.get_function_id());
@@ -253,7 +253,7 @@ pub fn handle_iccoa_rke_command_request_from_mobile(iccoa: &ICCOA) -> Result<ICC
     let rke_command_response = handle_iccoa_rke_command(iccoa)?;
     //create rke command response
     let transaction_id = 0x0000;
-    let event_id = RKECommandRequest::deserialize(iccoa.body.message_data.get_value())?.get_event_id();
+    let event_id = RKECommandRequest::deserialize(iccoa.get_body().get_message_data().get_value())?.get_event_id();
     let tag = rke_command_response.get_tag();
     let value = rke_command_response.value;
     //set status according to tag and value
@@ -276,336 +276,336 @@ mod tests {
         let transaction_id = 0x0001;
         let event_id = 0xFFFF;
         let iccoa = create_iccoa_rke_central_lock_request(transaction_id, event_id).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::REQUEST_PACKET,
-                dest_transaction_id: 0x0001,
-                pdu_length: iccoa.get_header().get_pdu_length(),
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::COMMAND,
-                message_data: MessageData {
-                    tag:0x01,
-                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::ENCRYPT_AFTER_AUTH);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::REQUEST_PACKET,
+            0x0001,
+            iccoa.get_header().get_pdu_length()-20,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x01,
+            iccoa.get_body().get_message_data().get_value()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::COMMAND,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_central_unlock_requet() {
         let transaction_id = 0x0002;
         let event_id = 0xFFFF;
         let iccoa = create_iccoa_rke_central_unlock_request(transaction_id, event_id).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::REQUEST_PACKET,
-                dest_transaction_id: 0x0002,
-                pdu_length: iccoa.get_header().get_pdu_length(),
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::COMMAND,
-                message_data: MessageData {
-                    tag:0x01,
-                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::ENCRYPT_AFTER_AUTH);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::REQUEST_PACKET,
+            0x0002,
+            iccoa.get_header().get_pdu_length()-20,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x01,
+            iccoa.get_body().get_message_data().get_value()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::COMMAND,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_electric_window_close_request() {
         let transaction_id = 0x0003;
         let event_id = 0xFFFF;
         let iccoa = create_iccoa_rke_electric_window_close_request(transaction_id, event_id).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::REQUEST_PACKET,
-                dest_transaction_id: 0x0003,
-                pdu_length: iccoa.get_header().get_pdu_length(),
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::COMMAND,
-                message_data: MessageData {
-                    tag:0x01,
-                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::ENCRYPT_AFTER_AUTH);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::REQUEST_PACKET,
+            0x0003,
+            iccoa.get_header().get_pdu_length()-20,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x01,
+            iccoa.get_body().get_message_data().get_value()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::COMMAND,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_electric_window_open_request() {
         let transaction_id = 0x0004;
         let event_id = 0xFFFF;
         let iccoa = create_iccoa_rke_electric_window_open_request(transaction_id, event_id).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::REQUEST_PACKET,
-                dest_transaction_id: 0x0004,
-                pdu_length: iccoa.get_header().get_pdu_length(),
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::COMMAND,
-                message_data: MessageData {
-                    tag:0x01,
-                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::ENCRYPT_AFTER_AUTH);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::REQUEST_PACKET,
+            0x0004,
+            iccoa.get_header().get_pdu_length()-20,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x01,
+            iccoa.get_body().get_message_data().get_value(),
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::COMMAND,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_electric_sunroof_close_request() {
         let transaction_id = 0x0005;
         let event_id = 0xFFFF;
         let iccoa = create_iccoa_rke_electric_sunroof_close_request(transaction_id, event_id).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::REQUEST_PACKET,
-                dest_transaction_id: 0x0005,
-                pdu_length: iccoa.get_header().get_pdu_length(),
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::COMMAND,
-                message_data: MessageData {
-                    tag:0x01,
-                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::ENCRYPT_AFTER_AUTH);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::REQUEST_PACKET,
+            0x0005,
+            iccoa.get_header().get_pdu_length()-20,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x01,
+            iccoa.get_body().get_message_data().get_value()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::COMMAND,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_electric_sunroof_open_request() {
         let transaction_id = 0x0006;
         let event_id = 0xFFFF;
         let iccoa = create_iccoa_rke_electric_sunroof_open_request(transaction_id, event_id).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::REQUEST_PACKET,
-                dest_transaction_id: 0x0006,
-                pdu_length: iccoa.get_header().get_pdu_length(),
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::COMMAND,
-                message_data: MessageData {
-                    tag:0x01,
-                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::ENCRYPT_AFTER_AUTH);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::REQUEST_PACKET,
+            0x0006,
+            iccoa.get_header().get_pdu_length()-20,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x01,
+            iccoa.get_body().get_message_data().get_value()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::COMMAND,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_trunk_close_request() {
         let transaction_id = 0x0007;
         let event_id = 0xFFFF;
         let iccoa = create_iccoa_rke_trunk_close_request(transaction_id, event_id).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::REQUEST_PACKET,
-                dest_transaction_id: 0x0007,
-                pdu_length: iccoa.get_header().get_pdu_length(),
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::COMMAND,
-                message_data: MessageData {
-                    tag:0x01,
-                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::ENCRYPT_AFTER_AUTH);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::REQUEST_PACKET,
+            0x0007,
+            iccoa.get_header().get_pdu_length()-20,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x01,
+            iccoa.get_body().get_message_data().get_value()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::COMMAND,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_trunk_open_request() {
         let transaction_id = 0x0008;
         let event_id = 0xFFFF;
         let iccoa = create_iccoa_rke_trunk_open_request(transaction_id, event_id).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::REQUEST_PACKET,
-                dest_transaction_id: 0x0008,
-                pdu_length: iccoa.get_header().get_pdu_length(),
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::COMMAND,
-                message_data: MessageData {
-                    tag:0x01,
-                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::ENCRYPT_AFTER_AUTH);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::REQUEST_PACKET,
+            0x0008,
+            iccoa.get_header().get_pdu_length()-20,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x01,
+            iccoa.get_body().get_message_data().get_value()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::COMMAND,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_cancel_search_car_request() {
         let transaction_id = 0x0009;
         let event_id = 0xFFFF;
         let iccoa = create_iccoa_rke_cancel_search_car_request(transaction_id, event_id).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::REQUEST_PACKET,
-                dest_transaction_id: 0x0009,
-                pdu_length: iccoa.get_header().get_pdu_length(),
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::COMMAND,
-                message_data: MessageData {
-                    tag:0x01,
-                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::ENCRYPT_AFTER_AUTH);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::REQUEST_PACKET,
+            0x0009,
+            iccoa.get_header().get_pdu_length()-20,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x01,
+            iccoa.get_body().get_message_data().get_value()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::COMMAND,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_honking_search_car_request() {
         let transaction_id = 0x000A;
         let event_id = 0xFFFF;
         let iccoa = create_iccoa_rke_konking_search_car_request(transaction_id, event_id).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::REQUEST_PACKET,
-                dest_transaction_id: 0x000A,
-                pdu_length: iccoa.get_header().get_pdu_length(),
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::COMMAND,
-                message_data: MessageData {
-                    tag:0x01,
-                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::ENCRYPT_AFTER_AUTH);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::REQUEST_PACKET,
+            0x000A,
+            iccoa.get_header().get_pdu_length()-20,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x01,
+            iccoa.get_body().get_message_data().get_value()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::COMMAND,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_flashing_search_car_request() {
         let transaction_id = 0x000B;
         let event_id = 0xFFFF;
         let iccoa = create_iccoa_rke_flashing_search_car_request(transaction_id, event_id).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::REQUEST_PACKET,
-                dest_transaction_id: 0x000B,
-                pdu_length: iccoa.get_header().get_pdu_length(),
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::COMMAND,
-                message_data: MessageData {
-                    tag:0x01,
-                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::ENCRYPT_AFTER_AUTH);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::REQUEST_PACKET,
+            0x000B,
+            iccoa.get_header().get_pdu_length()-20,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x01,
+            iccoa.get_body().get_message_data().get_value()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::COMMAND,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_honking_and_flashing_search_car_request() {
         let transaction_id = 0x000C;
         let event_id = 0xFFFF;
         let iccoa = create_iccoa_rke_honking_and_flashing_search_car_request(transaction_id, event_id).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::REQUEST_PACKET,
-                dest_transaction_id: 0x000C,
-                pdu_length: iccoa.get_header().get_pdu_length(),
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::COMMAND,
-                message_data: MessageData {
-                    tag:0x01,
-                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::ENCRYPT_AFTER_AUTH);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::REQUEST_PACKET,
+            0x000C,
+            iccoa.get_header().get_pdu_length()-20,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x01,
+            iccoa.get_body().get_message_data().get_value()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::COMMAND,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_rke_command_response() {
@@ -615,27 +615,27 @@ mod tests {
         let tag = 0x00;
         let value = vec![0x00];
         let iccoa = create_iccoa_rke_response(transaction_id, status, event_id, tag, &value).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::REPLY_PACKET,
-                source_transaction_id: 0x000D,
-                pdu_length: iccoa.get_header().get_pdu_length(),
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::ENCRYPT_AFTER_AUTH,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::COMMAND,
-                message_data: MessageData {
-                    status: StatusBuilder::new().success().build(),
-                    tag: 0x01,
-                    value: iccoa.get_body().get_message_data().get_value().to_vec(),
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::ENCRYPT_AFTER_AUTH);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::REPLY_PACKET,
+            0x000D,
+            iccoa.get_header().get_pdu_length()-20,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            true,
+            StatusBuilder::new().success().build(),
+            0x01,
+            iccoa.get_body().get_message_data().get_value()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::COMMAND,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
 }

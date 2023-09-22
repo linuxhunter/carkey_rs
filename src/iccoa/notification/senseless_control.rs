@@ -1,4 +1,4 @@
-use crate::iccoa::{objects::{ICCOA, create_iccoa_header, Mark, create_iccoa_body_message_data, create_iccoa_body, MessageType, create_iccoa}, status::StatusBuilder};
+use crate::iccoa::{objects::{ICCOA, create_iccoa_header, Mark, create_iccoa_body_message_data, create_iccoa_body, MessageType, create_iccoa}, objects, status::StatusBuilder};
 
 use super::super::errors::*;
 
@@ -167,15 +167,15 @@ impl SenselessControlEventBuilder {
 }
 
 pub fn create_iccoa_senseless_control_event_notification(transaction_id: u16, event: &SenselessControlEvent) -> Result<ICCOA> {
+    let mut mark = Mark::new();
+    mark.set_encrypt_type(objects::EncryptType::NO_ENCRYPT);
+    mark.set_more_fragment(false);
+    mark.set_fragment_offset(0x0000);
     let header = create_iccoa_header(
         crate::iccoa::objects::PacketType::EVENT_PACKET,
         transaction_id,
         1+3+event.length() as u16,
-        Mark {
-            encrypt_type: crate::iccoa::objects::EncryptType::NO_ENCRYPT,
-            more_fragment: false,
-            fragment_offset: 0x0000,
-        }
+        mark
     );
     let message_data = create_iccoa_body_message_data(
         false,
@@ -270,30 +270,30 @@ mod tests {
         let result = SenselessControlResultBuilder::new().success().build();
         let event = SenselessControlEventBuilder::new().passive_unlock(result).build();
         let iccoa = create_iccoa_senseless_control_event_notification(transaction_id, &event).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::EVENT_PACKET,
-                dest_transaction_id: 0x0001,
-                pdu_length: 12+1+3+event.length() as u16+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::NO_ENCRYPT,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::NOTIFICATION,
-                message_data: MessageData {
-                    tag: 0x02,
-                    value: vec![
-                        0x00, 0x04, 0x00, 0x00, 0x01, 0x00,
-                    ],
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::NO_ENCRYPT);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::EVENT_PACKET,
+            0x0001,
+            1+3+event.length() as u16,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x02,
+           vec![
+                0x00, 0x04, 0x00, 0x00, 0x01, 0x00,
+            ].as_slice()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::NOTIFICATION,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_senseless_control_event_pasive_lock() {
@@ -301,30 +301,30 @@ mod tests {
         let result = SenselessControlResultBuilder::new().success().build();
         let event = SenselessControlEventBuilder::new().passive_lock(result).build();
         let iccoa = create_iccoa_senseless_control_event_notification(transaction_id, &event).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::EVENT_PACKET,
-                dest_transaction_id: 0x0002,
-                pdu_length: 12+1+3+event.length() as u16+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::NO_ENCRYPT,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::NOTIFICATION,
-                message_data: MessageData {
-                    tag: 0x02,
-                    value: vec![
-                        0x01, 0x04, 0x00, 0x00, 0x01, 0x00,
-                    ],
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::NO_ENCRYPT);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::EVENT_PACKET,
+            0x0002,
+            1+3+event.length() as u16,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x02,
+           vec![
+                0x01, 0x04, 0x00, 0x00, 0x01, 0x00,
+            ].as_slice()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::NOTIFICATION,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_senseless_control_event_near_auto_unlock() {
@@ -332,30 +332,30 @@ mod tests {
         let result = SenselessControlResultBuilder::new().success().build();
         let event = SenselessControlEventBuilder::new().near_auto_unlock(result).build();
         let iccoa = create_iccoa_senseless_control_event_notification(transaction_id, &event).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::EVENT_PACKET,
-                dest_transaction_id: 0x0003,
-                pdu_length: 12+1+3+event.length() as u16+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::NO_ENCRYPT,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::NOTIFICATION,
-                message_data: MessageData {
-                    tag: 0x02,
-                    value: vec![
-                        0x10, 0x04, 0x00, 0x00, 0x01, 0x00,
-                    ],
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::NO_ENCRYPT);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::EVENT_PACKET,
+            0x0003,
+            1+3+event.length() as u16,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x02,
+            vec![
+                0x10, 0x04, 0x00, 0x00, 0x01, 0x00,
+            ].as_slice()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::NOTIFICATION,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_senseless_control_event_far_auto_lock() {
@@ -363,30 +363,30 @@ mod tests {
         let result = SenselessControlResultBuilder::new().success().build();
         let event = SenselessControlEventBuilder::new().far_auto_lock(result).build();
         let iccoa = create_iccoa_senseless_control_event_notification(transaction_id, &event).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::EVENT_PACKET,
-                dest_transaction_id: 0x0004,
-                pdu_length: 12+1+3+event.length() as u16+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::NO_ENCRYPT,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::NOTIFICATION,
-                message_data: MessageData {
-                    tag: 0x02,
-                    value: vec![
-                        0x11, 0x04, 0x00, 0x00, 0x01, 0x00,
-                    ],
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::NO_ENCRYPT);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::EVENT_PACKET,
+            0x0004,
+            1+3+event.length() as u16,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x02,
+            vec![
+                0x11, 0x04, 0x00, 0x00, 0x01, 0x00,
+            ].as_slice()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::NOTIFICATION,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_senseless_control_event_one_key_start() {
@@ -394,30 +394,30 @@ mod tests {
         let result = SenselessControlResultBuilder::new().success().build();
         let event = SenselessControlEventBuilder::new().one_button_start(result).build();
         let iccoa = create_iccoa_senseless_control_event_notification(transaction_id, &event).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::EVENT_PACKET,
-                dest_transaction_id: 0x0005,
-                pdu_length: 12+1+3+event.length() as u16+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::NO_ENCRYPT,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::NOTIFICATION,
-                message_data: MessageData {
-                    tag: 0x02,
-                    value: vec![
-                        0x20, 0x04, 0x00, 0x00, 0x01, 0x00,
-                    ],
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::NO_ENCRYPT);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::EVENT_PACKET,
+            0x0005,
+            1+3+event.length() as u16,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x02,
+           vec![
+                0x20, 0x04, 0x00, 0x00, 0x01, 0x00,
+            ].as_slice()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::NOTIFICATION,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
     #[test]
     fn test_senseless_control_event_welcome() {
@@ -425,29 +425,29 @@ mod tests {
         let result = SenselessControlResultBuilder::new().success().build();
         let event = SenselessControlEventBuilder::new().welcome(result).build();
         let iccoa = create_iccoa_senseless_control_event_notification(transaction_id, &event).unwrap();
-        assert_eq!(iccoa, ICCOA {
-            header: Header {
-                packet_type: PacketType::EVENT_PACKET,
-                dest_transaction_id: 0x0006,
-                pdu_length: 12+1+3+event.length() as u16+8,
-                mark: Mark {
-                    encrypt_type: crate::iccoa::objects::EncryptType::NO_ENCRYPT,
-                    more_fragment: false,
-                    fragment_offset: 0x0000,
-                },
-                ..Default::default()
-            },
-            body: Body {
-                message_type: MessageType::NOTIFICATION,
-                message_data: MessageData {
-                    tag: 0x02,
-                    value: vec![
-                        0x30, 0x04, 0x00, 0x00, 0x01, 0x00,
-                    ],
-                    ..Default::default()
-                },
-            },
-            mac: iccoa.get_mac().to_vec().try_into().unwrap(),
-        });
+        let mut mark = Mark::new();
+        mark.set_encrypt_type(objects::EncryptType::NO_ENCRYPT);
+        mark.set_more_fragment(false);
+        mark.set_fragment_offset(0x0000);
+        let header = objects::create_iccoa_header(
+            PacketType::EVENT_PACKET,
+            0x0006,
+            1+3+event.length() as u16,
+            mark
+        );
+        let message_data = objects::create_iccoa_body_message_data(
+            false,
+            StatusBuilder::new().success().build(),
+            0x02,
+           vec![
+                0x30, 0x04, 0x00, 0x00, 0x01, 0x00,
+            ].as_slice()
+        );
+        let body = objects::create_iccoa_body(
+            MessageType::NOTIFICATION,
+            message_data
+        );
+        let standard_iccoa = objects::create_iccoa(header, body);
+        assert_eq!(iccoa, standard_iccoa);
     }
 }
