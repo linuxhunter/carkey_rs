@@ -98,53 +98,53 @@ pub fn handle_icce_mobile_response(icce_object: &objects::ICCE) -> Result<Vec<u8
         0x01 => {
             match body.get_command_id() {
                 0x01 => {
-                    return auth::handle_icce_auth_response(body);
+                    auth::handle_icce_auth_response(body)
                 },
                 _ => {
-                    return Err("RFU".to_string());
+                    Err("RFU".to_string())
                 }
             }
         },
         0x02 => {
             match body.get_command_id() {
                 0x01 => {
-                    return command::handle_measure_response(body);
+                    command::handle_measure_response(body)
                 },
                 0x02 => {
-                    return command::handle_anti_relay_response(body);
+                    command::handle_anti_relay_response(body)
                 },
                 0x06 => {
-                    return command::handle_mobile_info_response(body);
+                    command::handle_mobile_info_response(body)
                 },
                 0x07 => {
-                    return command::handle_calbriate_time_response(body);
+                    command::handle_calbriate_time_response(body)
                 },
                 0x08 => {
-                    return command::handle_protocol_response(body);
+                    command::handle_protocol_response(body)
                 },
                 _ => {
-                    return Err("RFU".to_string());
+                    Err("RFU".to_string())
                 }
             }
         },
         0x03 => {
             match body.get_command_id() {
                 0x02 => {
-                    return notification::handle_get_vehicle_state_event_response(body);
+                    notification::handle_get_vehicle_state_event_response(body)
                 },
                 0x03 => {
-                    return notification::handle_get_app_state_event_response(body);
+                    notification::handle_get_app_state_event_response(body)
                 },
                 0x04 => {
-                    return notification::handle_get_server_state_event_response(body);
+                    notification::handle_get_server_state_event_response(body)
                 },
                 _ => {
-                    return Err("RFU".to_string());
+                    Err("RFU".to_string())
                 }
             }
         },
         _ => {
-            return Err("RFU".to_string());
+            Err("RFU".to_string())
         }
     }
 }
@@ -166,27 +166,25 @@ pub fn handle_data_package_from_mobile(icce_package: &[u8]) -> Result<objects::I
             if let Ok(response_message) = handle_icce_mobile_request(&icce_object) {
                 if response_message.len() > 1 {
                     let icce = objects::ICCE::deserialize(&response_message)?;
-                    return Ok(icce)
+                    Ok(icce)
                 } else {
-                    return Err("not to send response".to_string());
+                    Err("not to send response".to_string())
                 }
             } else {
-                return Err("handle icce mobile request error".to_string());
+                Err("handle icce mobile request error".to_string())
             }
-        } else {
-            if let Ok(response_message) = handle_icce_mobile_response(&icce_object) {
-                if response_message.len() > 0 {
+        } else if let Ok(response_message) = handle_icce_mobile_response(&icce_object) {
+                if !response_message.is_empty() {
                     let icce = objects::ICCE::deserialize(&response_message)?;
-                    return Ok(icce)
+                    Ok(icce)
                 } else {
-                    return Err("not to send response".to_string());
+                    Err("not to send response".to_string())
                 }
-            } else {
-                return Err("handle icce mobile response error".to_string());
-            }
+        } else {
+            Err("handle icce mobile response error".to_string())
         }
     } else {
-        return Err("deserialize original icce data package error".to_string());
+        Err("deserialize original icce data package error".to_string())
     }
 }
 

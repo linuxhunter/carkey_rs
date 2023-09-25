@@ -4,7 +4,7 @@ use std::sync::Mutex;
 use openssl::bn::{BigNum, BigNumContext};
 use openssl::ec::EcGroup;
 use openssl::nid::Nid;
-use rand::{random, Rng};
+use rand::random;
 use crate::iccoa::objects::EncryptType;
 
 use crate::iccoa::utils::CipherKey;
@@ -184,35 +184,36 @@ pub fn get_pairing_key_enc() -> Vec<u8> {
 }
 
 pub fn get_vehicle_certificate() -> Vec<u8> {
-    let mut cert = Vec::new();
     if let Ok(mut file) = std::fs::File::open("/etc/certs/vehicle_public.crt") {
         let metadata = std::fs::metadata("/etc/certs/vehicle_public.crt").unwrap();
-        cert = vec![0; metadata.len() as usize];
-        file.read(&mut cert).unwrap();
+        let mut cert = vec![0; metadata.len() as usize];
+        file.read_exact(&mut cert).unwrap();
+        cert
     } else {
-        cert = [0x01; 16].to_vec();
+        [0x01; 16].to_vec()
     }
-    cert
 }
 
 pub fn get_mobile_device_server_ca_certificate() -> Vec<u8> {
-    let mut cert = Vec::new();
     if let Ok(mut file) = std::fs::File::open("/etc/certs/mobile_server_ca.crt") {
-        file.read(&mut cert).unwrap();
+        let metadata = std::fs::metadata("/etc/certs/mobile_server_ca.crt").unwrap();
+        let mut cert = vec![0; metadata.len() as usize];
+        file.read_exact(&mut cert).unwrap();
+        cert
     } else {
-        cert = [0x02; 16].to_vec();
+        [0x02; 16].to_vec()
     }
-    cert
 }
 
 pub fn get_mobile_device_tee_ca_certificate() -> Vec<u8> {
-    let mut cert = Vec::new();
     if let Ok(mut file) = std::fs::File::open("/etc/certs/mobile_tee_ca.crt") {
-        file.read(&mut cert).unwrap();
+        let metadata = std::fs::metadata("/etc/certs/mobile_tee_ca.crt").unwrap();
+        let mut cert = vec![0; metadata.len() as usize];
+        file.read_exact(&mut cert).unwrap();
+        cert
     } else {
-        cert = [0x03; 16].to_vec();
+        [0x03; 16].to_vec()
     }
-    cert
 }
 
 pub fn get_carkey_certificate() -> Vec<u8> {
@@ -301,35 +302,35 @@ fn create_iccoa_pairing_response(transaction_id: u16, status: Status, tag: u8, p
 }
 
 pub fn create_iccoa_pairing_data_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
-    return create_iccoa_pairing_request(transaction_id, 0x02, payloads)
+    create_iccoa_pairing_request(transaction_id, 0x02, payloads)
 }
 
 pub fn create_iccoa_pairing_data_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
-    return create_iccoa_pairing_response(transaction_id, status, 0x02, payloads)
+    create_iccoa_pairing_response(transaction_id, status, 0x02, payloads)
 }
 
 pub fn create_iccoa_paring_auth_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
-    return create_iccoa_pairing_request(transaction_id, 0x03, payloads)
+    create_iccoa_pairing_request(transaction_id, 0x03, payloads)
 }
 
 pub fn create_iccoa_pairing_auth_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
-    return create_iccoa_pairing_response(transaction_id, status, 0x03, payloads)
+    create_iccoa_pairing_response(transaction_id, status, 0x03, payloads)
 }
 
 pub fn create_iccoa_pairing_certificate_write_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
-    return create_iccoa_pairing_request(transaction_id, 0x04, payloads)
+    create_iccoa_pairing_request(transaction_id, 0x04, payloads)
 }
 
 pub fn create_iccoa_pairing_certificate_write_response(transaction_id: u16, status: Status) -> Result<ICCOA> {
-    return create_iccoa_pairing_response(transaction_id, status, 0x04, &[])
+    create_iccoa_pairing_response(transaction_id, status, 0x04, &[])
 }
 
 pub fn create_iccoa_pairing_certificate_read_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
-    return create_iccoa_pairing_request(transaction_id, 0x05, payloads)
+    create_iccoa_pairing_request(transaction_id, 0x05, payloads)
 }
 
 pub fn create_iccoa_pairing_certificate_read_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
-    return create_iccoa_pairing_response(transaction_id, status, 0x05, payloads)
+    create_iccoa_pairing_response(transaction_id, status, 0x05, payloads)
 }
 
 
@@ -376,7 +377,7 @@ pub fn handle_iccoa_pairing_read_response_payload(iccoa: &ICCOA) -> Result<()> {
     //handle read response payload
     let message_data = iccoa.get_body().get_message_data();
     if message_data.get_status().get_tag() == StatusTag::SUCCESS {
-        let cert_payload = TLVPayload::deserialize(&message_data.get_value()).unwrap();
+        let cert_payload = TLVPayload::deserialize(message_data.get_value()).unwrap();
         let dec_key = PAIRING_KEY.lock().unwrap().get_key_enc();
         let iv = utils::get_default_iv();
         let plain_text = utils::decrypt_aes_128_cbc(&dec_key, &cert_payload.value, &iv)?;
@@ -403,7 +404,7 @@ pub fn handle_iccoa_pairing_read_response_payload(iccoa: &ICCOA) -> Result<()> {
         }
         Ok(())
     } else {
-        return Err(ErrorKind::ICCOAPairingError("pairing read response error".to_string()).into());
+        Err(ErrorKind::ICCOAPairingError("pairing read response error".to_string()).into())
     }
 }
 
@@ -413,7 +414,7 @@ pub fn handle_iccoa_pairing_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA>
     let mut spake2_plus_object = SPAKE2_PLUS_OBJECT.lock().unwrap();
     match message_data.get_tag() {
         0x01 => {
-            return Err(ErrorKind::ICCOAPairingError("getting paired password is not implemented".to_string()).into());
+            Err(ErrorKind::ICCOAPairingError("getting paired password is not implemented".to_string()).into())
         },
         0x02 => {   //get pA
             //handle pA
@@ -422,7 +423,7 @@ pub fn handle_iccoa_pairing_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA>
             spake2_plus_object.calculate_ca_cb()?;
             let c_b_payload = TLVPayloadBuilder::new().set_tag(0x53).set_value(&spake2_plus_object.cb).build();
             let response = create_iccoa_paring_auth_request(transaction_id, &[c_b_payload])?;
-            return Ok(response)
+            Ok(response)
         },
         0x03 => {   //get cA
             //handle cA
@@ -466,13 +467,13 @@ pub fn handle_iccoa_pairing_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA>
             Ok(response)
         },
         0x07 => {
-            return Err(ErrorKind::ICCOAPairingError("Tag 0x07 is not implemented".to_string()).into());
+            Err(ErrorKind::ICCOAPairingError("Tag 0x07 is not implemented".to_string()).into())
         },
         0xC0 => {
-            return Err(ErrorKind::ICCOAPairingError("Tag 0xC0 is not implemented".to_string()).into());
+            Err(ErrorKind::ICCOAPairingError("Tag 0xC0 is not implemented".to_string()).into())
         },
         _ => {      //RFU
-            return Err(ErrorKind::ICCOAPairingError("RFU is not implemented".to_string()).into());
+            Err(ErrorKind::ICCOAPairingError("RFU is not implemented".to_string()).into())
         },
     }
 }
@@ -770,7 +771,7 @@ mod tests {
         let header = objects::create_iccoa_header(
             PacketType::REPLY_PACKET,
             0x0005,
-            1+2+3+22,
+            1+2+3+18*3,
             mark
         );
         let message_data = objects::create_iccoa_body_message_data(
@@ -778,8 +779,12 @@ mod tests {
             StatusBuilder::new().success().build(),
             0x05,
             vec![
-                0x01, 0x00,
-                0x02, 0x00,
+                0x01, 0x10,
+                0x02, 0x02, 0x02, 0x02,0x02, 0x02, 0x02, 0x02,
+                0x02, 0x02, 0x02, 0x02,0x02, 0x02, 0x02, 0x02,
+                0x02, 0x10,
+                0x03, 0x03, 0x03, 0x03,0x03, 0x03, 0x03, 0x03,
+                0x03, 0x03, 0x03, 0x03,0x03, 0x03, 0x03, 0x03,
                 0x03, 0x10,
                 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
                 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04

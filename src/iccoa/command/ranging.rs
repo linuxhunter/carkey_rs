@@ -87,7 +87,7 @@ pub fn handle_iccoa_ranging_command_response_from_mobile(iccoa: &ICCOA) -> Resul
     } else {
         println!("Ranging Failure");
     }
-    return Err(ErrorKind::ICCOACommandError("Ranging Command completed".to_string()).into());
+    Err(ErrorKind::ICCOACommandError("Ranging Command completed".to_string()).into())
 }
 
 #[cfg(test)]

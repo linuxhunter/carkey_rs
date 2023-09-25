@@ -5,20 +5,15 @@ lazy_static! {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub enum StatusTag {
+    #[default]
     SUCCESS,
     COMMUNICATION_PROTOCOL_ERROR,
     DATA_ERROR,
     REQUEST_ERROR,
     BUSINESS_ERROR,
     RFU,
-}
-
-impl Default for StatusTag {
-    fn default() -> Self {
-        StatusTag::SUCCESS
-    }
 }
 
 impl From<u8> for StatusTag {
@@ -74,11 +69,10 @@ impl Status {
         self.code
     }
     pub fn serialize(&self) -> Vec<u8> {
-        let mut buffer = Vec::new();
-        buffer.push(u8::from(self.tag));
-        buffer.push(self.code);
-
-        buffer
+        vec![
+            u8::from(self.tag),
+            self.code
+        ]
     }
     pub fn deserialize(buffer: &[u8]) -> Result<Self> {
         if buffer.len() != *STATUS_LENGTH {

@@ -46,8 +46,7 @@ impl RKECommandRequest {
 
         let key = auth::get_auth_key_enc();
         let iv = get_default_iv();
-        let cipher_text = encrypt_aes_128_cbc(&key, &serialized_data, &iv).unwrap();
-        cipher_text
+        encrypt_aes_128_cbc(&key, &serialized_data, &iv).unwrap()
     }
     pub fn deserialize(buffer: &[u8]) -> Result<Self> {
         let key = auth::get_auth_key_enc();

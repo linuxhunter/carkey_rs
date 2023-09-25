@@ -16,7 +16,7 @@ bitflags! {
 
 impl CarDoorLockStatus {
     pub fn as_u8(&self) -> u8 {
-        self.bits() as u8
+        self.bits()
     }
 }
 
@@ -31,7 +31,7 @@ bitflags! {
 
 impl CarDoorStatus {
     pub fn as_u8(&self) -> u8 {
-        self.bits() as u8
+        self.bits()
     }
 }
 
@@ -46,6 +46,6 @@ bitflags! {
 
 impl CarDoorWindowStatus {
     pub fn as_u8(&self) -> u8 {
-        self.bits() as u8
+        self.bits()
     }
 }

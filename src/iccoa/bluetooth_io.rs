@@ -8,25 +8,25 @@ use super::auth;
 pub fn handle_iccoa_request_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
     match MessageType::try_from(iccoa.get_body().get_message_type()) {
         Ok(MessageType::OEM_DEFINED) => {
-            return Err(ErrorKind::ICCOAObjectError("OEM defined message type is not implemented".to_string()).into());
+            Err(ErrorKind::ICCOAObjectError("OEM defined message type is not implemented".to_string()).into())
         }
         Ok(MessageType::VEHICLE_PAIRING) => {
-            return Err(ErrorKind::ICCOAObjectError("Request Pairing message from mobile is not implemented".to_string()).into());
+            Err(ErrorKind::ICCOAObjectError("Request Pairing message from mobile is not implemented".to_string()).into())
         }
         Ok(MessageType::AUTH) => {
-            return Err(ErrorKind::ICCOAObjectError("Request Auth message from mobile is not implemented".to_string()).into());
+            Err(ErrorKind::ICCOAObjectError("Request Auth message from mobile is not implemented".to_string()).into())
         }
         Ok(MessageType::COMMAND) => {
-            return rke::handle_iccoa_rke_command_request_from_mobile(iccoa);
+            rke::handle_iccoa_rke_command_request_from_mobile(iccoa)
         }
         Ok(MessageType::NOTIFICATION) => {
-            return Err(ErrorKind::ICCOAObjectError("Notification message from mobile is not implemented".to_string()).into());
+            Err(ErrorKind::ICCOAObjectError("Notification message from mobile is not implemented".to_string()).into())
         }
         Ok(MessageType::RFU) => {
-            return Err(ErrorKind::ICCOAObjectError("RFU message type is not implemented".to_string()).into());
+            Err(ErrorKind::ICCOAObjectError("RFU message type is not implemented".to_string()).into())
         }
         _ => {
-            return Err(ErrorKind::ICCOAObjectError("Unsupported message type".to_string()).into());
+            Err(ErrorKind::ICCOAObjectError("Unsupported message type".to_string()).into())
         }
     }
 }
@@ -37,114 +37,113 @@ pub fn handle_iccoa_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
         StatusTag::SUCCESS => {
             match MessageType::try_from(iccoa.get_body().get_message_type()) {
                 Ok(MessageType::OEM_DEFINED) => {
-                    return Err(ErrorKind::ICCOAObjectError("OEM defined message type is not implemented".to_string()).into());
+                    Err(ErrorKind::ICCOAObjectError("OEM defined message type is not implemented".to_string()).into())
                 }
                 Ok(MessageType::VEHICLE_PAIRING) => {
-                    return pairing::handle_iccoa_pairing_response_from_mobile(iccoa);
+                    pairing::handle_iccoa_pairing_response_from_mobile(iccoa)
                 }
                 Ok(MessageType::AUTH) => {
-                    return auth::handle_iccoa_auth_response_from_mobile(iccoa);
+                    auth::handle_iccoa_auth_response_from_mobile(iccoa)
                 }
                 Ok(MessageType::COMMAND) => {
-                    return command::ranging::handle_iccoa_ranging_command_response_from_mobile(iccoa);
+                    command::ranging::handle_iccoa_ranging_command_response_from_mobile(iccoa)
                 }
                 Ok(MessageType::NOTIFICATION) => {
-                    return Err(ErrorKind::ICCOAObjectError("Notification message type is not implemented".to_string()).into());
+                    Err(ErrorKind::ICCOAObjectError("Notification message type is not implemented".to_string()).into())
                 }
                 Ok(MessageType::RFU) => {
-                    return Err(ErrorKind::ICCOAObjectError("RFU message type is not implemented".to_string()).into());
+                    Err(ErrorKind::ICCOAObjectError("RFU message type is not implemented".to_string()).into())
                 }
                 _ => {
-                    return Err(ErrorKind::ICCOAObjectError("Unsupported message type".to_string()).into());
+                    Err(ErrorKind::ICCOAObjectError("Unsupported message type".to_string()).into())
                 }
             }
         },
         StatusTag::COMMUNICATION_PROTOCOL_ERROR => {
             match status.get_code() {
                 0x01 => {
-                    return Err(ErrorKind::ICCOAObjectError("frame number error".to_string()).into());
+                    Err(ErrorKind::ICCOAObjectError("frame number error".to_string()).into())
                 },
                 0x02 => {
-                    return Err(ErrorKind::ICCOAObjectError("package length error".to_string()).into());
+                    Err(ErrorKind::ICCOAObjectError("package length error".to_string()).into())
                 },
                 _ => {
-                    return Err(ErrorKind::ICCOAObjectError("rfu".to_string()).into());
+                    Err(ErrorKind::ICCOAObjectError("rfu".to_string()).into())
                 },
             }
         },
         StatusTag::DATA_ERROR => {
             match status.get_code() {
                 0x01 => {
-                    return Err(ErrorKind::ICCOAObjectError("data format error".to_string()).into());
+                    Err(ErrorKind::ICCOAObjectError("data format error".to_string()).into())
                 },
                 0x02 => {
-                    return Err(ErrorKind::ICCOAObjectError("invalid message type".to_string()).into());
+                    Err(ErrorKind::ICCOAObjectError("invalid message type".to_string()).into())
                 },
                 _ => {
-                    return Err(ErrorKind::ICCOAObjectError("rfu".to_string()).into());
+                    Err(ErrorKind::ICCOAObjectError("rfu".to_string()).into())
                 },
             }
         },
         StatusTag::REQUEST_ERROR => {
             match status.get_code() {
                 0x01 => {
-                    return Err(ErrorKind::ICCOAObjectError("running, do not call frequently".to_string()).into());
+                    Err(ErrorKind::ICCOAObjectError("running, do not call frequently".to_string()).into())
                 },
                 0x02 => {
-                    return Err(ErrorKind::ICCOAObjectError("running timetout".to_string()).into());
+                    Err(ErrorKind::ICCOAObjectError("running timetout".to_string()).into())
                 },
                 _ => {
-                    return Err(ErrorKind::ICCOAObjectError("rfu".to_string()).into());
+                    Err(ErrorKind::ICCOAObjectError("rfu".to_string()).into())
                 },
             }
         },
         StatusTag::BUSINESS_ERROR => {
             match status.get_code() {
                 0x01 => {
-                    return Err(ErrorKind::ICCOAObjectError("vehicle is not paired".to_string()).into());
+                    Err(ErrorKind::ICCOAObjectError("vehicle is not paired".to_string()).into())
                 },
                 0x02 => {
-                    return Err(ErrorKind::ICCOAObjectError("vehicle already paired".to_string()).into());
+                    Err(ErrorKind::ICCOAObjectError("vehicle already paired".to_string()).into())
                 },
                 0x03 => {
-                    return Err(ErrorKind::ICCOAObjectError("car key authentication failure".to_string()).into());
+                    Err(ErrorKind::ICCOAObjectError("car key authentication failure".to_string()).into())
                 }
                 _ => {
-                    return Err(ErrorKind::ICCOAObjectError("rfu".to_string()).into());
+                    Err(ErrorKind::ICCOAObjectError("rfu".to_string()).into())
                 },
             }
         },
         StatusTag::RFU => {
-            return Err(ErrorKind::ICCOAObjectError("rfu".to_string()).into());
+            Err(ErrorKind::ICCOAObjectError("rfu".to_string()).into())
         },
     }
-
 }
 
 pub fn handle_data_package_from_mobile(data_package: &[u8]) -> Result<ICCOA> {
     if let Ok(mut iccoa) = ICCOA::deserialize(data_package) {
         let mark = iccoa.get_header().get_mark();
-        if mark.get_more_fragment() == true {
+        if mark.get_more_fragment() {
             objects::collect_iccoa_fragments(iccoa);
             return Err(ErrorKind::ICCOAObjectError("receive fragments".to_string()).into());
         }
-        if mark.get_more_fragment() == false && mark.get_fragment_offset() != 0x00 {
+        if !mark.get_more_fragment() && mark.get_fragment_offset() != 0x00 {
             objects::collect_iccoa_fragments(iccoa);
             iccoa = objects::reassemble_iccoa_fragments();
         }
         match iccoa.get_header().get_packet_type() {
             PacketType::REQUEST_PACKET => {
-                return handle_iccoa_request_from_mobile(&iccoa)
+                handle_iccoa_request_from_mobile(&iccoa)
             },
             PacketType::REPLY_PACKET => {
-                return handle_iccoa_response_from_mobile(&iccoa)
+                handle_iccoa_response_from_mobile(&iccoa)
             },
             _ => {
-                return Err(ErrorKind::ICCOAObjectError("not supported packet type".to_string()).into());
+                Err(ErrorKind::ICCOAObjectError("not supported packet type".to_string()).into())
             },
         }
     } else {
-        return Err(ErrorKind::ICCOAObjectError("data package deserialize error".to_string()).into());
+        Err(ErrorKind::ICCOAObjectError("data package deserialize error".to_string()).into())
     }
 }
 

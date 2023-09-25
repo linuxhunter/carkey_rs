@@ -79,9 +79,8 @@ const MEASURED_BASE: f32 = 10.0;
 const MEASURED_POWER: f32 = -69.0;
 const MEASURED_N: f32 = 3.0;
 fn calculate_distance_by_rssi(rssi: i16) -> f32 {
-    let exponent = (MEASURED_POWER - rssi as f32) / (10 as f32 * MEASURED_N);
-    let distance = MEASURED_BASE.powf(exponent);
-    distance
+    let exponent = (MEASURED_POWER - rssi as f32) / (10_f32 * MEASURED_N);
+    MEASURED_BASE.powf(exponent)
 }
 
 #[tokio::main]
@@ -151,7 +150,7 @@ async fn main() -> bluer::Result<()> {
                         let mut bt_notify_rx = bt_notify_tx.clone().subscribe();
                         async move {
                             tokio::spawn(async move {
-                                if notifier.is_stopped() == false {
+                                if !notifier.is_stopped() {
                                     /*
                                     let icce = icce::auth::create_icce_auth_get_process_data_request();
                                     if let Err(err) = notifier.notify(icce.serialize()).await {
@@ -338,15 +337,12 @@ async fn main() -> bluer::Result<()> {
     loop {
         tokio::select! {
             Some(device_event) = device_events.next() => {
-                match device_event {
-                    AdapterEvent::DeviceAdded(addr) => {
-                        let device = adapter.device(addr)?;
-                        if device.is_trusted().await? {
-                            let change_events = device.events().await?.map(move |evt| (addr, evt));
-                            all_change_events.push(change_events);
-                        }
-                    },
-                    _ => (),
+                if let AdapterEvent::DeviceAdded(addr) = device_event {
+                    let device = adapter.device(addr)?;
+                    if device.is_trusted().await? {
+                        let change_events = device.events().await?.map(move |evt| (addr, evt));
+                        all_change_events.push(change_events);
+                    }
                 }
             },
             Some((addr, DeviceEvent::PropertyChanged(DeviceProperty::Rssi(rssi)))) = all_change_events.next() => {
@@ -367,41 +363,11 @@ async fn main() -> bluer::Result<()> {
                 if let Ok(response) = icce::bluetooth_io::handle_data_package_from_mobile(&data_package) {
                     if let Some(splitted_response) = icce::objects::split_icce(&response) {
                         for response in splitted_response {
-                            let _ = bt_notify_tx.send(response.serialize());
+                            let _ = bt_notify_tx2.send(response.serialize());
                         }
                     } else {
-                        let _ = bt_notify_tx.send(response.serialize());
+                        let _ = bt_notify_tx2.send(response.serialize());
                     }
-                }
-                */
-                /*
-                println!("GOT ICCE Package from Mobile = {:02X?}", icce_package);
-                if let Ok(mut icce_object) = icce::objects::ICCE::deserialize(&icce_package) {
-                    println!("icce_object is {:?}", icce_object);
-                    let icce_header_control = icce_object.get_header().get_control();
-                    if icce_header_control.is_first_frag() || icce_header_control.is_conti_frag() {
-                        icce::objects::collect_icce_fragments(icce_object);
-                        continue;
-                    }
-                    if icce_header_control.is_last_frag() {
-                        icce::objects::collect_icce_fragments(icce_object);
-                        icce_object = icce::objects::reassemble_icce_fragments();
-                    }
-                    if icce_header_control.is_request() {
-                        if let Ok(response) = icce::objects::handle_icce_mobile_request(&icce_object) {
-                            if response.len() > 1 {
-                                let _ = bt_notify_tx.send(response);
-                            }
-                        }
-                    } else {
-                        if let Ok(response) = icce::objects::handle_icce_mobile_response(&icce_object) {
-                            if response.len() > 0 {
-                                let _ = bt_notify_tx.send(response);
-                            }
-                        }
-                    }
-                } else {
-                    println!("Error on ICCE deserialized");
                 }
                 */
             },

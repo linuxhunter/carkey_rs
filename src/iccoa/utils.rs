@@ -118,28 +118,28 @@ impl KeyDeriveMaterial {
                 .map_err(|e| ErrorKind::ICCOAEncryptError(format!("get vehicle temp public key error: {:?}", e)))?;
             Ok(public_key_pem)
         } else {
-            return Err(ErrorKind::ICCOAEncryptError("vehicle temp public key is empty".to_string()).into())
+            Err(ErrorKind::ICCOAEncryptError("vehicle temp public key is empty".to_string()).into())
         }
     }
     pub fn get_mobile_temp_public_key_pem(&self) -> Result<Vec<u8>> {
         if let Some(mobile_temp_public_key) = self.mobile_temp_public_key.as_ref() {
             Ok(mobile_temp_public_key.to_vec())
         } else {
-            return Err(ErrorKind::ICCOAEncryptError("mobile temp public key is empty".to_string()).into())
+            Err(ErrorKind::ICCOAEncryptError("mobile temp public key is empty".to_string()).into())
         }
     }
     pub fn get_vehicle_id(&self) -> Result<Vec<u8>> {
         if let Some(vehicle_id) = self.vehicle_id.as_ref() {
             Ok(vehicle_id.clone())
         } else {
-            return Err(ErrorKind::ICCOAEncryptError("vehicle id is empty".to_string()).into())
+            Err(ErrorKind::ICCOAEncryptError("vehicle id is empty".to_string()).into())
         }
     }
     pub fn get_mobile_id(&self) -> Result<Vec<u8>> {
         if let Some(mobile_id) = self.mobile_id.as_ref() {
             Ok(mobile_id.clone())
         } else {
-            return Err(ErrorKind::ICCOAEncryptError("mobile id is empty".to_string()).into())
+            Err(ErrorKind::ICCOAEncryptError("mobile id is empty".to_string()).into())
         }
     }
     pub fn serialize_key_material(&self, op_type: &str, other_materials: &[u8]) -> Result<Vec<u8>> {
@@ -174,21 +174,21 @@ impl KeyMaterialOperation for KeyDeriveMaterial {
     fn signature(&self) -> Result<Vec<u8>> {
         let vehicle_auth_info = self.serialize_key_material("signature", "Auth".as_bytes())?;
         if let Some(vehicle_temp_private_key) = self.vehicle_temp_keypair.as_ref() {
-            let mut signer = Signer::new(MessageDigest::sha256(), &vehicle_temp_private_key)
+            let mut signer = Signer::new(MessageDigest::sha256(), vehicle_temp_private_key)
                 .map_err(|e| ErrorKind::ICCOAEncryptError(format!("create signer with sha256 error: {:?}", e)))?;
             signer.update(&vehicle_auth_info)
                 .map_err(|e| ErrorKind::ICCOAEncryptError(format!("update sha256 source data error: {:?}", e)))?;
             signer.sign_to_vec()
                 .map_err(|e| ErrorKind::ICCOAEncryptError(format!("signature vehicle auth info error: {:?}", e)).into())
         } else {
-            return Err(ErrorKind::ICCOAEncryptError("vehicle temp private key is empty".to_string()).into())
+            Err(ErrorKind::ICCOAEncryptError("vehicle temp private key is empty".to_string()).into())
         }
     }
 
     fn verify(&self, signature: &[u8]) -> Result<bool> {
         let mobile_auth_info = self.serialize_key_material("verify", "Auth".as_bytes())?;
         if let Some(mobile_temp_public_key) = self.mobile_temp_public_key.as_ref() {
-            let pubkey = PKey::public_key_from_pem(&mobile_temp_public_key)
+            let pubkey = PKey::public_key_from_pem(mobile_temp_public_key)
                 .map_err(|e| ErrorKind::ICCOAEncryptError(format!("create public key from pem error: {:?}", e)))?;
             let mut verifier = Verifier::new(MessageDigest::sha256(), &pubkey)
                 .map_err(|e| ErrorKind::ICCOAEncryptError(format!("create verifier with sha256 error: {:?}", e)))?;
@@ -197,7 +197,7 @@ impl KeyMaterialOperation for KeyDeriveMaterial {
             verifier.verify(signature)
                 .map_err(|e| ErrorKind::ICCOAAuthError(format!("verify mobile auth info error: {:?}", e)).into())
         } else {
-            return Err(ErrorKind::ICCOAAuthError("mobile temp public key is empty".to_string()).into())
+            Err(ErrorKind::ICCOAAuthError("mobile temp public key is empty".to_string()).into())
         }
     }
 
@@ -229,7 +229,7 @@ impl KeyMaterialOperation for KeyDeriveMaterial {
 pub fn calculate_derive_key(salt: Option<&[u8]>, ikm: &[u8], info: &[u8], key_length: usize) -> Result<Vec<u8>> {
     let hk = Hkdf::<Sha256>::new(salt, ikm);
     let mut okm = [0u8; 64];
-    hk.expand(&info, &mut okm).map_err(|e| ErrorKind::ICCOAEncryptError(format!("hkdf with sha256 error: {:?}", e)))?;
+    hk.expand(info, &mut okm).map_err(|e| ErrorKind::ICCOAEncryptError(format!("hkdf with sha256 error: {:?}", e)))?;
     Ok(okm[0..key_length].to_vec())
 }
 

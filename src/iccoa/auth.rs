@@ -92,59 +92,59 @@ fn create_iccoa_auth_response(transaction_id: u16, status: Status, tag: u8, payl
 
 
 pub fn create_iccoa_standard_auth_pubkey_exchange_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
-    return create_iccoa_auth_request(transaction_id, 0x01, payloads)
+    create_iccoa_auth_request(transaction_id, 0x01, payloads)
 }
 
 pub fn create_iccoa_standard_auth_pubkey_exchange_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
-    return create_iccoa_auth_response(transaction_id, status, 0x01, payloads)
+    create_iccoa_auth_response(transaction_id, status, 0x01, payloads)
 }
 
 pub fn create_iccoa_standard_auth_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
-    return create_iccoa_auth_request(transaction_id, 0x02, payloads)
+    create_iccoa_auth_request(transaction_id, 0x02, payloads)
 }
 
 pub fn create_iccoa_standard_auth_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
-    return create_iccoa_auth_response(transaction_id, status, 0x02, payloads)
+    create_iccoa_auth_response(transaction_id, status, 0x02, payloads)
 }
 
 pub fn create_iccoa_standard_auth_friend_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
-    return create_iccoa_auth_request(transaction_id, 0x03, payloads)
+    create_iccoa_auth_request(transaction_id, 0x03, payloads)
 }
 
 pub fn create_iccoa_standard_auth_friend_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
-    return create_iccoa_auth_response(transaction_id, status, 0x03, payloads)
+    create_iccoa_auth_response(transaction_id, status, 0x03, payloads)
 }
 
 pub fn create_iccoa_standard_auth_write_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
-    return create_iccoa_auth_request(transaction_id, 0x04, payloads)
+    create_iccoa_auth_request(transaction_id, 0x04, payloads)
 }
 
 pub fn create_iccoa_standard_auth_write_response(transaction_id: u16, status: Status) -> Result<ICCOA> {
-    return create_iccoa_auth_response(transaction_id, status, 0x04, &[])
+    create_iccoa_auth_response(transaction_id, status, 0x04, &[])
 }
 
 pub fn create_iccoa_standard_auth_read_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
-    return create_iccoa_auth_request(transaction_id, 0x05, payloads)
+    create_iccoa_auth_request(transaction_id, 0x05, payloads)
 }
 
 pub fn create_iccoa_standard_auth_read_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
-    return create_iccoa_auth_response(transaction_id, status, 0x05, payloads)
+    create_iccoa_auth_response(transaction_id, status, 0x05, payloads)
 }
 
 pub fn create_iccoa_fast_auth_pubkey_exchange_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
-    return create_iccoa_auth_request(transaction_id, 0xC1, payloads)
+    create_iccoa_auth_request(transaction_id, 0xC1, payloads)
 }
 
 pub fn create_iccoa_fast_auth_pubkey_exchange_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
-    return create_iccoa_auth_response(transaction_id, status, 0xC1, payloads)
+    create_iccoa_auth_response(transaction_id, status, 0xC1, payloads)
 }
 
 pub fn create_iccoa_fast_auth_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
-    return create_iccoa_auth_request(transaction_id, 0xC2, payloads)
+    create_iccoa_auth_request(transaction_id, 0xC2, payloads)
 }
 
 pub fn create_iccoa_fast_auth_response(transaction_id: u16, status: Status) -> Result<ICCOA> {
-    return create_iccoa_auth_response(transaction_id, status, 0xC2, &[])
+    create_iccoa_auth_response(transaction_id, status, 0xC2, &[])
 }
 
 pub fn create_iccoa_standard_auth_pubkey_exchange_request_package() -> Result<ICCOA> {
@@ -185,7 +185,7 @@ pub fn handle_iccoa_standard_auth_data_exchange_response_payload(iccoa: &ICCOA) 
         return Err(ErrorKind::ICCOAAuthError("standard auth data exchange response tag error".to_string()).into());
     }
     let total_payload = message_data.get_value();
-    let total_length = total_payload.len() as usize;
+    let total_length = total_payload.len();
     let mut index = 0x00;
     let mut carkey_temp_pubkey = Vec::new();
     let mut carkey_id = Vec::new();
@@ -214,7 +214,7 @@ pub fn handle_iccoa_standard_auth_response_payload(iccoa: &ICCOA) -> Result<()> 
         return Err(ErrorKind::ICCOAAuthError("standard auth response tag error".to_string()).into());
     }
     let total_payload = message_data.get_value();
-    let total_length = total_payload.len() as usize;
+    let total_length = total_payload.len();
     let mut index = 0x00;
     let mut mobile_auth_info = Vec::new();
     while index < total_length {
@@ -239,11 +239,11 @@ pub fn handle_iccoa_standard_auth_response_payload(iccoa: &ICCOA) -> Result<()> 
                 Ok(())
             } else {
                 println!("Failed");
-                return Err(ErrorKind::ICCOAAuthError("mobile auth info signature verify error".to_string()).into());
+                Err(ErrorKind::ICCOAAuthError("mobile auth info signature verify error".to_string()).into())
             }
         },
         Err(_) => {
-            return Err(ErrorKind::ICCOAAuthError("mobile auth info signature verify error".to_string()).into());
+            Err(ErrorKind::ICCOAAuthError("mobile auth info signature verify error".to_string()).into())
         }
     }
 }
@@ -257,7 +257,7 @@ pub fn handle_iccoa_fast_auth_data_exchange_response_payload(iccoa: &ICCOA) -> R
         return Err(ErrorKind::ICCOAAuthError("standard auth data exchange response tag error".to_string()).into());
     }
     let total_payload = message_data.get_value();
-    let total_length = total_payload.len() as usize;
+    let total_length = total_payload.len();
     let mut index = 0x00;
     let mut carkey_temp_pubkey = Vec::new();
     let mut carkey_id = Vec::new();
@@ -289,7 +289,7 @@ pub fn handle_iccoa_fast_auth_data_exchange_response_payload(iccoa: &ICCOA) -> R
         auth_sign_object.calculate_cryptogram(&auth_key.get_kv_mac(), "vehicle")
     } else {
         println!("-------------- Fast Auth Failed-------------------");
-        return Err(ErrorKind::ICCOAAuthError("fast auth verify cryptogram error".to_string()).into());
+        Err(ErrorKind::ICCOAAuthError("fast auth verify cryptogram error".to_string()).into())
     }
 }
 
@@ -303,7 +303,7 @@ pub fn handle_iccoa_fast_auth_response_payload(iccoa: &ICCOA) -> Result<()> {
         return Err(ErrorKind::ICCOAAuthError("standard auth response tag error".to_string()).into());
     }
     let total_payload = message_data.get_value();
-    let total_length = total_payload.len() as usize;
+    let total_length = total_payload.len();
     let mut index = 0x00;
     let mut mobile_auth_info = Vec::new();
     while index < total_length {
@@ -321,11 +321,11 @@ pub fn handle_iccoa_fast_auth_response_payload(iccoa: &ICCOA) -> Result<()> {
                 Ok(())
             } else {
                 println!("Failed");
-                return Err(ErrorKind::ICCOAAuthError("mobile auth info signature verify error".to_string()).into());
+                Err(ErrorKind::ICCOAAuthError("mobile auth info signature verify error".to_string()).into())
             }
         },
         Err(_) => {
-            return Err(ErrorKind::ICCOAAuthError("mobile auth info signature verify error".to_string()).into());
+            Err(ErrorKind::ICCOAAuthError("mobile auth info signature verify error".to_string()).into())
         }
     }
 }
@@ -345,7 +345,7 @@ pub fn handle_iccoa_auth_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
         0x02 => {
             //handle standard auth response
             handle_iccoa_standard_auth_response_payload(iccoa)?;
-            return Err(ErrorKind::ICCOAAuthError("standard auth completed".to_string()).into());
+            Err(ErrorKind::ICCOAAuthError("standard auth completed".to_string()).into())
         },
         0xC1 => {
             //handle fast auth vehicle temp pubkey response
@@ -358,10 +358,10 @@ pub fn handle_iccoa_auth_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
         0xC2 => {
             //handle fast auth response
             let _status = handle_iccoa_fast_auth_response_payload(iccoa);
-            return Err(ErrorKind::ICCOAAuthError("fast auth completed".to_string()).into());
+            Err(ErrorKind::ICCOAAuthError("fast auth completed".to_string()).into())
         },
         _ => {
-            return Err(ErrorKind::ICCOAPairingError("RFU is not implemented".to_string()).into());
+            Err(ErrorKind::ICCOAPairingError("RFU is not implemented".to_string()).into())
         },
     }
 }

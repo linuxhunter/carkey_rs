@@ -49,14 +49,13 @@ impl TLVPayload {
         }
     }
     pub fn get_total_length(&self) -> usize {
-        let mut length_bytes = 0x00;
-        if self.value.len() < 0x80 {
-            length_bytes = 1;
+        let length_bytes = if self.value.len() < 0x80 {
+            1
         } else if self.value.len() < 0x100 {
-            length_bytes = 2;
+            2
         } else {
-            length_bytes = 3;
-        }
+            3
+        };
         1+length_bytes+self.value.len()
     }
     pub fn get_tag(&self) -> u8 {
@@ -87,17 +86,19 @@ impl TLVPayload {
         let mut index = 0x00;
         payload.tag = buffer[index];
         index += 1;
-        let mut length = 0x00;
-        if buffer[index] < 128 {
-            length = buffer[index] as usize;
+        let length = if buffer[index] < 128 {
+            let length = buffer[index] as usize;
             index += 1;
+            length
         } else if buffer[index] == 0x81 {
-            length = buffer[index+1] as usize;
+            let length = buffer[index+1] as usize;
             index += 2;
+            length
         } else {
-            length = (u16::from_be_bytes([buffer[index+1], buffer[index+2]])) as usize;
+            let length = (u16::from_be_bytes([buffer[index+1], buffer[index+2]])) as usize;
             index += 3;
-        }
+            length
+        };
         payload.value = buffer[index..index+length].to_vec();
 
         Ok(payload)

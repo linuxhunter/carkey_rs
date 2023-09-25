@@ -41,9 +41,6 @@ pub fn handle_auth_get_process_data_response_payload(payload: &[u8], reader_rnd:
     let mut card_rnd = Vec::with_capacity(8);
     let mut card_info1 = Vec::new();
     let mut encrypted_text = Vec::new();
-    let mut session_iv = Vec::new();
-    let mut session_key = Vec::new();
-    let mut card_atc = Vec::new();
 
     if sw1 == 0x90 && sw2 == 0x00 {
         let mut index = 0x00;
@@ -85,14 +82,15 @@ pub fn handle_auth_get_process_data_response_payload(payload: &[u8], reader_rnd:
                     encrypted_text.append(&mut value.clone().to_vec());
                 }
             }
-            if card_rnd.len() == 0 || reader_rnd.len() == 0 || card_seid.len() == 0 || card_id.len() == 0 {
+            if card_rnd.is_empty() || reader_rnd.is_empty() || card_seid.is_empty() || card_id.is_empty() {
                 println!("Cannot calculate session IV and session Key");
                 return Err("Cannot calculate session IV or session Key".to_string());
             }
-            session_iv = aes128::calculate_session_iv(reader_rnd, &card_rnd);
+            let mut card_atc = Vec::new();
+            let session_iv = aes128::calculate_session_iv(reader_rnd, &card_rnd);
             let dkey = aes128::calculate_dkey(&card_seid, &card_id);
             let card_iv = aes128::get_card_iv();
-            session_key = aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter)?;
+            let session_key = aes128::calculate_session_key(&dkey, &card_iv, &session_iv, reader_key_parameter)?;
             let decrypted_text = aes128::decrypt_with_session_key(&session_key, &session_iv, &encrypted_text)?;
             index = 0;
             while index < decrypted_text.len() {
@@ -111,12 +109,12 @@ pub fn handle_auth_get_process_data_response_payload(payload: &[u8], reader_rnd:
                     index += length;
                 }
             }
-            return Ok((session_key, session_iv, card_atc, card_rnd));
+            Ok((session_key, session_iv, card_atc, card_rnd))
         } else {
-            return Err("Invalid Payload Label".to_string());
+            Err("Invalid Payload Label".to_string())
         }
     } else {
-        return Err("Response is not correct".to_string());
+        Err("Response is not correct".to_string())
     }
 }
 
@@ -183,12 +181,12 @@ pub fn handle_auth_auth_response_payload(payload: &[u8], _reader_rnd: &[u8], ses
                     index += length;
                 }
             }
-            return Ok((card_auth_parameter, reader_auth_parameter))
+            Ok((card_auth_parameter, reader_auth_parameter))
         } else {
-            return Err("Invalid Payload Label".to_string());
+            Err("Invalid Payload Label".to_string())
         }
     } else {
-        return Err("Response is not correct".to_string());
+        Err("Response is not correct".to_string())
     }
 }
 
@@ -246,7 +244,7 @@ pub fn handle_icce_auth_response(body: &Body) -> Result<Vec<u8>> {
             let value = payload.get_payload_value();
             if value[0] == 0x77 && value[1] == 0x5A && value[2] == 0x08 {
                 //sending auth get process data response
-                if let Ok((session_key, session_iv, card_atc, card_rnd)) = handle_auth_get_process_data_response_payload(&value, &reader_rnd, &reader_key_parameter) {
+                if let Ok((session_key, session_iv, card_atc, card_rnd)) = handle_auth_get_process_data_response_payload(value, &reader_rnd, &reader_key_parameter) {
                     objects::update_session_key(&session_key);
                     objects::update_session_iv(&session_iv);
                     objects::update_card_atc(&card_atc);

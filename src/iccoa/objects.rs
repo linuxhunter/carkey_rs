@@ -12,17 +12,12 @@ lazy_static! {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub enum PacketType {
+    #[default]
     REQUEST_PACKET,
     EVENT_PACKET,
     REPLY_PACKET,
-}
-
-impl Default for PacketType {
-    fn default() -> Self {
-        PacketType::REQUEST_PACKET
-    }
 }
 
 impl TryFrom<u8> for PacketType {
@@ -49,18 +44,13 @@ impl From<PacketType> for u8 {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub enum EncryptType {
+    #[default]
     NO_ENCRYPT,
     ENCRYPT_BEFORE_AUTH,
     ENCRYPT_AFTER_AUTH,
     RFU,
-}
-
-impl Default for EncryptType {
-    fn default() -> Self {
-        EncryptType::NO_ENCRYPT
-    }
 }
 
 impl TryFrom<u8> for EncryptType {
@@ -136,11 +126,7 @@ impl Mark {
         let mut mark = Mark::new();
         let mark_u16 = u16::from_be_bytes(buffer.try_into().unwrap());
         let encrypt_type = EncryptType::try_from((mark_u16 >> 14) as u8)?;
-        let more_fragment = if (mark_u16 >> 13) & 0x01 != 0 {
-            true
-        } else {
-            false
-        };
+        let more_fragment = (mark_u16 >> 13) & 0x01 != 0;
         let fragment_offset = mark_u16 & 0x1FFF;
         mark.set_encrypt_type(encrypt_type);
         mark.set_more_fragment(more_fragment);
@@ -231,12 +217,13 @@ impl Header {
         self.mark
     }
     pub fn serialize(&self) -> Vec<u8> {
-        let mut buffer = Vec::new();
+        let mut buffer = vec![
+            self.version,
+            self.connection_id,
+            u8::from(self.packet_type),
+            self.rfu
+        ];
 
-        buffer.push(self.version);
-        buffer.push(self.connection_id);
-        buffer.push(u8::from(self.packet_type));
-        buffer.push(self.rfu);
         buffer.append(&mut self.source_transaction_id.to_be_bytes().to_vec());
         buffer.append(&mut self.dest_transaction_id.to_be_bytes().to_vec());
         buffer.append(&mut self.pdu_length.to_be_bytes().to_vec());
@@ -268,20 +255,15 @@ impl Header {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub enum MessageType {
+    #[default]
     OEM_DEFINED,
     VEHICLE_PAIRING,
     AUTH,
     COMMAND,
     NOTIFICATION,
     RFU,
-}
-
-impl Default for MessageType {
-    fn default() -> Self {
-        MessageType::OEM_DEFINED
-    }
 }
 
 impl TryFrom<u8> for MessageType {
@@ -343,8 +325,8 @@ impl MessageData {
     }
     pub fn serialize(&self, request: bool, fragment: bool) -> Vec<u8> {
         let mut buffer = Vec::new();
-        if fragment == false {
-            if request == false {
+        if !fragment {
+            if !request {
                 buffer.append(&mut self.status.serialize());
             }
             buffer.push(self.tag);
@@ -357,8 +339,8 @@ impl MessageData {
     pub fn deserialize(buffer: &[u8], request: bool, fragment: bool) -> Result<Self> {
         let mut message_data = MessageData::new();
         let mut index = 0;
-        if fragment == false {
-            if request == false {
+        if !fragment {
+            if !request {
                 let status_tag = StatusTag::from(buffer[index]);
                 let status_code = buffer[index+1];
                 let status = match status_tag {
@@ -407,7 +389,7 @@ impl Body {
     }
     pub fn serialize(&self, request: bool, fragment: bool) -> Vec<u8> {
         let mut buffer = Vec::new();
-        if fragment == false {
+        if !fragment {
             buffer.push(self.message_type.into());
         }
         buffer.append(&mut self.message_data.serialize(request, fragment));
@@ -417,7 +399,7 @@ impl Body {
     pub fn deserialize(buffer: &[u8], request: bool, fragment: bool) -> Result<Self> {
         let mut body = Body::new();
         let mut index = 0;
-        if fragment == false {
+        if !fragment {
             body.set_message_type(MessageType::try_from(buffer[index])?);
             index += 1;
         }
@@ -453,15 +435,8 @@ impl ICCOA {
     pub fn calculate_mac(&mut self) {
         let mut message = Vec::new();
         message.append(&mut self.header.serialize());
-        let request = match self.get_header().get_packet_type() {
-            PacketType::REQUEST_PACKET | PacketType::EVENT_PACKET => true,
-            _ => false,
-        };
-        let fragment = if self.get_header().get_mark().get_fragment_offset() != 0 {
-            true
-        } else {
-            false
-        };
+        let request = matches!(self.get_header().get_packet_type(), PacketType::REQUEST_PACKET | PacketType::EVENT_PACKET);
+        let fragment = self.get_header().get_mark().get_fragment_offset() != 0;
         message.append(&mut self.body.serialize(request, fragment));
         let key = match self.get_body().message_type {
             MessageType::VEHICLE_PAIRING | MessageType::AUTH => {
@@ -480,15 +455,8 @@ impl ICCOA {
     pub fn verify_mac(&self) -> bool {
         let mut message = Vec::new();
         message.append(&mut self.header.serialize());
-        let request = match self.get_header().get_packet_type() {
-            PacketType::REQUEST_PACKET | PacketType::EVENT_PACKET => true,
-            _ => false,
-        };
-        let fragment = if self.get_header().get_mark().get_fragment_offset() != 0 {
-            true
-        } else {
-            false
-        };
+        let request = matches!(self.get_header().get_packet_type(), PacketType::REQUEST_PACKET | PacketType::EVENT_PACKET);
+        let fragment = self.get_header().get_mark().get_fragment_offset() != 0;
         message.append(&mut self.body.serialize(request, fragment));
         let key = match self.get_body().message_type {
             MessageType::VEHICLE_PAIRING | MessageType::AUTH => {
@@ -499,39 +467,21 @@ impl ICCOA {
             }
         };
         let result = utils::calculate_cmac(&key, &message).unwrap();
-        if result[0..8] == self.mac.to_vec() {
-            true
-        } else {
-            false
-        }
+        result[0..8] == self.mac.to_vec()
     }
     pub fn serialize(&self) -> Vec<u8> {
         let mut buffer = Vec::new();
         buffer.append(&mut self.header.serialize().to_vec());
-        let request = match self.get_header().get_packet_type() {
-            PacketType::REQUEST_PACKET | PacketType::EVENT_PACKET => true,
-            _ => false,
-        };
-        let fragment = if self.get_header().get_mark().get_fragment_offset() != 0 {
-            true
-        } else {
-            false
-        };
+        let request = matches!(self.get_header().get_packet_type(), PacketType::REQUEST_PACKET | PacketType::EVENT_PACKET);
+        let fragment = self.get_header().get_mark().get_fragment_offset() != 0;
         buffer.append(&mut self.body.serialize(request, fragment).to_vec());
         buffer.append(&mut self.mac.to_vec());
         buffer
     }
     pub fn deserialize(buffer: &[u8]) -> Result<Self> {
         let header = Header::deserialize(buffer)?;
-        let request = match header.get_packet_type() {
-            PacketType::REQUEST_PACKET | PacketType::EVENT_PACKET => true,
-            _ => false,
-        };
-        let fragment = if header.get_mark().get_fragment_offset() != 0 {
-            true
-        } else {
-            false
-        };
+        let request = matches!(header.get_packet_type(), PacketType::REQUEST_PACKET | PacketType::EVENT_PACKET);
+        let fragment = header.get_mark().get_fragment_offset() != 0;
         let body = Body::deserialize(&buffer[*ICCOA_HEADER_LENGTH..buffer.len()-8], request, fragment)?;
         let mac = buffer[buffer.len()-8..].try_into()
             .map_err(|e| ErrorKind::ICCOAObjectError(format!("deserialized ICCOA mac error: {:?}", e)))?;
@@ -558,12 +508,10 @@ pub fn create_iccoa_header(packet_type: PacketType, transaction_id: u16, body_le
         } else {
             header.set_dest_transaction_id(transaction_id);
         }
-    } else {
-        if transaction_id == 0x0000 {
+    } else if transaction_id == 0x0000 {
             header.update_source_transaction_id();
-        } else {
-            header.set_source_transaction_id(transaction_id);
-        }
+    } else {
+        header.set_source_transaction_id(transaction_id);
     }
     header.set_pdu_length(12+body_length+8);
     header.set_mark(mark);
@@ -657,23 +605,25 @@ pub fn split_iccoa(iccoa: &ICCOA) -> Option<Vec<ICCOA>> {
         tmp_iccoa.header.set_packet_type(iccoa.get_header().packet_type);
         tmp_iccoa.header.set_source_transaction_id(iccoa.get_header().get_source_transaction_id());
         tmp_iccoa.header.set_dest_transaction_id(iccoa.get_header().get_dest_transaction_id());
-        let mut payload_length: u16 = 0x00;
-        if position == 0x00 {
+        let payload_length = if position == 0x00 {
             if iccoa.get_header().get_packet_type() == PacketType::REPLY_PACKET {
-                payload_length = *BLE_DEFAULT_MTU - 26;
+                let payload_length = *BLE_DEFAULT_MTU - 26;
                 tmp_iccoa.header.set_pdu_length(12+1+2+3+payload_length+8);
+                payload_length
             } else {
-                payload_length = *BLE_DEFAULT_MTU - 24;
+                let payload_length = *BLE_DEFAULT_MTU - 24;
                 tmp_iccoa.header.set_pdu_length(12+1+3+payload_length+8);
+                payload_length
             }
         } else {
-            if total_payload_length - position > *BLE_DEFAULT_MTU - 20 {
-                payload_length = *BLE_DEFAULT_MTU - 20;
+            let payload_length = if total_payload_length - position > *BLE_DEFAULT_MTU - 20 {
+                *BLE_DEFAULT_MTU - 20
             } else {
-                payload_length = total_payload_length - position;
-            }
+                total_payload_length - position
+            };
             tmp_iccoa.header.set_pdu_length(12+payload_length+8);
-        }
+            payload_length
+        };
         tmp_iccoa.header.mark.set_encrypt_type(iccoa.get_header().get_mark().get_encrypt_type());
         if position + payload_length == total_payload_length {
             tmp_iccoa.header.mark.set_more_fragment(false);
@@ -695,7 +645,7 @@ pub fn split_iccoa(iccoa: &ICCOA) -> Option<Vec<ICCOA>> {
             break;
         }
     }
-    return Some(splitted_iccoa)
+    Some(splitted_iccoa)
 }
 
 #[cfg(test)]

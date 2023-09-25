@@ -57,61 +57,31 @@ impl Control {
         self.0 |= 0b00000011;
     }
     pub fn is_request(&self) -> bool {
-        if self.0 & 0b00010000 == 0 {
-            false
-        } else {
-            true
-        }
+        self.0 & 0b00010000 != 0
     }
     pub fn is_crypto(&self) -> bool {
-        if self.0 & 0b00001000 == 0 {
-            false
-        } else {
-            true
-        }
+        self.0 & 0b00001000 != 0
     }
     pub fn is_async(&self) -> bool {
-        if self.0 & 0b00000100 == 0 {
-            false
-        } else {
-            true
-        }
+        self.0 & 0b00000100 != 0
     }
     pub fn is_no_frag(&self) -> bool {
-        if self.0 & 0b0000_0011 == 0b0000_0000 {
-            true
-        } else {
-            false
-        }
+        self.0 & 0b0000_0011 == 0b0000_0000
     }
     pub fn is_first_frag(&self) -> bool {
-        if self.0 & 0b0000_0001 == 0b0000_0001 {
-            true
-        } else {
-            false
-        }
+        self.0 & 0b0000_0001 == 0b0000_0001
     }
     pub fn is_conti_frag(&self) -> bool {
-        if self.0 & 0b0000_0010 == 0b0000_0010 {
-            true
-        } else {
-            false
-        }
+        self.0 & 0b0000_0010 == 0b0000_0010
     }
     pub fn is_last_frag(&self) -> bool {
-        if self.0 & 0b0000_0011 == 0b0000_0011 {
-            true
-        } else {
-            false
-        }
+        self.0 & 0b0000_0011 == 0b0000_0011
     }
     pub fn serialize(&self) -> Vec<u8> {
-        let mut serialized_data: Vec<u8> = Vec::new();
-        serialized_data.push(self.0);
-        serialized_data
+        vec![self.0]
     }
     pub fn deserialize(byte_stream: &[u8]) -> Result<Self> {
-        if byte_stream.len() < 1 {
+        if byte_stream.is_empty() {
             return Err("Invalid byte stream length".to_string());
         }
         let mut control = Control::new();
@@ -245,9 +215,8 @@ impl Payload {
         let mut value_offset = 2;
         if byte_stream[1] == 0xFF {
             let mut ret = 0;
-            for i in 2..4 {
-                let x = byte_stream[i];
-                ret = ret << 8 | usize::from(x);
+            for item in byte_stream.iter().take(4).skip(2) {
+                ret = ret << 8 | usize::from(*item);
             }
             payload.set_payload_length(ret);
             value_offset = 4;
@@ -291,7 +260,7 @@ impl Body {
     }
     pub fn serialize(&self, frag_flag: bool) -> Vec<u8> {
         let mut serialized_data: Vec<u8> = Vec::new();
-        if frag_flag == false {
+        if !frag_flag {
             serialized_data.push(self.message_id);
             serialized_data.push(self.command_id);
             self.payloads.iter().for_each(|payload| {
@@ -308,13 +277,13 @@ impl Body {
             return Err("Invalid byte stream length".to_string());
         }
         let mut body = Body::new();
-        if frag_flag == false {
+        if !frag_flag {
             body.set_message_id(byte_stream[0]);
             body.set_command_id(byte_stream[1]);
             let mut index = 2;
             while index < byte_stream.len() {
                 let payload = Payload::deserialize(&byte_stream[index..])?;
-                index = index + 2 + payload.payload_length as usize;
+                index = index + 2 + payload.payload_length;
                 body.set_payload(payload);
             }
         } else {
@@ -374,7 +343,7 @@ impl ICCE {
     pub fn serialize(&self) -> Vec<u8> {
         let mut serialized_data = Vec::new();
         let frag_flag = self.get_header().get_control().is_conti_frag() || self.get_header().get_control().is_last_frag();
-        if self.get_header().get_control().is_crypto() == false {
+        if !self.get_header().get_control().is_crypto() {
             serialized_data.append(&mut self.header.serialize());
             serialized_data.append(&mut self.body.serialize(frag_flag));
             serialized_data.append(&mut self.checksum.to_le_bytes().to_vec());
@@ -407,7 +376,7 @@ impl ICCE {
         }
         icce.set_header(Header::deserialize(&byte_stream[0..])?);
         let frag_flag = icce.get_header().get_control().is_conti_frag() || icce.get_header().get_control().is_last_frag();
-        if icce.get_header().get_control().is_crypto() == false {
+        if !icce.get_header().get_control().is_crypto() {
             icce.set_body(Body::deserialize(&byte_stream[5..byte_stream.len()-2], frag_flag)?);
             let checksum_bytes: [u8; 2] = [byte_stream[byte_stream.len()-2], byte_stream[byte_stream.len()-1]];
             icce.set_checksum(u16::from_le_bytes(checksum_bytes));
@@ -437,17 +406,17 @@ impl ICCE {
 
 pub fn create_icce_header(request_flag: bool, crypto_flag: bool, async_flag: bool, frag_flag: u8, fsn: u8, length: u16) -> Header {
     let mut control = Control::new();
-    if request_flag == true {
+    if request_flag {
         control.set_request();
     } else {
         control.set_response();
     }
-    if crypto_flag == true {
+    if crypto_flag {
         control.set_crypto();
     } else {
         control.set_no_crypto();
     }
-    if async_flag == true {
+    if async_flag {
         control.set_async();
     } else {
         control.set_sync();
@@ -490,11 +459,7 @@ pub fn create_icce_body(message_id: u8, command_id: u8, payloads: &[Payload]) ->
 
 pub fn is_session_key_valid() -> bool {
     let session_key = SESSION_KEY.lock().unwrap().to_vec();
-    if session_key.ne(&[0u8; 16]) {
-        true
-    } else {
-        false
-    }
+    session_key.ne(&[0u8; 16])
 }
 
 pub fn update_session_key(key: &[u8]) {
@@ -528,7 +493,7 @@ pub fn collect_icce_fragments(icce: ICCE) {
 pub fn reassemble_icce_fragments() -> ICCE {
     let mut icce = ICCE::new();
     let mut icce_fragments = ICCE_FRAGMENTS.lock().unwrap();
-    icce_fragments.sort_by(|a, b| a.get_header().get_fsn().cmp(&b.get_header().get_fsn()));
+    icce_fragments.sort_by_key(|a| a.get_header().get_fsn());
     let mut total_length: u16 = 0x0000;
     for (index, tmp_icce) in icce_fragments.iter().enumerate() {
         if index == 0 {
