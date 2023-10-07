@@ -15,19 +15,19 @@ pub fn create_auth_get_process_data_payload(reader_type: &[u8], reader_id: &[u8]
     payload.push(0x9F);
     payload.push(0x35);
     payload.push(reader_type.len() as u8);
-    payload.append(&mut reader_type.clone().to_vec());
+    payload.append(&mut reader_type.to_vec());
     payload.push(0x9F);
     payload.push(0x1E);
     payload.push(reader_id.len() as u8);
-    payload.append(&mut reader_id.clone().to_vec());
+    payload.append(&mut reader_id.to_vec());
     payload.push(0x9F);
     payload.push(0x37);
     payload.push(reader_rnd.len() as u8);
-    payload.append(&mut reader_rnd.clone().to_vec());
+    payload.append(&mut reader_rnd.to_vec());
     payload.push(0x9F);
     payload.push(0x0C);
     payload.push(reader_key_parameter.len() as u8);
-    payload.append(&mut reader_key_parameter.clone().to_vec());
+    payload.append(&mut reader_key_parameter.to_vec());
     payload.push(0x00);     //Le
 
     payload
@@ -53,33 +53,33 @@ pub fn handle_auth_get_process_data_response_payload(payload: &[u8], reader_rnd:
                     index += 1;
                     let value = &payload[index..index+length];
                     index += length;
-                    card_seid.append(&mut value.clone().to_vec());
+                    card_seid.append(&mut value.to_vec());
                 } else if payload[index] == 0x9F && payload[index+1] == 0x3B {
                     index += 2;
                     let length = payload[index] as usize;
                     index += 1;
                     let value = &payload[index..index+length];
                     index += length;
-                    card_id.append(&mut value.clone().to_vec());
+                    card_id.append(&mut value.to_vec());
                 } else if payload[index] == 0x9F && payload[index+1] == 0x3E {
                     index += 2;
                     let length = payload[index] as usize;
                     index += 1;
                     let value = &payload[index..index+length];
                     index += length;
-                    card_rnd.append(&mut value.clone().to_vec());
+                    card_rnd.append(&mut value.to_vec());
                 } else if payload[index] == 0x9F && payload[index+1] == 0x05 {
                     index += 2;
                     let length = payload[index] as usize;
                     index += 1;
                     let value = &payload[index..index+length];
                     index += length;
-                    card_info1.append(&mut value.clone().to_vec());
+                    card_info1.append(&mut value.to_vec());
                 } else if payload[index] == 0x73 {
                     index += 1;
                     let value = &payload[index..payload.len()-2];
                     index = payload.len() - 2;
-                    encrypted_text.append(&mut value.clone().to_vec());
+                    encrypted_text.append(&mut value.to_vec());
                 }
             }
             if card_rnd.is_empty() || reader_rnd.is_empty() || card_seid.is_empty() || card_id.is_empty() {
@@ -100,7 +100,7 @@ pub fn handle_auth_get_process_data_response_payload(payload: &[u8], reader_rnd:
                     index += 1;
                     let value = &decrypted_text[index..index+length];
                     index += length;
-                    card_atc.append(&mut value.clone().to_vec());
+                    card_atc.append(&mut value.to_vec());
                 } else if decrypted_text[index] == 0x9F && decrypted_text[index+1] == 0x37 {
                     index += 2;
                     let length = decrypted_text[index] as usize;
@@ -130,15 +130,15 @@ pub fn create_auth_auth_payload(card_atc: &[u8], reader_auth_parameter: &[u8], c
     data_domain.push(0x9F);
     data_domain.push(0x36);
     data_domain.push(card_atc.len() as u8);
-    data_domain.append(&mut card_atc.clone().to_vec());
+    data_domain.append(&mut card_atc.to_vec());
     data_domain.push(0x9F);
     data_domain.push(0x0A);
     data_domain.push(reader_auth_parameter.len() as u8);
-    data_domain.append(&mut reader_auth_parameter.clone().to_vec());
+    data_domain.append(&mut reader_auth_parameter.to_vec());
     data_domain.push(0x9F);
     data_domain.push(0x3E);
     data_domain.push(card_rnd.len() as u8);
-    data_domain.append(&mut card_rnd.clone().to_vec());
+    data_domain.append(&mut card_rnd.to_vec());
     let encrypt_data = aes128::encrypt_with_session_key(session_key, session_iv, &data_domain)?;
 
     payload.push(1 + encrypt_data.len() as u8);      //Lc
@@ -165,14 +165,14 @@ pub fn handle_auth_auth_response_payload(payload: &[u8], _reader_rnd: &[u8], ses
                     index += 1;
                     let value = &decrypted_text[index..index+length];
                     index += length;
-                    card_auth_parameter.append(&mut value.clone().to_vec());
+                    card_auth_parameter.append(&mut value.to_vec());
                 } else if decrypted_text[index] == 0x9F && decrypted_text[index+1] == 0x0A {
                     index += 2;
                     let length = decrypted_text[index] as usize;
                     index += 1;
                     let value = &decrypted_text[index..index+length];
                     index += length;
-                    reader_auth_parameter.append(&mut value.clone().to_vec());
+                    reader_auth_parameter.append(&mut value.to_vec());
                 } else if decrypted_text[index] == 0x9F && decrypted_text[index+1] == 0x37 {
                     index += 2;
                     let length = decrypted_text[index] as usize;

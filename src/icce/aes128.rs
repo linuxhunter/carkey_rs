@@ -72,8 +72,8 @@ pub fn get_card_iv() -> Vec<u8> {
 //calculate Sessin IV with ReaderRnd || CardRnd
 pub fn calculate_session_iv(reader_rnd: &[u8], card_rnd: &[u8]) -> Vec<u8> {
     let mut session_iv = Vec::with_capacity(16);
-    session_iv.append(&mut reader_rnd.clone().to_vec());
-    session_iv.append(&mut card_rnd.clone().to_vec());
+    session_iv.append(&mut reader_rnd.to_vec());
+    session_iv.append(&mut card_rnd.to_vec());
     if session_iv.len() > 16 {
         session_iv[session_iv.len() - 16..].to_vec()
     } else {
@@ -84,8 +84,8 @@ pub fn calculate_session_iv(reader_rnd: &[u8], card_rnd: &[u8]) -> Vec<u8> {
 //calculate Session Key with DKey and CardIV and it's payload of Session IV || ReaderKeyParameter
 pub fn calculate_session_key(dkey: &[u8], card_iv: &[u8], session_iv: &[u8], reader_key_parameter: &[u8]) -> Result<Vec<u8>> {
     let mut payload = Vec::new();
-    payload.append(&mut session_iv.clone().to_vec());
-    payload.append(&mut reader_key_parameter.clone().to_vec());
+    payload.append(&mut session_iv.to_vec());
+    payload.append(&mut reader_key_parameter.to_vec());
 
     let session_key = encrypt_with_session_key(dkey, card_iv, &payload)?;
     if session_key.len() > 16 {
