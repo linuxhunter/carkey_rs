@@ -22,9 +22,12 @@ const SCRYPT_N: u32 = 32768;
 const SCRYPT_R: u16 = 1;
 const SCRYPT_P: u16 = 8;
 
+const SPAKE2_PLUS_SCRYPT_RETRY_MAX: i32 = 16;
+
 lazy_static! {
     static ref PAIRING_KEY: Mutex<CipherKey> = Mutex::new(CipherKey::new());
     static ref SPAKE2_PLUS_OBJECT: Mutex<Spake2Plus> = Mutex::new(Spake2Plus::new(W0, L, M, N));
+    static ref SPAKE2_PLUS_SCRYPT_RETRY: Mutex<i32> = Mutex::new(0);
 }
 
 #[derive(Debug, PartialEq)]
@@ -53,8 +56,8 @@ impl Spake2Plus {
             n: BigNum::from_hex_str(n).unwrap(),
             p: BigNum::new().unwrap(),
             h: 0x01,
-            //random_y: random::<u32>(),
-            random_y: rand::thread_rng().gen_range(0..100),
+            random_y: random::<u32>(),
+            //random_y: rand::thread_rng().gen_range(0..100),
             pa: BigNum::new().unwrap(),
             pb: BigNum::new().unwrap(),
             z: BigNum::new().unwrap(),
@@ -428,15 +431,30 @@ pub fn handle_iccoa_pairing_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA>
         },
         0x03 => {   //get cA
             //handle cA
-            handle_iccoa_pairing_c_a_payload(iccoa, &spake2_plus_object)?;
-            //create spake2+ pairing certificate write request
-            let vehicle_pubkey_cert = get_vehicle_certificate();
-            let enc_key = PAIRING_KEY.lock().unwrap().get_key_enc();
-            let iv = utils::get_default_iv();
-            let cipher_text= utils::encrypt_aes_128_cbc(&enc_key, &vehicle_pubkey_cert, &iv)?;
-            let vehicle_pubkey_cert_payload = TLVPayloadBuilder::new().set_tag(0x55).set_value(&cipher_text).build();
-            let response = create_iccoa_pairing_certificate_write_request(transaction_id, &[vehicle_pubkey_cert_payload])?;
-            Ok(response)
+            let mut retry_count = SPAKE2_PLUS_SCRYPT_RETRY.lock().unwrap();
+            if let Err(e) = handle_iccoa_pairing_c_a_payload(iccoa, &spake2_plus_object) {
+                if *retry_count == SPAKE2_PLUS_SCRYPT_RETRY_MAX {
+                    *retry_count = 0;
+                    Err(e)
+                } else {
+                    *retry_count += 1;
+                    println!("CA Failed!!! Try again!!!!!!");
+                    println!("Retry count = {}", *retry_count);
+                    drop(spake2_plus_object);
+                    let pairing_request = create_iccoa_pairing_data_request_package().unwrap();
+                    ICCOA::deserialize(pairing_request.as_ref())
+                }
+            } else {
+                *retry_count = 0;
+                //create spake2+ pairing certificate write request
+                let vehicle_pubkey_cert = get_vehicle_certificate();
+                let enc_key = PAIRING_KEY.lock().unwrap().get_key_enc();
+                let iv = utils::get_default_iv();
+                let cipher_text= utils::encrypt_aes_128_cbc(&enc_key, &vehicle_pubkey_cert, &iv)?;
+                let vehicle_pubkey_cert_payload = TLVPayloadBuilder::new().set_tag(0x55).set_value(&cipher_text).build();
+                let response = create_iccoa_pairing_certificate_write_request(transaction_id, &[vehicle_pubkey_cert_payload])?;
+                Ok(response)
+            }
         },
         0x04 => {   //get write command status
             //handle write command status
