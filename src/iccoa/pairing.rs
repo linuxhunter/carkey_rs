@@ -4,7 +4,7 @@ use std::sync::Mutex;
 use openssl::bn::{BigNum, BigNumContext};
 use openssl::ec::EcGroup;
 use openssl::nid::Nid;
-use rand::random;
+use rand::{random, Rng};
 use crate::iccoa::objects::EncryptType;
 
 use crate::iccoa::utils::CipherKey;
@@ -53,7 +53,8 @@ impl Spake2Plus {
             n: BigNum::from_hex_str(n).unwrap(),
             p: BigNum::new().unwrap(),
             h: 0x01,
-            random_y: random::<u32>(),
+            //random_y: random::<u32>(),
+            random_y: rand::thread_rng().gen_range(0..100),
             pa: BigNum::new().unwrap(),
             pb: BigNum::new().unwrap(),
             z: BigNum::new().unwrap(),
