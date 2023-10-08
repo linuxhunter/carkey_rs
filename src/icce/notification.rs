@@ -196,6 +196,26 @@ pub fn handle_get_server_state_event_response(body: &objects::Body) -> Result<Ve
     Ok(response)
 }
 
+pub fn test_create_vehicle_event_request() -> Vec<u8> {
+    let vehicle_event = 0x00;
+    let async_result = vec![0x11, 0x22, 0x33, 0x44];
+    let vehicle_state = vec![0x55, 0x66, 0x77, 0x88];
+    let icce = create_icce_vehicle_state_event_request(vehicle_event, &async_result, &vehicle_state);
+    icce.serialize()
+}
+
+pub fn test_create_app_event_request() -> Vec<u8> {
+    let app_data = vec![0xaa, 0xbb, 0xcc, 0xdd];
+    let icce = create_icce_vehicle_to_app_event_request(&app_data);
+    icce.serialize()
+}
+
+pub fn test_create_server_event_request() -> Vec<u8> {
+    let server_data = vec![0xff, 0xee, 0xdd, 0xcc];
+    let icce = create_icce_vehicle_to_server_event_request(&server_data);
+    icce.serialize()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

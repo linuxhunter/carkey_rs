@@ -224,7 +224,7 @@ pub fn get_carkey_certificate() -> Vec<u8> {
     [0x04; 16].to_vec()
 }
 
-pub fn create_iccoa_pairing_data_request_package() -> Result<Vec<u8>> {
+pub fn create_iccoa_pairing_data_request_init() -> Result<ICCOA> {
     let transaction_id = 0x0000;
     let mut spake2_plus_object = SPAKE2_PLUS_OBJECT.lock().unwrap();
     spake2_plus_object.calculate_pb()?;
@@ -236,7 +236,7 @@ pub fn create_iccoa_pairing_data_request_package() -> Result<Vec<u8>> {
     let iccoa = create_iccoa_pairing_data_request(
         transaction_id,
         &[p_b_payload, salt_payload, nscrypt_payload, r_payload, p_payload])?;
-    Ok(iccoa.serialize())
+    Ok(iccoa)
 }
 
 fn create_iccoa_pairing_request(transaction_id: u16, tag: u8, payloads: &[TLVPayload]) -> Result<ICCOA> {
@@ -441,8 +441,7 @@ pub fn handle_iccoa_pairing_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA>
                     println!("CA Failed!!! Try again!!!!!!");
                     println!("Retry count = {}", *retry_count);
                     drop(spake2_plus_object);
-                    let pairing_request = create_iccoa_pairing_data_request_package().unwrap();
-                    ICCOA::deserialize(pairing_request.as_ref())
+                    create_iccoa_pairing_data_request_init()
                 }
             } else {
                 *retry_count = 0;

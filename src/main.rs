@@ -25,56 +25,6 @@ lazy_static! {
     static ref READ_CHARACTERISTIC_UUID: Uuid = Uuid::from_u16(0xFFFE);
 }
 
-fn test_create_measure_request() -> Vec<u8> {
-    let measure_type = 0x01;
-    let icce = icce::command::create_icce_measure_request(measure_type);
-    icce.serialize()
-}
-
-fn test_craate_anti_relay_request() -> Vec<u8> {
-    let measure_type = 0x01;
-    let vehicle_info = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06];
-    let icce = icce::command::create_icce_anti_relay_request(measure_type, &vehicle_info);
-    icce.serialize()
-}
-
-fn test_create_mobile_info_request() -> Vec<u8> {
-    let request_type = 0x01;
-    let icce = icce::command::create_icce_get_mobile_info_request(request_type);
-    icce.serialize()
-}
-
-fn test_create_calbriate_time_request() -> Vec<u8> {
-    let icce = icce::command::create_icce_calibrate_clock_request();
-    icce.serialize()
-}
-
-fn test_create_protocol_request() -> Vec<u8> {
-    let vehicle_protocol = vec![0x01, 0x02, 0x03, 0x04];
-    let icce = icce::command::create_icce_get_protocol_request(&vehicle_protocol);
-    icce.serialize()
-}
-
-fn test_create_vehicle_event_request() -> Vec<u8> {
-    let vehicle_event = 0x00;
-    let async_result = vec![0x11, 0x22, 0x33, 0x44];
-    let vehicle_state = vec![0x55, 0x66, 0x77, 0x88];
-    let icce = icce::notification::create_icce_vehicle_state_event_request(vehicle_event, &async_result, &vehicle_state);
-    icce.serialize()
-}
-
-fn test_create_app_event_request() -> Vec<u8> {
-    let app_data = vec![0xaa, 0xbb, 0xcc, 0xdd];
-    let icce = icce::notification::create_icce_vehicle_to_app_event_request(&app_data);
-    icce.serialize()
-}
-
-fn test_create_server_event_request() -> Vec<u8> {
-    let server_data = vec![0xff, 0xee, 0xdd, 0xcc];
-    let icce = icce::notification::create_icce_vehicle_to_server_event_request(&server_data);
-    icce.serialize()
-}
-
 const MEASURED_BASE: f32 = 10.0;
 const MEASURED_POWER: f32 = -69.0;
 const MEASURED_N: f32 = 3.0;
@@ -157,10 +107,10 @@ async fn main() -> bluer::Result<()> {
                                         println!("Notification error when setting get process data request: {}", err);
                                     }
                                     */
-                                    let pairing_request = pairing::create_iccoa_pairing_data_request_package().unwrap();
-                                    println!("pairing request = {:02X?}", pairing_request);
-                                    if let Err(err) = notifier.notify(pairing_request).await {
-                                        println!("Notification error when setting get process data request: {}", err);
+                                    if let Ok(iccoa) = pairing::create_iccoa_pairing_data_request_init() {
+                                        if let Err(err) = notifier.notify(iccoa.serialize()).await {
+                                            println!("Notification error when setting get process data request: {}", err);
+                                        }
                                     }
                                 }
                                 while let Ok(notify_data) = bt_notify_rx.recv().await {
@@ -197,28 +147,28 @@ async fn main() -> bluer::Result<()> {
             }
             let icce_package = match index {
                 0x00 => {
-                    test_create_measure_request()
+                    icce::command::test_create_measure_request()
                 },
                 0x01 => {
-                    test_craate_anti_relay_request()
+                    icce::command::test_craate_anti_relay_request()
                 },
                 0x02 => {
-                    test_create_mobile_info_request()
+                    icce::command::test_create_mobile_info_request()
                 },
                 0x03 => {
-                    test_create_calbriate_time_request()
+                    icce::command::test_create_calbriate_time_request()
                 },
                 0x04 => {
-                    test_create_protocol_request()
+                    icce::command::test_create_protocol_request()
                 },
                 0x05 => {
-                    test_create_vehicle_event_request()
+                    icce::notification::test_create_vehicle_event_request()
                 },
                 0x06 => {
-                    test_create_app_event_request()
+                    icce::notification::test_create_app_event_request()
                 },
                 _ => {
-                    test_create_server_event_request()
+                    icce::notification::test_create_server_event_request()
                 }
             };
             println!("sending icce_package is {:02X?}", icce_package);
@@ -371,9 +321,9 @@ async fn main() -> bluer::Result<()> {
                 }
                 */
             },
-            Some(icce_package) = bt_send_package_rx.recv() => {
-                println!("GOT ICCE Package from Vehicle = {:02X?}", icce_package);
-                let _ = bt_notify_tx2.clone().send(icce_package);
+            Some(sending_package) = bt_send_package_rx.recv() => {
+                println!("GOT Sending Package from Vehicle = {:02X?}", sending_package);
+                let _ = bt_notify_tx2.clone().send(sending_package);
             },
             Ok(_) = tokio::signal::ctrl_c() => break,
             else => break,

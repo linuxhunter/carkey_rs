@@ -359,6 +359,36 @@ pub fn handle_protocol_response(body: &objects::Body) -> Result<Vec<u8>> {
     Ok(response)
 }
 
+pub fn test_create_measure_request() -> Vec<u8> {
+    let measure_type = 0x01;
+    let icce = create_icce_measure_request(measure_type);
+    icce.serialize()
+}
+
+pub fn test_craate_anti_relay_request() -> Vec<u8> {
+    let measure_type = 0x01;
+    let vehicle_info = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06];
+    let icce = create_icce_anti_relay_request(measure_type, &vehicle_info);
+    icce.serialize()
+}
+
+pub fn test_create_mobile_info_request() -> Vec<u8> {
+    let request_type = 0x01;
+    let icce = create_icce_get_mobile_info_request(request_type);
+    icce.serialize()
+}
+
+pub fn test_create_calbriate_time_request() -> Vec<u8> {
+    let icce = create_icce_calibrate_clock_request();
+    icce.serialize()
+}
+
+pub fn test_create_protocol_request() -> Vec<u8> {
+    let vehicle_protocol = vec![0x01, 0x02, 0x03, 0x04];
+    let icce = create_icce_get_protocol_request(&vehicle_protocol);
+    icce.serialize()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
