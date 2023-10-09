@@ -6,7 +6,7 @@ mod bluetooth;
 mod icce;
 mod iccoa;
 
-use bluer::{adv::Advertisement, UuidExt, AdapterEvent, DeviceEvent, DeviceProperty};
+use bluer::{adv::Advertisement, UuidExt, AdapterEvent, DeviceEvent, DeviceProperty, Address};
 use bluer::gatt::local::{Application, Service, Characteristic, CharacteristicNotify, CharacteristicRead, CharacteristicWrite, CharacteristicWriteMethod};
 use futures::{FutureExt, pin_mut, stream::SelectAll, StreamExt};
 use tokio::sync::{mpsc, broadcast};
@@ -25,12 +25,28 @@ lazy_static! {
     static ref READ_CHARACTERISTIC_UUID: Uuid = Uuid::from_u16(0xFFFE);
 }
 
+static BLUETOOTH_EVENTS_MAX: usize = 100;
+static mut TEMP_RSSI: i16 = 0;
 const MEASURED_BASE: f32 = 10.0;
 const MEASURED_POWER: f32 = -69.0;
-const MEASURED_N: f32 = 3.0;
+const MEASURED_N: f32 = 2.0;
 fn calculate_distance_by_rssi(rssi: i16) -> f32 {
     let exponent = (MEASURED_POWER - rssi as f32) / (10_f32 * MEASURED_N);
     MEASURED_BASE.powf(exponent)
+}
+
+fn update_rssi(addr: Address, rssi: i16) {
+    unsafe {
+        if rssi != TEMP_RSSI {
+            let distance = if TEMP_RSSI != 0 {
+                calculate_distance_by_rssi((rssi + TEMP_RSSI) / 2)
+            } else {
+                calculate_distance_by_rssi(rssi)
+            };
+            TEMP_RSSI = rssi;
+            println!("Device {}, distance: {}m, rssi: {}", addr, distance, rssi);
+        }
+    }
 }
 
 #[tokio::main]
@@ -132,7 +148,7 @@ async fn main() -> bluer::Result<()> {
     };
     let app_handle = adapter.serve_gatt_application(app).await?;
 
-    let device_events = adapter.discover_devices().await?;
+    let device_events = adapter.discover_devices_with_changes().await?;
     pin_mut!(device_events);
     let mut all_change_events = SelectAll::new();
 
@@ -291,12 +307,16 @@ async fn main() -> bluer::Result<()> {
                     let device = adapter.device(addr)?;
                     if device.is_trusted().await? {
                         let change_events = device.events().await?.map(move |evt| (addr, evt));
-                        all_change_events.push(change_events);
+                        if all_change_events.len() <= BLUETOOTH_EVENTS_MAX {
+                            all_change_events.push(change_events);
+                        } else {
+                            all_change_events.clear();
+                        }
                     }
                 }
             },
             Some((addr, DeviceEvent::PropertyChanged(DeviceProperty::Rssi(rssi)))) = all_change_events.next() => {
-                println!("Device {}, distance: {}m", addr, calculate_distance_by_rssi(rssi));
+                update_rssi(addr, rssi);
             },
             Some(data_package) = bt_write_rx.recv() => {
                 println!("GOT ICCOA Package from Mobile = {:02X?}", data_package);
