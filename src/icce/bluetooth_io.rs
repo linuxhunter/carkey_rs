@@ -14,40 +14,40 @@ pub fn handle_icce_mobile_request(icce_object: &objects::ICCE) -> Result<Vec<u8>
                 0x03 => {
                     //test for print decrypted RKE Commands
                     for payload in body.get_payloads() {
-                        println!("RKE Command Type is {}", payload.get_payload_type());
-                        println!("RKE Command Content Length is {}", payload.get_payload_length());
-                        println!("RKE Comamnd Content is {:02X?}", payload.get_payload_value());
+                        dbg!("RKE Command Type is {}", payload.get_payload_type());
+                        dbg!("RKE Command Content Length is {}", payload.get_payload_length());
+                        dbg!("RKE Comamnd Content is {:02X?}", payload.get_payload_value());
                     }
                     //test for reply RKE Command Response
                     let status = 0x00;
                     let rke_response = vec![0x04, 0x03, 0x02, 0x01];
                     let icce = command::create_icce_rke_control_response(status, &rke_response);
                     response.append(&mut icce.serialize());
-                    println!("RKE Response is {:02X?}", response);
+                    dbg!("RKE Response is {:02X?}", response.clone());
                 },
                 0x04 => {
                     for payload in body.get_payloads() {
-                        println!("RKE Challege Type is {}", payload.get_payload_type());
-                        println!("RKE Challege Content Length is {}", payload.get_payload_length());
-                        println!("RKE Challege Content is {:02X?}", payload.get_payload_value());
+                        dbg!("RKE Challege Type is {}", payload.get_payload_type());
+                        dbg!("RKE Challege Content Length is {}", payload.get_payload_length());
+                        dbg!("RKE Challege Content is {:02X?}", payload.get_payload_value());
                     }
                     let status = 0x00;
                     let rke_challege_random_numbers = vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
                     let icce = command::create_icce_rke_challege_response(status, &rke_challege_random_numbers);
                     response.append(&mut icce.serialize());
-                    println!("RKE Challege Response is {:02X?}", response);
+                    dbg!("RKE Challege Response is {:02X?}", response.clone());
                 },
                 0x05 => {
                     for payload in body.get_payloads(){
-                        println!("Get Vehicle Info Type is {}", payload.get_payload_type());
-                        println!("Get Vehicle Info Length is {}", payload.get_payload_length());
-                        println!("Get Vehicle Info Value is {:02X?}", payload.get_payload_value());
+                        dbg!("Get Vehicle Info Type is {}", payload.get_payload_type());
+                        dbg!("Get Vehicle Info Length is {}", payload.get_payload_length());
+                        dbg!("Get Vehicle Info Value is {:02X?}", payload.get_payload_value());
                     }
                     let status = 0x00;
                     let vehicle_info = vec![0x01];
                     let icce = command::create_icce_get_vehicle_info_response(status, &vehicle_info);
                     response.append(&mut icce.serialize());
-                    println!("Get Vehicle Info Response is {:02X?}", response);
+                    dbg!("Get Vehicle Info Response is {:02X?}", response.clone());
                 },
                 _ => {
                     return Err("RFU".to_string());
@@ -58,25 +58,25 @@ pub fn handle_icce_mobile_request(icce_object: &objects::ICCE) -> Result<Vec<u8>
             match body.get_command_id() {
                 0x01 => {
                     for payload in body.get_payloads() {
-                        println!("Mobile Event Type is {}", payload.get_payload_type());
-                        println!("Mobile Event Length is {}", payload.get_payload_length());
-                        println!("Mobild Event Value is {:02X?}", payload.get_payload_value());
+                        dbg!("Mobile Event Type is {}", payload.get_payload_type());
+                        dbg!("Mobile Event Length is {}", payload.get_payload_length());
+                        dbg!("Mobild Event Value is {:02X?}", payload.get_payload_value());
                     }
                     let status = 0x00;
                     let icce = notification::create_icce_mobile_state_event_response(status);
                     response.append(&mut icce.serialize());
-                    println!("Mobile Event Response is {:02X?}", response);
+                    dbg!("Mobile Event Response is {:02X?}", response.clone());
                 },
                 0x05 => {
                     for payload in body.get_payloads() {
-                        println!("Framework to Vehicle Type is {}", payload.get_payload_type());
-                        println!("Framework to Vehicle Length is {}", payload.get_payload_length());
-                        println!("Framework to Vehicle Value is {:02X?}", payload.get_payload_value());
+                        dbg!("Framework to Vehicle Type is {}", payload.get_payload_type());
+                        dbg!("Framework to Vehicle Length is {}", payload.get_payload_length());
+                        dbg!("Framework to Vehicle Value is {:02X?}", payload.get_payload_value());
                     }
                     let status = 0x00;
                     let icce = notification::create_icce_mobile_to_vehicle_event_response(status);
                     response.append(&mut icce.serialize());
-                    println!("Framework to Vehicle Response is {:02X?}", response);
+                    dbg!("Framework to Vehicle Response is {:02X?}", response.clone());
                 },
                 _ => {
                     return Err("RFU".to_string());
@@ -152,7 +152,7 @@ pub fn handle_icce_mobile_response(icce_object: &objects::ICCE) -> Result<Vec<u8
 
 pub fn handle_data_package_from_mobile(icce_package: &[u8]) -> Result<objects::ICCE> {
     if let Ok(mut icce_object) = objects::ICCE::deserialize(icce_package) {
-        println!("icce_object is {:?}", icce_object);
+        dbg!("icce_object is {:?}", icce_object.clone());
         let icce_header_control = icce_object.get_header().get_control();
         if icce_header_control.is_first_frag() || icce_header_control.is_conti_frag() {
             objects::collect_icce_fragments(icce_object);

@@ -1,3 +1,4 @@
+use log::error;
 use super::{aes128, objects::{self, Body}};
 
 type Result<T> = std::result::Result<T, String>;
@@ -83,7 +84,7 @@ pub fn handle_auth_get_process_data_response_payload(payload: &[u8], reader_rnd:
                 }
             }
             if card_rnd.is_empty() || reader_rnd.is_empty() || card_seid.is_empty() || card_id.is_empty() {
-                println!("Cannot calculate session IV and session Key");
+                error!("Cannot calculate session IV and session Key");
                 return Err("Cannot calculate session IV or session Key".to_string());
             }
             let mut card_atc = Vec::new();
@@ -249,7 +250,7 @@ pub fn handle_icce_auth_response(body: &Body) -> Result<Vec<u8>> {
                     objects::update_session_iv(&session_iv);
                     objects::update_card_atc(&card_atc);
                     let auth_request_payload = create_auth_auth_payload(&card_atc, &reader_auth_parameter, &card_rnd, &session_key, &session_iv)?;
-                    println!("Sending Auth Request......");
+                    dbg!("Sending Auth Request......");
                     response.append(&mut create_icce_auth_request(&auth_request_payload).serialize());
                     return Ok(response)
                 } else {
@@ -260,8 +261,8 @@ pub fn handle_icce_auth_response(body: &Body) -> Result<Vec<u8>> {
                 let session_key = objects::get_session_key();
                 let session_iv = objects::get_session_iv();
                 if let Ok((card_auth_parameter, reader_auth_parameter)) = handle_auth_auth_response_payload(value, &reader_rnd, &session_key, &session_iv) {
-                    println!("card_auth_parameter = {:02X?}", card_auth_parameter);
-                    println!("reader_auth_parameter = {:02X?}", reader_auth_parameter);
+                    dbg!("card_auth_parameter = {:02X?}", card_auth_parameter);
+                    dbg!("reader_auth_parameter = {:02X?}", reader_auth_parameter);
                     return Ok(response)
                 } else {
                     return Err("ICCE Auth Response Status Error".to_string());

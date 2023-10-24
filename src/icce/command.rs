@@ -1,3 +1,4 @@
+use log::info;
 use super::objects;
 
 type Result<T> = std::result::Result<T, String>;
@@ -262,7 +263,7 @@ pub fn handle_measure_response(body: &objects::Body) -> Result<Vec<u8>> {
                 }
             },
             0x01 => {
-                println!("Measure Last Time(ms) = {:02X?}", payload.get_payload_value());
+                info!("Measure Last Time(ms) = {:02X?}", payload.get_payload_value());
             },
             _ => {
                 return Err("RFU".to_string());
@@ -283,10 +284,10 @@ pub fn handle_anti_relay_response(body: &objects::Body) -> Result<Vec<u8>> {
                 }
             },
             0x01 => {
-                println!("Result of Anti-Relay is {:02X?}", payload.get_payload_value())
+                info!("Result of Anti-Relay is {:02X?}", payload.get_payload_value())
             },
             0x02 => {
-                println!("Device Info about Anti-Relay is {:02X?}", payload.get_payload_value());
+                info!("Device Info about Anti-Relay is {:02X?}", payload.get_payload_value());
             },
             _ => {
                 return Err("RFU".to_string());
@@ -307,7 +308,7 @@ pub fn handle_mobile_info_response(body: &objects::Body) -> Result<Vec<u8>> {
                 }
             },
             0x01 => {
-                println!("Mobile Info is {:02X?}", payload.get_payload_value())
+                info!("Mobile Info is {:02X?}", payload.get_payload_value())
             },
             _ => {
                 return Err("RFU".to_string());
@@ -328,7 +329,7 @@ pub fn handle_calbriate_time_response(body: &objects::Body) -> Result<Vec<u8>> {
                 }
             },
             0x01 => {
-                println!("Calbriated Time is {:02X?}", payload.get_payload_value())
+                info!("Calbriated Time is {:02X?}", payload.get_payload_value())
             },
             _ => {
                 return Err("RFU".to_string());
@@ -349,7 +350,7 @@ pub fn handle_protocol_response(body: &objects::Body) -> Result<Vec<u8>> {
                 }
             },
             0x01 => {
-                println!("Protocol is {:02X?}", payload.get_payload_value())
+                info!("Protocol is {:02X?}", payload.get_payload_value())
             },
             _ => {
                 return Err("RFU".to_string());
