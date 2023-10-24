@@ -6,13 +6,15 @@ mod bluetooth;
 mod icce;
 mod iccoa;
 
-use bluer::{adv::Advertisement, UuidExt, AdapterEvent, DeviceEvent, DeviceProperty, Address};
+use bluer::{adv::Advertisement, UuidExt, AdapterEvent, DeviceEvent, DeviceProperty};
 use bluer::gatt::local::{Application, Service, Characteristic, CharacteristicNotify, CharacteristicRead, CharacteristicWrite, CharacteristicWriteMethod};
 use futures::{FutureExt, pin_mut, stream::SelectAll, StreamExt};
+use log::{debug, error, info};
 use tokio::sync::{mpsc, broadcast};
 use uuid::Uuid;
 
 use crate::bluetooth::agent;
+use crate::bluetooth::ranging;
 use crate::iccoa::objects::ICCOA;
 use crate::iccoa::{bluetooth_io, objects, command, pairing};
 use crate::iccoa::notification::senseless_control;
@@ -25,32 +27,11 @@ lazy_static! {
     static ref READ_CHARACTERISTIC_UUID: Uuid = Uuid::from_u16(0xFFFE);
 }
 
-static BLUETOOTH_EVENTS_MAX: usize = 100;
-static mut TEMP_RSSI: i16 = 0;
-const MEASURED_BASE: f32 = 10.0;
-const MEASURED_POWER: f32 = -69.0;
-const MEASURED_N: f32 = 2.0;
-fn calculate_distance_by_rssi(rssi: i16) -> f32 {
-    let exponent = (MEASURED_POWER - rssi as f32) / (10_f32 * MEASURED_N);
-    MEASURED_BASE.powf(exponent)
-}
-
-fn update_rssi(addr: Address, rssi: i16) {
-    unsafe {
-        if rssi != TEMP_RSSI {
-            let distance = if TEMP_RSSI != 0 {
-                calculate_distance_by_rssi((rssi + TEMP_RSSI) / 2)
-            } else {
-                calculate_distance_by_rssi(rssi)
-            };
-            TEMP_RSSI = rssi;
-            println!("Device {}, distance: {}m, rssi: {}", addr, distance, rssi);
-        }
-    }
-}
+static BLUETOOTH_EVENTS_MAX: usize = 10;
 
 #[tokio::main]
 async fn main() -> bluer::Result<()> {
+    env_logger::init();
     let (bt_write_tx, mut bt_write_rx) = mpsc::channel(32);
     let (bt_notify_tx, _) = broadcast::channel::<Vec<u8>>(32);
     let bt_notify_tx2 = bt_notify_tx.clone();
@@ -125,13 +106,13 @@ async fn main() -> bluer::Result<()> {
                                     */
                                     if let Ok(iccoa) = pairing::create_iccoa_pairing_data_request_init() {
                                         if let Err(err) = notifier.notify(iccoa.serialize()).await {
-                                            println!("Notification error when setting get process data request: {}", err);
+                                            error!("Notification error when setting get process data request: {}", err);
                                         }
                                     }
                                 }
                                 while let Ok(notify_data) = bt_notify_rx.recv().await {
                                     if let Err(err) = notifier.notify(notify_data).await {
-                                        println!("Notification error: {}", err);
+                                        error!("Notification error: {}", err);
                                         break;
                                     }
                                 }
@@ -316,10 +297,10 @@ async fn main() -> bluer::Result<()> {
                 }
             },
             Some((addr, DeviceEvent::PropertyChanged(DeviceProperty::Rssi(rssi)))) = all_change_events.next() => {
-                update_rssi(addr, rssi);
+                ranging::update_rssi(addr, rssi);
             },
             Some(data_package) = bt_write_rx.recv() => {
-                println!("GOT ICCOA Package from Mobile = {:02X?}", data_package);
+                debug!("GOT ICCOA Package from Mobile = {:02X?}", data_package);
                 if let Ok(response) = bluetooth_io::handle_data_package_from_mobile(&data_package) {
                     if let Some(splitted_response) = objects::split_iccoa(&response) {
                         for response in splitted_response {
@@ -342,7 +323,7 @@ async fn main() -> bluer::Result<()> {
                 */
             },
             Some(sending_package) = bt_send_package_rx.recv() => {
-                println!("GOT Sending Package from Vehicle = {:02X?}", sending_package);
+                debug!("GOT Sending Package from Vehicle = {:02X?}", sending_package);
                 let _ = bt_notify_tx2.clone().send(sending_package);
             },
             Ok(_) = tokio::signal::ctrl_c() => break,
@@ -350,7 +331,7 @@ async fn main() -> bluer::Result<()> {
         }
     }
 
-    println!("Removing service and advertisement");
+    info!("Removing service and advertisement");
     adapter.set_pairable(false).await?;
     drop(app_handle);
     drop(adv_handle);

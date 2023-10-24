@@ -1,3 +1,4 @@
+use log::info;
 use crate::iccoa::{utils::{encrypt_aes_128_cbc, decrypt_aes_128_cbc, get_default_iv}, TLVPayload, TLVPayloadBuilder, auth};
 
 use super::super::{errors::*, objects, objects::{ICCOA, create_iccoa_header, Mark, create_iccoa_body_message_data, MessageType, create_iccoa_body, create_iccoa}, status::{StatusBuilder, Status}};
@@ -240,10 +241,10 @@ pub fn create_iccoa_rke_response(transaction_id: u16, status: Status, event_id: 
 pub fn handle_iccoa_rke_command(iccoa: &ICCOA) -> Result<TLVPayload> {
     //handle rke command from iccoa object
     let rke_command = RKECommandRequest::deserialize(iccoa.get_body().get_message_data().get_value())?;
-    println!("[RKE Command]:");
-    println!("\tevent_id: {:02X?}", rke_command.get_event_id());
-    println!("\tfunction_id: {:02X?}", rke_command.get_function_id());
-    println!("\taction_id: {:02X?}", rke_command.get_action_id());
+    info!("[RKE Command]:");
+    info!("\tevent_id: {:02X?}", rke_command.get_event_id());
+    info!("\tfunction_id: {:02X?}", rke_command.get_function_id());
+    info!("\taction_id: {:02X?}", rke_command.get_action_id());
     Ok(TLVPayloadBuilder::new().set_tag(0x00).set_value(&[0x00]).build())
 }
 

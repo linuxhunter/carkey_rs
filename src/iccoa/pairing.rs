@@ -1,5 +1,6 @@
 use std::io::{Read, Write};
 use std::sync::Mutex;
+use log::{error, info};
 
 use openssl::bn::{BigNum, BigNumContext};
 use openssl::ec::EcGroup;
@@ -359,9 +360,9 @@ pub fn handle_iccoa_pairing_c_a_payload(iccoa: &ICCOA, spake2_plus_object: &Spak
     }
     let mobile_c_a = c_a_tlv_payload.value.as_slice();
     if spake2_plus_object.ca.eq(mobile_c_a) {
-        println!("C_A OK!!!!!!");
+        info!("C_A OK!!!!!!");
     } else {
-        println!("C_A Failed!!!!!!");
+        error!("C_A Failed!!!!!!");
         return Err(ErrorKind::ICCOAPairingError("cA calculate error".to_string()).into());
     }
 
@@ -438,8 +439,8 @@ pub fn handle_iccoa_pairing_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA>
                     Err(e)
                 } else {
                     *retry_count += 1;
-                    println!("CA Failed!!! Try again!!!!!!");
-                    println!("Retry count = {}", *retry_count);
+                    info!("CA Failed!!! Try again!!!!!!");
+                    info!("Retry count = {}", *retry_count);
                     drop(spake2_plus_object);
                     create_iccoa_pairing_data_request_init()
                 }

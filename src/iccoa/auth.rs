@@ -1,4 +1,5 @@
 use std::sync::Mutex;
+use log::{error, info};
 use crate::iccoa::objects;
 
 use crate::iccoa::utils::{KeyDeriveMaterial, CipherKey};
@@ -235,10 +236,10 @@ pub fn handle_iccoa_standard_auth_response_payload(iccoa: &ICCOA) -> Result<()> 
                 let persistent = auth_sign_object.derive_key(None, "Persistent".as_bytes(), 32)?;
                 let mut auth_key_persistent = AUTH_KEY_PERSISTENT.lock().unwrap();
                 auth_key_persistent.append(&mut persistent.to_vec());
-                println!("OK");
+                info!("OK");
                 Ok(())
             } else {
-                println!("Failed");
+                error!("Failed");
                 Err(ErrorKind::ICCOAAuthError("mobile auth info signature verify error".to_string()).into())
             }
         },
@@ -285,10 +286,10 @@ pub fn handle_iccoa_fast_auth_data_exchange_response_payload(iccoa: &ICCOA) -> R
     auth_key.set_key_mac(&fast_cipher_key[48..64]);
     let calculated_cmac = auth_sign_object.calculate_cryptogram(&auth_key.get_kd_mac(), "mobile")?;
     if calculated_cmac.eq(&cryptogram) {
-        println!("-------------- Fast Auth OK-------------------");
+        info!("-------------- Fast Auth OK-------------------");
         auth_sign_object.calculate_cryptogram(&auth_key.get_kv_mac(), "vehicle")
     } else {
-        println!("-------------- Fast Auth Failed-------------------");
+        error!("-------------- Fast Auth Failed-------------------");
         Err(ErrorKind::ICCOAAuthError("fast auth verify cryptogram error".to_string()).into())
     }
 }
@@ -317,10 +318,10 @@ pub fn handle_iccoa_fast_auth_response_payload(iccoa: &ICCOA) -> Result<()> {
     match auth_sign_object.verify(&mobile_auth_info)  {
         Ok(result) => {
             if result {
-                println!("OK");
+                info!("OK");
                 Ok(())
             } else {
-                println!("Failed");
+                error!("Failed");
                 Err(ErrorKind::ICCOAAuthError("mobile auth info signature verify error".to_string()).into())
             }
         },

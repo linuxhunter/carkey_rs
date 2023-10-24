@@ -1,3 +1,4 @@
+use log::debug;
 use crate::iccoa::TLVPayloadBuilder;
 
 use super::super::errors::*;
@@ -83,9 +84,9 @@ pub fn create_iccoa_ranging_request_package() -> Result<ICCOA> {
 pub fn handle_iccoa_ranging_command_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
     let ranging_result= TLVPayload::deserialize(iccoa.get_body().get_message_data().get_value())?;
     if ranging_result.get_tag() == 0x00 {
-        println!("Ranging Success!");
+        debug!("Ranging Success!");
     } else {
-        println!("Ranging Failure");
+        debug!("Ranging Failure");
     }
     Err(ErrorKind::ICCOACommandError("Ranging Command completed".to_string()).into())
 }

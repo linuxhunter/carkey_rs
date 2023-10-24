@@ -1,4 +1,5 @@
 use std::sync::Mutex;
+use log::{debug, error};
 
 use super::{errors::*, status::{Status, StatusTag, StatusBuilder}, utils, pairing, auth};
 
@@ -491,9 +492,9 @@ impl ICCOA {
             mac
         };
         if iccoa.verify_mac() {
-            println!("Verify MAC OK......");
+            debug!("Verify MAC OK......");
         } else {
-            println!("Verify MAC Failed......");
+            error!("Verify MAC Failed......");
         }
         Ok(iccoa)
     }
