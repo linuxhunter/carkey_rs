@@ -675,10 +675,48 @@ impl Display for RkeResponse {
 }
 
 #[derive(Debug, PartialOrd, PartialEq)]
+pub struct RkeVerificationResponse {
+    inner: Vec<u8>,
+}
+
+impl RkeVerificationResponse {
+    pub fn new(random: &[u8]) -> Self {
+        RkeVerificationResponse {
+            inner: random.to_vec(),
+        }
+    }
+    pub fn get_rke_verification_response(&self) -> &[u8] {
+        self.inner.as_ref()
+    }
+    pub fn set_rke_verification_response(&mut self, random: &[u8]) {
+        self.inner = random.to_vec();
+    }
+    pub fn serialize(&self) -> Result<Vec<u8>> {
+        let tag = ber::Tag::try_from(RKE_VERIFICATION_RESPONSE_TAG)
+            .map_err(|e| ErrorKind::RkeError(format!("create rke verification response tag error: {}", e)))?;
+        let value = ber::Value::Primitive(self.inner.clone());
+        let tlv = ber::Tlv::new(tag, value)
+            .map_err(|e| ErrorKind::RkeError(format!("create rke verification response tlv error: {}", e)))?;
+        Ok(tlv.to_vec())
+    }
+    pub fn deserialize(data: &[u8]) -> Result<Self> {
+        let tlv = ber::Tlv::from_bytes(data)
+            .map_err(|e| ErrorKind::RkeError(format!("deserialize rke verification response from bytes error: {}", e)))?;
+        if tlv.tag().to_bytes() != RKE_VERIFICATION_RESPONSE_TAG.to_be_bytes() {
+            return Err(ErrorKind::RkeError(format!("deserialized rke request tag is not corrected")).into());
+        }
+        let tag = ber::Tag::try_from(RKE_VERIFICATION_RESPONSE_TAG)
+            .map_err(|e| ErrorKind::RkeError(format!("create rke verification response tag error: {}", e)))?;
+        let value = get_tlv_primitive_value(&tlv, &tag)
+            .map_err(|e| ErrorKind::RkeError(format!("deserialize rke verification response value error: {}", e)))?;
+        Ok(RkeVerificationResponse::new(value))
+    }
+}
+#[derive(Debug, PartialOrd, PartialEq)]
 pub enum Rke {
     Request(RkeRequest),
     ContinuedRequest(RkeContinuedRequest),
-    VerificationResponse(Vec<u8>),
+    VerificationResponse(RkeVerificationResponse),
     Response(RkeResponse),
 }
 
@@ -688,28 +726,12 @@ impl Rke {
             Rke::Request(request) => request.serialize(),
             Rke::ContinuedRequest(request) => request.serialize(),
             Rke::Response(response) => response.serialize(),
-            Rke::VerificationResponse(random) => {
-                let tag = ber::Tag::try_from(RKE_VERIFICATION_RESPONSE_TAG)
-                    .map_err(|e| ErrorKind::RkeError(format!("create rke verification response tag error: {}", e)))?;
-                let value = ber::Value::Primitive(random.to_owned());
-                let tlv = ber::Tlv::new(tag, value)
-                    .map_err(|e| ErrorKind::RkeError(format!("create rke verification response tlv error: {}", e)))?;
-                Ok(tlv.to_vec())
-            },
+            Rke::VerificationResponse(response) => response.serialize(),
         }
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         if data[0] == RKE_VERIFICATION_RESPONSE_TAG {
-            let tlv = ber::Tlv::from_bytes(data)
-                .map_err(|e| ErrorKind::RkeError(format!("deserialize rke verification response from bytes error: {}", e)))?;
-            if tlv.tag().to_bytes() != RKE_VERIFICATION_RESPONSE_TAG.to_be_bytes() {
-                return Err(ErrorKind::RkeError(format!("deserialized rke request tag is not corrected")).into());
-            }
-            let tag = ber::Tag::try_from(RKE_VERIFICATION_RESPONSE_TAG)
-                .map_err(|e| ErrorKind::RkeError(format!("create rke verification response tag error: {}", e)))?;
-            let value = get_tlv_primitive_value(&tlv, &tag)
-                .map_err(|e| ErrorKind::RkeError(format!("deserialize rke verification response value error: {}", e)))?;
-            Ok(Rke::VerificationResponse(value.to_owned()))
+            Ok(Rke::VerificationResponse(RkeVerificationResponse::deserialize(data)?))
         } else {
             let tag = u16::from_be_bytes(
                 (&data[0..2])
@@ -717,11 +739,11 @@ impl Rke {
                     .map_err(|e| ErrorKind::RkeError(format!("deserialize rke tag error: {}", e)))?
             );
             match tag {
-                RKE_REQUEST_TAG => return Ok(Rke::Request(RkeRequest::deserialize(data)?)),
-                RKE_CONTINUED_REQUEST_TAG => return Ok(Rke::ContinuedRequest(RkeContinuedRequest::deserialize(data)?)),
-                RKE_RESPONSE_TAG => return Ok(Rke::Response(RkeResponse::deserialize(data)?)),
+                RKE_REQUEST_TAG => Ok(Rke::Request(RkeRequest::deserialize(data)?)),
+                RKE_CONTINUED_REQUEST_TAG => Ok(Rke::ContinuedRequest(RkeContinuedRequest::deserialize(data)?)),
+                RKE_RESPONSE_TAG => Ok(Rke::Response(RkeResponse::deserialize(data)?)),
                 _ => {
-                    return Err(ErrorKind::RkeError(format!("deserialize rke tag is invalid")).into())
+                    Err(ErrorKind::RkeError(format!("deserialize rke tag is invalid")).into())
                 },
             }
         }
@@ -909,7 +931,7 @@ mod tests {
     #[test]
     fn test_rke_verification_response_tlv_serialize() {
         let random = vec![0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07];
-        let response = Rke::VerificationResponse(random);
+        let response = Rke::VerificationResponse(RkeVerificationResponse::new(random.as_ref()));
         let serialized_response = response.serialize();
         assert!(serialized_response.is_ok());
         let serialized_response = serialized_response.unwrap();
@@ -973,6 +995,8 @@ mod tests {
         let response = Rke::deserialize(data.as_ref());
         assert!(response.is_ok());
         let response = response.unwrap();
-        assert_eq!(response, Rke::VerificationResponse(vec![0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]));
+        assert_eq!(response, Rke::VerificationResponse(RkeVerificationResponse {
+            inner: vec![0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07],
+        }));
     }
 }
