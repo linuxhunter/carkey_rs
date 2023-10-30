@@ -5,6 +5,7 @@ extern crate lazy_static;
 mod bluetooth;
 mod icce;
 mod iccoa;
+mod iccoa2;
 
 use std::env;
 use bluer::{adv::Advertisement, UuidExt, AdapterEvent, DeviceEvent, DeviceProperty};
