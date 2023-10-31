@@ -4,7 +4,7 @@ use crate::iccoa2::auth::Auth;
 use crate::iccoa2::custom::CustomMessage;
 use crate::iccoa2::measure::Measure;
 use crate::iccoa2::rke::Rke;
-use crate::iccoa2::subscribe::Subscribe;
+use crate::iccoa2::vehicle_status::VehicleStatus;
 use super::errors::*;
 
 const MESSAGE_VERSION: u8 = 0x01;
@@ -19,7 +19,7 @@ pub enum MessageType {
     Apdu = 0x00,
     MeasureBroadcastRequest = 0x01,
     Rke = 0x02,
-    SubscribeQueryStatus = 0x03,
+    VehicleStatus = 0x03,
     VehicleAppCustomMessage = 0x04,
     VehicleServerCustomMessage = 0x05,
     Auth = 0x06,
@@ -40,7 +40,7 @@ impl TryFrom<u8> for MessageType {
             0x00 => Ok(MessageType::Apdu),
             0x01 => Ok(MessageType::MeasureBroadcastRequest),
             0x02 => Ok(MessageType::Rke),
-            0x03 => Ok(MessageType::SubscribeQueryStatus),
+            0x03 => Ok(MessageType::VehicleStatus),
             0x04 => Ok(MessageType::VehicleAppCustomMessage),
             0x05 => Ok(MessageType::VehicleServerCustomMessage),
             0x06 => Ok(MessageType::Auth),
@@ -56,7 +56,7 @@ impl From<MessageType> for u8 {
             MessageType::Apdu => 0x00,
             MessageType::MeasureBroadcastRequest => 0x01,
             MessageType::Rke => 0x02,
-            MessageType::SubscribeQueryStatus => 0x03,
+            MessageType::VehicleStatus => 0x03,
             MessageType::VehicleAppCustomMessage => 0x04,
             MessageType::VehicleServerCustomMessage => 0x05,
             MessageType::Auth => 0x06,
@@ -71,7 +71,7 @@ impl Display for MessageType {
             MessageType::Apdu => write!(f, "Apdu"),
             MessageType::MeasureBroadcastRequest => write!(f, "Measure request"),
             MessageType::Rke => write!(f, "Rke"),
-            MessageType::SubscribeQueryStatus => write!(f, "Subscribe and Query"),
+            MessageType::VehicleStatus => write!(f, "Vehicle Status"),
             MessageType::VehicleAppCustomMessage => write!(f, "Get vehicle app custom message"),
             MessageType::VehicleServerCustomMessage => write!(f, "Get vehicle server custom message"),
             MessageType::Auth => write!(f, "Auth"),
@@ -169,7 +169,7 @@ pub enum MessageData {
     Apdu(Apdu),
     Measure(Measure),
     Rke(Rke),
-    Subscribe(Subscribe),
+    VehicleStatus(VehicleStatus),
     VehicleAppCustomMessage(CustomMessage),
     VehicleServerCustomMessage(CustomMessage),
     Auth(Auth),
@@ -229,7 +229,7 @@ impl Message {
             MessageData::Apdu(apdu) => apdu.serialize()?,
             MessageData::Measure(measure) => measure.serialize()?,
             MessageData::Rke(rke) => rke.serialize()?,
-            MessageData::Subscribe(subscribe) => subscribe.serialize()?,
+            MessageData::VehicleStatus(vehicle_status) => vehicle_status.serialize()?,
             MessageData::VehicleAppCustomMessage(custom_message) => custom_message.serialize()?,
             MessageData::VehicleServerCustomMessage(custom_message) => custom_message.serialize()?,
             MessageData::Auth(auth) => auth.serialize()?,
@@ -261,7 +261,7 @@ impl Message {
                 MessageData::Measure(Measure::deserialize(&data[MESSAGE_DATA_OFFSET..])?)
             },
             MessageType::Rke => MessageData::Rke(Rke::deserialize(&data[MESSAGE_DATA_OFFSET..])?),
-            MessageType::SubscribeQueryStatus => MessageData::Subscribe(Subscribe::deserialize(&data[MESSAGE_DATA_OFFSET..])?),
+            MessageType::VehicleStatus => MessageData::VehicleStatus(VehicleStatus::deserialize(&data[MESSAGE_DATA_OFFSET..])?),
             MessageType::VehicleAppCustomMessage => MessageData::VehicleAppCustomMessage(CustomMessage::deserialize(&data[MESSAGE_DATA_OFFSET..])?),
             MessageType::VehicleServerCustomMessage => MessageData::VehicleServerCustomMessage(CustomMessage::deserialize(&data[MESSAGE_DATA_OFFSET..])?),
             MessageType::Auth => MessageData::Auth(Auth::deserialize(&data[MESSAGE_DATA_OFFSET..])?),

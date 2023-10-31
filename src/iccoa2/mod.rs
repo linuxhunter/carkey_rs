@@ -6,7 +6,7 @@ pub mod message;
 mod apdu;
 mod measure;
 mod rke;
-mod subscribe;
+mod vehicle_status;
 mod auth;
 mod custom;
 
@@ -19,7 +19,7 @@ mod errors {
             ApduError(t: String)
             MeasureError(t: String)
             RkeError(t: String)
-            SubscribeError(t: String)
+            VehicleStatusError(t: String)
             CustomError(t: String)
             AuthError(t: String)
         }
