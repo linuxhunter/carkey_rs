@@ -9,6 +9,7 @@ mod rke;
 mod vehicle_status;
 mod auth;
 mod custom;
+mod identifier;
 
 mod errors {
     use super::*;
@@ -22,6 +23,7 @@ mod errors {
             VehicleStatusError(t: String)
             CustomError(t: String)
             AuthError(t: String)
+            IdentifierError(t: String)
         }
     }
 }

@@ -10,9 +10,9 @@ const ALL_ENTITIES_REQUEST_TAG: u8 = 0x86;
 const ENTITY_RESPONSE_TAG: u8 = 0x80;
 const ENTITY_STATUS_RESPONSE_TAG: u8 = 0x89;
 const RANDOM_NUMBER_TAG: u8 = 0x8A;
-const SUBSCRIBE_REQUEST_TAG: u16 = 0x7F73;
-const QUERY_REQUEST_TAG: u16 = 0x7F74;
-const UNSUBSCRIBE_REQUEST_TAG: u16 = 0x7F75;
+pub const SUBSCRIBE_REQUEST_TAG: u16 = 0x7F73;
+pub const QUERY_REQUEST_TAG: u16 = 0x7F74;
+pub const UNSUBSCRIBE_REQUEST_TAG: u16 = 0x7F75;
 const VEHICLE_STATUS_RESPONSE_TAG: u16 = 0x7F77;
 
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
@@ -854,7 +854,6 @@ mod tests {
     fn test_response_with_random_tlv_deserialize() {
         let data = vec![0x7F, 0x77, 0x0C, 0x30, 0x0A, 0xA0, 0x08, 0x80, 0x02, 0x00, 0x01, 0x89, 0x02, 0x00, 0x00, 0x8A, 0x08, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07];
         let tlv = VehicleStatus::deserialize(data.as_ref());
-        println!("tlv = {:?}", tlv);
         assert!(tlv.is_ok());
         let tlv = tlv.unwrap();
         if let VehicleStatus::Response(response) = tlv {
