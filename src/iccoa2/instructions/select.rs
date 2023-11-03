@@ -33,11 +33,10 @@ impl CommandApduSelect {
             SELECT_P2,
         );
         let trailer = common::CommandApduTrailer::new(
-            self.aid.len() as u8,
-            self.aid.as_ref(),
-            SELECT_LE,
+            Some(self.aid.clone()),
+            Some(SELECT_LE),
         );
-        common::CommandApdu::new(header, trailer).serialize()
+        common::CommandApdu::new(header, Some(trailer)).serialize()
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let command_apdu = common::CommandApdu::deserialize(data)?;
@@ -55,13 +54,23 @@ impl CommandApduSelect {
             return Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT Apdu P2 error")).into());
         }
         let trailer = command_apdu.get_trailer();
-        if trailer.get_lc() != trailer.get_data().len() as u8 {
-            return Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT Apdu Lc is not equal to data length")).into());
+        if let Some(trailer) = trailer {
+            if let Some(le) = trailer.get_le() {
+                if *le != SELECT_LE {
+                    Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT Apdu Le error")).into())
+                } else {
+                    if let Some(data) = trailer.get_data() {
+                        Ok(CommandApduSelect::new(data))
+                    } else {
+                        Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT Apdu Data is NULL")).into())
+                    }
+                }
+            } else {
+                Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT Apdu Le is NULL")).into())
+            }
+        } else {
+            Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT Apdu trailer is NULL")).into())
         }
-        if trailer.get_le() != SELECT_LE {
-            return Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT Apdu Le error")).into());
-        }
-        Ok(CommandApduSelect::new(&trailer.get_data()))
     }
 }
 
@@ -97,21 +106,22 @@ impl ResponseApduSelect {
         self.status = status;
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        common::ResponseApdu::new(&self.version.to_be_bytes(), self.status).serialize()
+        common::ResponseApdu::new(Some(self.version.to_be_bytes().to_vec()), self.status).serialize()
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let response = common::ResponseApdu::deserialize(data)?;
         let status = response.get_trailer();
         if status.is_success() {
-            let version = u16::from_be_bytes(
-                (&response.get_body()[0..2])
-                    .try_into()
-                    .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize SELECT version error: {}", e)))?
-            );
-            Ok(ResponseApduSelect::new(
-                version,
-                status.clone(),
-            ))
+            if let Some(body) = response.get_body() {
+                let version = u16::from_be_bytes(
+                    (&body[0..2])
+                        .try_into()
+                        .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize SELECT version error: {}", e)))?
+                );
+                Ok(ResponseApduSelect::new(version, status.clone(), ))
+            } else {
+                Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT response version is NULL")).into())
+            }
         } else {
             Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT response error: {}", status.get_error_message())).into())
         }

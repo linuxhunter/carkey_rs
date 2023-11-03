@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter};
+use rand::Fill;
 use crate::iccoa2::errors::*;
 
 const COMMAND_APDU_HEADER_LENGTH: usize = 0x04;
@@ -74,79 +75,101 @@ impl Display for CommandApduHeader {
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct CommandApduTrailer {
-    lc: u8,
-    data: Vec<u8>,
-    le: u8,
+    data: Option<Vec<u8>>,
+    le: Option<u8>,
 }
 
 impl CommandApduTrailer {
-    pub fn new(lc: u8, data: &[u8], le: u8) -> Self {
+    pub fn new(data: Option<Vec<u8>>, le: Option<u8>) -> Self {
         CommandApduTrailer {
-            lc,
-            data: data.to_vec(),
+            data,
             le,
         }
     }
-    pub fn get_lc(&self) -> u8 {
-        self.lc
+    pub fn get_data(&self) -> Option<&[u8]> {
+        if let Some(ref data) = self.data {
+            Some(data)
+        } else {
+            None
+        }
     }
-    pub fn set_lc(&mut self, lc: u8) {
-        self.lc = lc;
+    pub fn set_data(&mut self, data: Option<Vec<u8>>) {
+        self.data = data;
     }
-    pub fn get_data(&self) -> &[u8] {
-        &self.data
+    pub fn get_le(&self) -> Option<&u8> {
+        if let Some(ref le) = self.le {
+            Some(le)
+        } else {
+            None
+        }
     }
-    pub fn set_data(&mut self, data: &[u8]) {
-        self.data = data.to_vec();
-    }
-    pub fn get_le(&self) -> u8 {
-        self.le
-    }
-    pub fn set_le(&mut self, le: u8) {
+    pub fn set_le(&mut self, le: Option<u8>) {
         self.le = le;
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let mut buffer = Vec::with_capacity(2 + self.data.len());
-        buffer.push(self.get_lc());
-        buffer.append(&mut self.get_data().to_vec());
-        buffer.push(self.get_le());
+        if self.get_data().is_none() && self.get_le().is_none() {
+            return Err(ErrorKind::ApduInstructionErr(format!("Command Apdu Trailer Data and Le are all None")).into());
+        }
+        let mut buffer = Vec::new();
+        if let Some(ref data) = self.data {
+            buffer.push(data.len() as u8);
+            buffer.append(&mut data.clone());
+        }
+        if let Some(le) = self.get_le() {
+            buffer.push(*le);
+        }
         Ok(buffer)
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
-        let lc = data[0];
-        if data.len() < 1 + lc as usize {
-            return Err(ErrorKind::ApduInstructionErr(format!("deserialize Command APDU Trailer data length error")).into());
+        if data.len() < 1 {
+            return Err(ErrorKind::ApduInstructionErr(format!("deserialize origin data length is zero")).into());
         }
-        let payload = (&data[1..1 + lc as usize])
-            .try_into()
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize Command APDU Trailer data error: {}", e)))?;
-        let le = if data.len() == 2 + lc as usize {
-            data[1+lc as usize]
+        if data.len() == 1 {
+            Ok(CommandApduTrailer::new(
+                None,
+                Some(data[0]),
+            ))
         } else {
-            0
-        };
-        Ok(CommandApduTrailer::new(
-            lc,
-            payload,
-            le,
-        ))
+            let lc = data[0];
+            if data.len() < 1 + lc as usize {
+                return Err(ErrorKind::ApduInstructionErr(format!("deserialize Command APDU Trailer data length error")).into());
+            }
+            let payload = (&data[1..1 + lc as usize])
+                .try_into()
+                .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize Command APDU Trailer data error: {}", e)))?;
+            let le = if data.len() == 2 + lc as usize {
+                data[1+lc as usize]
+            } else {
+                0
+            };
+            Ok(CommandApduTrailer::new(
+                Some(payload),
+                Some(le),
+            ))
+        }
     }
 }
 
 impl Display for CommandApduTrailer {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Lc: {}, Data: {:02X?}, Le: {}", self.lc, self.data, self.le)
+        if let Some(data) = self.get_data() {
+            write!(f, "Lc: {}, Data: {:02X?}", data.len(), data)?;
+        }
+        if let Some(le) = self.get_le() {
+            write!(f, "Le: {}", le)?;
+        }
+        Ok(())
     }
 }
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct CommandApdu {
     header: CommandApduHeader,
-    trailer: CommandApduTrailer,
+    trailer: Option<CommandApduTrailer>,
 }
 
 impl CommandApdu {
-    pub fn new(header: CommandApduHeader, trailer: CommandApduTrailer) -> Self {
+    pub fn new(header: CommandApduHeader, trailer: Option<CommandApduTrailer>) -> Self {
         CommandApdu {
             header,
             trailer,
@@ -158,32 +181,50 @@ impl CommandApdu {
     pub fn set_header(&mut self, header: CommandApduHeader) {
         self.header = header;
     }
-    pub fn get_trailer(&self) -> &CommandApduTrailer {
-        &self.trailer
+    pub fn get_trailer(&self) -> Option<&CommandApduTrailer> {
+        if let Some(ref trailer) = self.trailer {
+            Some(trailer)
+        } else {
+            None
+        }
     }
-    pub fn set_trailer(&mut self, trailer: CommandApduTrailer) {
+    pub fn set_trailer(&mut self, trailer: Option<CommandApduTrailer>) {
         self.trailer = trailer;
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
         let mut buffer = Vec::new();
-        buffer.append(&mut self.header.serialize()?);
-        buffer.append(&mut self.trailer.serialize()?);
+        buffer.append(&mut self.get_header().serialize()?);
+        if let Some(trailer) = self.get_trailer() {
+            buffer.append(&mut trailer.serialize()?);
+        }
         Ok(buffer)
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
-        if data.len() < COMMAND_APDU_HEADER_LENGTH {
-            return Err(ErrorKind::ApduInstructionErr(format!("deserialize data length less than {}", COMMAND_APDU_HEADER_LENGTH)).into());
+        let data_len = data.len();
+        if data_len < COMMAND_APDU_HEADER_LENGTH {
+            Err(ErrorKind::ApduInstructionErr(format!("deserialize data length less than {}", COMMAND_APDU_HEADER_LENGTH)).into())
+        } else if data_len == COMMAND_APDU_HEADER_LENGTH {
+            let header = CommandApduHeader::deserialize(&data[0..COMMAND_APDU_HEADER_LENGTH])?;
+            Ok(CommandApdu::new(header, None))
+        } else {
+            let header = CommandApduHeader::deserialize(&data[0..COMMAND_APDU_HEADER_LENGTH])?;
+            let trailer = if data.len() > COMMAND_APDU_HEADER_LENGTH {
+                Some(CommandApduTrailer::deserialize(&data[COMMAND_APDU_HEADER_LENGTH..])?)
+            } else {
+                None
+            };
+            Ok(CommandApdu::new(header, trailer))
         }
-        let header = CommandApduHeader::deserialize(&data[0..COMMAND_APDU_HEADER_LENGTH])?;
-        let trailer = CommandApduTrailer::deserialize(&data[COMMAND_APDU_HEADER_LENGTH..])?;
-        Ok(CommandApdu::new(header, trailer))
     }
 }
 
 impl Display for CommandApdu {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "Header: {}", self.get_header())?;
-        write!(f, "Trailer: {}", self.get_trailer())
+        if let Some(trailer) = self.get_trailer() {
+            write!(f, "Trailer: {}", trailer)?;
+        }
+        Ok(())
     }
 }
 
@@ -286,22 +327,26 @@ impl Display for ResponseApduTrailer {
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct ResponseApdu {
-    body: Vec<u8>,
+    body: Option<Vec<u8>>,
     trailer: ResponseApduTrailer,
 }
 
 impl ResponseApdu {
-    pub fn new(body: &[u8], trailer: ResponseApduTrailer) -> Self {
+    pub fn new(body: Option<Vec<u8>>, trailer: ResponseApduTrailer) -> Self {
         ResponseApdu {
-            body: body.to_vec(),
+            body,
             trailer,
         }
     }
-    pub fn get_body(&self) -> &[u8] {
-        &self.body
+    pub fn get_body(&self) -> Option<&[u8]> {
+        if let Some(ref body) = self.body {
+            Some(body)
+        } else {
+            None
+        }
     }
-    pub fn set_body(&mut self, body: &[u8]) {
-        self.body = body.to_vec();
+    pub fn set_body(&mut self, body: Option<Vec<u8>>) {
+        self.body = body;
     }
     pub fn get_trailer(&self) -> &ResponseApduTrailer {
         &self.trailer
@@ -310,22 +355,35 @@ impl ResponseApdu {
         self.trailer = trailer;
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let mut buffer = Vec::with_capacity(self.body.len() + RESPONSE_APDU_TRAILER_LENGTH);
-        buffer.append(&mut self.body.clone());
+        let mut buffer = Vec::new();
+        if let Some(body) = self.get_body() {
+            buffer.append(&mut body.to_vec());
+        }
         buffer.append(&mut self.trailer.serialize()?);
         Ok(buffer)
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let data_len = data.len();
-        let body = &data[..data_len-2];
-        let trailer = ResponseApduTrailer::new(data[data_len-2], data[data_len-1]);
-        Ok(ResponseApdu::new(body, trailer))
+        if data_len < 2 {
+            Err(ErrorKind::ApduInstructionErr(format!("deserialize origin data length is zero")).into())
+        } else if data_len == 2 {
+            let trailer = ResponseApduTrailer::new(data[0], data[1]);
+            Ok(ResponseApdu::new(None, trailer))
+        } else {
+            let body = data[..data_len-2].to_vec();
+            let trailer = ResponseApduTrailer::new(data[data_len-2], data[data_len-1]);
+            Ok(ResponseApdu::new(Some(body), trailer))
+        }
     }
 }
 
 impl Display for ResponseApdu {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Body: {:02X?}, Trailer: {}", self.body, self.trailer)
+        if let Some(body) = self.get_body() {
+            write!(f, "Body: {:02X?}, Trailer: {}", body, self.trailer)
+        } else {
+            write!(f, "Trailer: {}", self.trailer)
+        }
     }
 }
 
@@ -339,21 +397,21 @@ mod tests {
         let ins = 0x01;
         let p1 = 0x02;
         let p2 = 0x03;
-        let lc = 0x04;
         let le = 0x09;
         let data = vec![0x05, 0x06, 0x07, 0x08];
         let header = CommandApduHeader::new(cla, ins, p1, p2);
-        let trailer = CommandApduTrailer::new(lc, data.as_ref(), le);
-        let command_apdu = CommandApdu::new(header, trailer);
+        let trailer = CommandApduTrailer::new(Some(data.clone()), Some(le));
+        let command_apdu = CommandApdu::new(header, Some(trailer));
         assert_eq!(command_apdu.get_header(), &CommandApduHeader::new(cla, ins, p1, p2));
         assert_eq!(command_apdu.get_header().get_cla(), cla);
         assert_eq!(command_apdu.get_header().get_ins(), ins);
         assert_eq!(command_apdu.get_header().get_p1(), p1);
         assert_eq!(command_apdu.get_header().get_p2(), p2);
-        assert_eq!(command_apdu.get_trailer(), &CommandApduTrailer::new(lc, data.as_ref(), le));
-        assert_eq!(command_apdu.get_trailer().get_lc(), lc);
-        assert_eq!(command_apdu.get_trailer().get_data(), &data);
-        assert_eq!(command_apdu.get_trailer().get_le(), le);
+        if let Some(trailer) = command_apdu.get_trailer() {
+            assert_eq!(trailer, &CommandApduTrailer::new(Some(data.clone()), Some(le)));
+            assert_eq!(trailer.get_data(), Some(data.as_ref()));
+            assert_eq!(trailer.get_le(), Some(&le));
+        }
     }
     #[test]
     fn test_update_command_apdu() {
@@ -361,32 +419,31 @@ mod tests {
         let ins = 0x01;
         let p1 = 0x02;
         let p2 = 0x03;
-        let lc = 0x04;
         let le = 0x09;
         let data = vec![0x05, 0x06, 0x07, 0x08];
         let header = CommandApduHeader::new(cla, ins, p1, p2);
-        let trailer = CommandApduTrailer::new(lc, data.as_ref(), le);
-        let mut command_apdu = CommandApdu::new(header, trailer);
+        let trailer = CommandApduTrailer::new(Some(data), Some(le));
+        let mut command_apdu = CommandApdu::new(header, Some(trailer));
         let new_cla = 0x10;
         let new_ins = 0x11;
         let new_p1 = 0x12;
         let new_p2 = 0x13;
-        let new_lc = 0x04;
         let new_data = vec![0x15, 0x16, 0x17, 0x18];
         let new_le = 0x19;
         let new_header = CommandApduHeader::new(new_cla, new_ins, new_p1, new_p2);
-        let new_trailer = CommandApduTrailer::new(new_lc, new_data.as_ref(), new_le);
+        let new_trailer = CommandApduTrailer::new(Some(new_data.clone()), Some(new_le));
         command_apdu.set_header(new_header);
-        command_apdu.set_trailer(new_trailer);
+        command_apdu.set_trailer(Some(new_trailer));
         assert_eq!(command_apdu.get_header(), &CommandApduHeader::new(new_cla, new_ins, new_p1, new_p2));
         assert_eq!(command_apdu.get_header().get_cla(), new_cla);
         assert_eq!(command_apdu.get_header().get_ins(), new_ins);
         assert_eq!(command_apdu.get_header().get_p1(), new_p1);
         assert_eq!(command_apdu.get_header().get_p2(), new_p2);
-        assert_eq!(command_apdu.get_trailer(), &CommandApduTrailer::new(new_lc, new_data.as_ref(), new_le));
-        assert_eq!(command_apdu.get_trailer().get_lc(), new_lc);
-        assert_eq!(command_apdu.get_trailer().get_data(), &new_data);
-        assert_eq!(command_apdu.get_trailer().get_le(), new_le);
+        if let Some(trailer) = command_apdu.get_trailer() {
+            assert_eq!(trailer, &CommandApduTrailer::new(Some(new_data.clone()), Some(new_le)));
+            assert_eq!(trailer.get_data(), Some(new_data.as_ref()));
+            assert_eq!(trailer.get_le(), Some(&new_le));
+        }
     }
     #[test]
     fn test_command_apdu_serialize() {
@@ -394,12 +451,11 @@ mod tests {
         let ins = 0x01;
         let p1 = 0x02;
         let p2 = 0x03;
-        let lc = 0x04;
         let le = 0x09;
         let data = vec![0x05, 0x06, 0x07, 0x08];
         let header = CommandApduHeader::new(cla, ins, p1, p2);
-        let trailer = CommandApduTrailer::new(lc, data.as_ref(), le);
-        let command_apdu = CommandApdu::new(header, trailer);
+        let trailer = CommandApduTrailer::new(Some(data), Some(le));
+        let command_apdu = CommandApdu::new(header, Some(trailer));
         let serialized_command_apdu = command_apdu.serialize();
         assert!(serialized_command_apdu.is_ok());
         let serialized_command_apdu = serialized_command_apdu.unwrap();
@@ -412,7 +468,7 @@ mod tests {
         assert!(command_apdu.is_ok());
         let command_apdu = command_apdu.unwrap();
         assert_eq!(command_apdu.get_header(), &CommandApduHeader::new(0x00, 0x01, 0x02, 0x03));
-        assert_eq!(command_apdu.get_trailer(), &CommandApduTrailer::new(0x04, vec![0x05, 0x06, 0x07, 0x08].as_ref(), 0x09));
+        assert_eq!(command_apdu.get_trailer(), Some(&CommandApduTrailer::new(Some(vec![0x05, 0x06, 0x07, 0x08]), Some(0x09))));
     }
     #[test]
     fn test_create_response_apdu() {
@@ -420,8 +476,8 @@ mod tests {
         let sw1 = 0x90;
         let sw2 = 0x00;
         let trailer = ResponseApduTrailer::new(sw1, sw2);
-        let response_apdu = ResponseApdu::new(body.as_ref(), trailer);
-        assert_eq!(response_apdu.get_body(), &body);
+        let response_apdu = ResponseApdu::new(Some(body.clone()), trailer);
+        assert_eq!(response_apdu.get_body(), Some(body.as_ref()));
         assert_eq!(response_apdu.get_trailer(), &trailer);
         assert_eq!(response_apdu.get_trailer().get_sw1(), sw1);
         assert_eq!(response_apdu.get_trailer().get_sw2(), sw2);
@@ -433,14 +489,14 @@ mod tests {
         let sw1 = 0x90;
         let sw2 = 0x00;
         let trailer = ResponseApduTrailer::new(sw1, sw2);
-        let mut response_apdu = ResponseApdu::new(body.as_ref(), trailer);
+        let mut response_apdu = ResponseApdu::new(Some(body), trailer);
         let new_body = vec![0x10, 0x11, 0x12, 0x13];
         let new_sw1 = 0x61;
         let new_sw2 = 0x10;
         let new_trailer = ResponseApduTrailer::new(new_sw1, new_sw2);
-        response_apdu.set_body(new_body.as_ref());
+        response_apdu.set_body(Some(new_body.clone()));
         response_apdu.set_trailer(new_trailer);
-        assert_eq!(response_apdu.get_body(), &new_body);
+        assert_eq!(response_apdu.get_body(), Some(new_body.as_ref()));
         assert_eq!(response_apdu.get_trailer(), &new_trailer);
         assert_eq!(response_apdu.get_trailer().get_sw1(), new_sw1);
         assert_eq!(response_apdu.get_trailer().get_sw2(), new_sw2);
@@ -454,7 +510,7 @@ mod tests {
         let sw1 = 0x90;
         let sw2 = 0x00;
         let trailer = ResponseApduTrailer::new(sw1, sw2);
-        let response_apdu = ResponseApdu::new(body.as_ref(), trailer);
+        let response_apdu = ResponseApdu::new(Some(body), trailer);
         let serialized_response_apdu = response_apdu.serialize();
         assert!(serialized_response_apdu.is_ok());
         let serialized_response_apdu = serialized_response_apdu.unwrap();
@@ -466,9 +522,60 @@ mod tests {
         let response_apdu = ResponseApdu::deserialize(data.as_ref());
         assert!(response_apdu.is_ok());
         let response_apdu = response_apdu.unwrap();
-        assert_eq!(response_apdu.get_body(), &vec![0x00, 0x01, 0x02, 0x03]);
+        assert_eq!(response_apdu.get_body(), Some(vec![0x00, 0x01, 0x02, 0x03].as_ref()));
         assert_eq!(response_apdu.get_trailer().get_sw1(), 0x90);
         assert_eq!(response_apdu.get_trailer().get_sw2(), 0x00);
         assert_eq!(response_apdu.get_trailer().is_success(), true);
+    }
+    #[test]
+    fn test_request_with_header_only() {
+        let cla = 0x00;
+        let ins = 0x01;
+        let p1 = 0x02;
+        let p2 = 0x03;
+        let header = CommandApduHeader::new(cla, ins, p1, p2);
+        let command_apdu = CommandApdu::new(header, None);
+        assert_eq!(command_apdu.get_header(), &CommandApduHeader::new(cla, ins, p1, p2));
+        assert_eq!(command_apdu.get_trailer(), None);
+    }
+    #[test]
+    fn test_request_with_header_le() {
+        let cla = 0x00;
+        let ins = 0x01;
+        let p1 = 0x02;
+        let p2 = 0x03;
+        let le = 0x09;
+        let data = vec![0x05, 0x06, 0x07, 0x08];
+        let header = CommandApduHeader::new(cla, ins, p1, p2);
+        let trailer = CommandApduTrailer::new(None, Some(le));
+        let command_apdu = CommandApdu::new(header, Some(trailer));
+        assert_eq!(command_apdu.get_header(), &CommandApduHeader::new(cla, ins, p1, p2));
+        assert_eq!(command_apdu.get_trailer(), Some(&CommandApduTrailer::new(None, Some(le))));
+    }
+    #[test]
+    fn test_request_with_header_data() {
+        let cla = 0x00;
+        let ins = 0x01;
+        let p1 = 0x02;
+        let p2 = 0x03;
+        let data = vec![0x05, 0x06, 0x07, 0x08];
+        let header = CommandApduHeader::new(cla, ins, p1, p2);
+        let trailer = CommandApduTrailer::new(Some(data.clone()), None);
+        let command_apdu = CommandApdu::new(header, Some(trailer));
+        assert_eq!(command_apdu.get_header(), &CommandApduHeader::new(cla, ins, p1, p2));
+        assert_eq!(command_apdu.get_trailer(), Some(&CommandApduTrailer::new(Some(data.clone()), None)));
+    }
+    #[test]
+    fn test_response_with_trailer_only() {
+        let sw1 = 0x90;
+        let sw2 = 0x00;
+        let trailer = ResponseApduTrailer::new(sw1, sw2);
+        let response_apdu = ResponseApdu::new(None, trailer);
+        assert_eq!(response_apdu.get_body(), None);
+        assert_eq!(response_apdu.get_trailer(), &trailer);
+        assert_eq!(response_apdu.get_trailer().get_sw1(), sw1);
+        assert_eq!(response_apdu.get_trailer().get_sw2(), sw2);
+        assert_eq!(response_apdu.get_trailer().is_success(), true);
+
     }
 }
