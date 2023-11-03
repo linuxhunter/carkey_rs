@@ -1,5 +1,6 @@
 mod common;
 mod select;
+mod list_dk;
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub enum ApduInstructions {

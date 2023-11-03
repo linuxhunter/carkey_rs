@@ -111,19 +111,15 @@ impl ResponseApduSelect {
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let response = common::ResponseApdu::deserialize(data)?;
         let status = response.get_trailer();
-        if status.is_success() {
-            if let Some(body) = response.get_body() {
-                let version = u16::from_be_bytes(
-                    (&body[0..2])
-                        .try_into()
-                        .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize SELECT version error: {}", e)))?
-                );
-                Ok(ResponseApduSelect::new(version, status.clone(), ))
-            } else {
-                Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT response version is NULL")).into())
-            }
+        if let Some(body) = response.get_body() {
+            let version = u16::from_be_bytes(
+                (&body[0..2])
+                    .try_into()
+                    .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize SELECT version error: {}", e)))?
+            );
+            Ok(ResponseApduSelect::new(version, *status))
         } else {
-            Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT response error: {}", status.get_error_message())).into())
+            Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT response version is NULL")).into())
         }
     }
 }
