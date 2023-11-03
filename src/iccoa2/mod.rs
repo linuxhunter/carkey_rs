@@ -10,6 +10,7 @@ mod vehicle_status;
 mod auth;
 mod custom;
 mod identifier;
+mod instructions;
 
 mod errors {
     use super::*;
@@ -17,6 +18,7 @@ mod errors {
     error_chain! {
         errors {
             BleMessageError(t: String)
+            ApduInstructionErr(t: String)
             ApduError(t: String)
             MeasureError(t: String)
             RkeError(t: String)
