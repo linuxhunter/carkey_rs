@@ -6,7 +6,7 @@ const VEHICLE_SERIAL_ID_LENGTH: usize = 14;
 const KEY_ID_LENGTH: usize = 16;
 const VEHICLE_ID_LENGTH: usize = 16;
 
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(Debug, Default, PartialOrd, PartialEq)]
 pub struct KeyId {
     device_oem_id: u16,
     vehicle_oem_id: u16,
@@ -82,7 +82,7 @@ impl Display for KeyId {
     }
 }
 
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(Debug, Default, PartialOrd, PartialEq)]
 pub struct VehicleId {
     vehicle_oem_id: u16,
     vehicle_serial_id: [u8; VEHICLE_SERIAL_ID_LENGTH],

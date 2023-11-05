@@ -5,7 +5,7 @@ use crate::iccoa2::errors::*;
 const COMMAND_APDU_HEADER_LENGTH: usize = 0x04;
 const RESPONSE_APDU_TRAILER_LENGTH: usize = 0x02;
 
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(Debug, Default, PartialOrd, PartialEq)]
 pub struct CommandApduHeader {
     cla: u8,
     ins: u8,
@@ -73,7 +73,7 @@ impl Display for CommandApduHeader {
     }
 }
 
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(Debug, Default, PartialOrd, PartialEq)]
 pub struct CommandApduTrailer {
     data: Option<Vec<u8>>,
     le: Option<u8>,
@@ -162,7 +162,7 @@ impl Display for CommandApduTrailer {
     }
 }
 
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(Debug, Default, PartialOrd, PartialEq)]
 pub struct CommandApdu {
     header: CommandApduHeader,
     trailer: Option<CommandApduTrailer>,
@@ -228,7 +228,7 @@ impl Display for CommandApdu {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, PartialOrd, PartialEq)]
 pub struct ResponseApduTrailer {
     sw1: u8,
     sw2: u8,
