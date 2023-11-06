@@ -11,10 +11,10 @@ const TEMP_PUB_KEY_LENGTH: usize = 0x41;
 const RANDOM_NUMBER_LENGTH: usize = 0x08;
 const CRYPTOGRAM_LENGTH: usize = 0x10;
 const VERSION_TAG: u8 = 0x5A;
-const VEHICLE_ID_TAG: u8 = 0x83;
-const VEHICLE_TEMP_PUB_KEY_TAG: u8 = 0x81;
-const RANDOM_TAG: u8 = 0x55;
-const DEVICE_TEMP_PUB_KEY_TAG: u8 = 0x84;
+pub const VEHICLE_ID_TAG: u8 = 0x83;
+pub const VEHICLE_TEMP_PUB_KEY_TAG: u8 = 0x81;
+pub const RANDOM_TAG: u8 = 0x55;
+pub const DEVICE_TEMP_PUB_KEY_TAG: u8 = 0x84;
 const CRYPTO_GRAM_TAG: u8 = 0x85;
 
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
