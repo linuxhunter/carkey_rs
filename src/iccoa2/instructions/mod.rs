@@ -4,6 +4,7 @@ mod list_dk;
 mod auth_0;
 mod auth_1;
 mod get_dk_certificate;
+mod sharing_request;
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub enum ApduInstructions {
