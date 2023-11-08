@@ -1,11 +1,18 @@
 use std::fmt::{Display, Formatter};
+use iso7816_tlv::ber;
+use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value};
 use crate::iccoa2::errors::*;
-use super::common;
+use super::{common, VERSIONS_TAG};
 
+#[allow(dead_code)]
 const SELECT_CLA: u8 = 0x00;
+#[allow(dead_code)]
 const SELECT_INS: u8 = 0xA4;
+#[allow(dead_code)]
 const SELECT_P1: u8 = 0x04;
+#[allow(dead_code)]
 const SELECT_P2: u8 = 0x00;
+#[allow(dead_code)]
 const SELECT_LE: u8 = 0x00;
 
 #[derive(Debug, PartialOrd, PartialEq)]
@@ -13,6 +20,7 @@ pub struct CommandApduSelect {
     aid: Vec<u8>,
 }
 
+#[allow(dead_code)]
 impl CommandApduSelect {
     pub fn new(aid: &[u8]) -> Self {
         CommandApduSelect {
@@ -41,42 +49,22 @@ impl CommandApduSelect {
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let command_apdu = common::CommandApdu::deserialize(data)?;
         let header = command_apdu.get_header();
-        if header.get_cla() != SELECT_CLA {
-            return Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT Apdu CLA error")).into());
+        let trailer = command_apdu.get_trailer().ok_or(format!("deserialize trailer is NULL"))?;
+        if header.get_cla() != SELECT_CLA ||
+            header.get_ins() != SELECT_INS ||
+            header.get_p1() != SELECT_P1 ||
+            header.get_p2() != SELECT_P2 ||
+            trailer.get_le().is_none() ||
+            *trailer.get_le().unwrap() != SELECT_LE {
+            return Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT Apdu error")).into());
         }
-        if header.get_ins() != SELECT_INS {
-            return Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT Apdu INS error")).into());
-        }
-        if header.get_p1() != SELECT_P1 {
-            return Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT Apdu P1 error")).into());
-        }
-        if header.get_p2() != SELECT_P2 {
-            return Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT Apdu P2 error")).into());
-        }
-        let trailer = command_apdu.get_trailer();
-        if let Some(trailer) = trailer {
-            if let Some(le) = trailer.get_le() {
-                if *le != SELECT_LE {
-                    Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT Apdu Le error")).into())
-                } else {
-                    if let Some(data) = trailer.get_data() {
-                        Ok(CommandApduSelect::new(data))
-                    } else {
-                        Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT Apdu Data is NULL")).into())
-                    }
-                }
-            } else {
-                Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT Apdu Le is NULL")).into())
-            }
-        } else {
-            Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT Apdu trailer is NULL")).into())
-        }
+        Ok(CommandApduSelect::new(trailer.get_data().unwrap()))
     }
 }
 
 impl Display for CommandApduSelect {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "{:02X?}", self.get_aid())
     }
 }
 
@@ -86,6 +74,7 @@ pub struct ResponseApduSelect {
     status: common::ResponseApduTrailer,
 }
 
+#[allow(dead_code)]
 impl ResponseApduSelect {
     pub fn new(version: u16, status: common::ResponseApduTrailer) -> Self {
         ResponseApduSelect {
@@ -106,27 +95,34 @@ impl ResponseApduSelect {
         self.status = status;
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        common::ResponseApdu::new(Some(self.version.to_be_bytes().to_vec()), self.status).serialize()
+        let versions_tlv = create_tlv_with_primitive_value(VERSIONS_TAG, self.get_version().to_be_bytes().as_ref())?;
+        common::ResponseApdu::new(Some(versions_tlv.to_vec()), self.status).serialize()
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let response = common::ResponseApdu::deserialize(data)?;
         let status = response.get_trailer();
-        if let Some(body) = response.get_body() {
-            let version = u16::from_be_bytes(
-                (&body[0..2])
-                    .try_into()
-                    .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize SELECT version error: {}", e)))?
-            );
-            Ok(ResponseApduSelect::new(version, *status))
-        } else {
-            Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT response version is NULL")).into())
-        }
+        let body = response.get_body().ok_or(format!("deserialize SELECT response version is NULL"))?;
+        let versions_tlv = ber::Tlv::from_bytes(body)
+            .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize version error: {}", e)))?;
+        let versions = get_tlv_primitive_value(&versions_tlv, &versions_tlv.tag())
+            .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize version value error: {}", e)))?;
+        let version = u16::from_be_bytes(
+            (versions[0..2])
+                .try_into()
+                .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize SELECT version error: {}", e)))?
+        );
+        Ok(ResponseApduSelect::new(version, *status))
+    }
+}
+
+impl Display for ResponseApduSelect {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "version: {}, status: {}", self.get_version(), self.get_status())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::iccoa2::instructions::common::{ResponseApdu, ResponseApduTrailer};
     use super::*;
 
     #[test]
@@ -165,7 +161,7 @@ mod tests {
         let version = 0x10;
         let sw1 = 0x90;
         let sw2 = 0x00;
-        let status = ResponseApduTrailer::new(sw1, sw2);
+        let status = common::ResponseApduTrailer::new(sw1, sw2);
         let response = ResponseApduSelect::new(version, status);
         assert_eq!(response.get_version(), version);
         assert_eq!(response.get_status(), &status);
@@ -176,12 +172,12 @@ mod tests {
         let version = 0x1010;
         let sw1 = 0x90;
         let sw2 = 0x00;
-        let status = ResponseApduTrailer::new(sw1, sw2);
+        let status = common::ResponseApduTrailer::new(sw1, sw2);
         let mut response = ResponseApduSelect::new(version, status);
         let new_version = 0x2020;
         let new_sw1 = 0x61;
         let new_sw2 = 0x10;
-        let new_status = ResponseApduTrailer::new(new_sw1, new_sw2);
+        let new_status = common::ResponseApduTrailer::new(new_sw1, new_sw2);
         response.set_version(new_version);
         response.set_status(new_status);
         assert_eq!(response.get_version(), new_version);
@@ -195,21 +191,32 @@ mod tests {
         let version = 0x1010;
         let sw1 = 0x90;
         let sw2 = 0x00;
-        let status = ResponseApduTrailer::new(sw1, sw2);
+        let status = common::ResponseApduTrailer::new(sw1, sw2);
         let response = ResponseApduSelect::new(version, status);
         let serialized_response = response.serialize();
         assert!(serialized_response.is_ok());
         let serialized_response = serialized_response.unwrap();
-        assert_eq!(serialized_response, vec![0x10, 0x10, 0x90, 0x00]);
+        assert_eq!(
+            serialized_response,
+            vec![
+                0x5A, 0x02,
+                0x10, 0x10,
+                0x90, 0x00,
+            ],
+        );
     }
     #[test]
     fn test_select_response_deserialize() {
-        let data = vec![0x10, 0x10, 0x90, 0x00];
+        let data = vec![
+            0x5A, 0x02,
+            0x10, 0x10,
+            0x90, 0x00,
+        ];
         let response = ResponseApduSelect::deserialize(data.as_ref());
         assert!(response.is_ok());
         let response = response.unwrap();
         assert_eq!(response.get_version(), 0x1010);
-        assert_eq!(response.get_status(), &ResponseApduTrailer::new(0x90, 0x00));
+        assert_eq!(response.get_status(), &common::ResponseApduTrailer::new(0x90, 0x00));
         assert_eq!(response.get_status().is_success(), true);
     }
 }
