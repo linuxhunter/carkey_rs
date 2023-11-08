@@ -47,3 +47,21 @@ pub fn get_tlv_primitive_value<'a, 'b>(data: &'a ber::Tlv, tag: &'b ber::Tag) ->
         }
     }
 }
+
+pub fn create_tlv_with_primitive_value(tag: u8, value: &[u8]) -> errors::Result<ber::Tlv> {
+    let ber_tag = ber::Tag::try_from(tag)
+        .map_err(|e| ErrorKind::ApduInstructionErr(format!("create tag with {tag} error: {}", e)))?;
+    let ber_value = ber::Value::Primitive(value.to_vec());
+    let ber_tlv = ber::Tlv::new(ber_tag, ber_value)
+        .map_err(|e| ErrorKind::ApduInstructionErr(format!("create tlv with tag {}, value: {:02X?} error: {}", tag, value, e)))?;
+    Ok(ber_tlv)
+}
+
+pub fn create_tlv_with_constructed_value(tag: u16, value: &[ber::Tlv]) -> errors::Result<ber::Tlv> {
+    let ber_tag = ber::Tag::try_from(tag)
+        .map_err(|e| ErrorKind::ApduInstructionErr(format!("create tag with {tag} error: {}", e)))?;
+    let ber_value = ber::Value::Constructed(value.to_vec());
+    let ber_tlv = ber::Tlv::new(ber_tag, ber_value)
+        .map_err(|e| ErrorKind::ApduInstructionErr(format!("create tlv with tag {}, value: {:02X?} error: {}", tag, value, e)))?;
+    Ok(ber_tlv)
+}
