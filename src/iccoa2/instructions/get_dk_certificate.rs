@@ -305,7 +305,7 @@ mod tests {
         );
     }
     #[test]
-    fn test_get_dk_cert_request_deserailize() {
+    fn test_get_dk_cert_request_deserialize() {
         let data = vec![
             0x00, 0x64, 0x00, 0x00,
             0x01,
