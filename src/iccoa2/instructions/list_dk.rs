@@ -1,16 +1,19 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
 use crate::iccoa2::errors::*;
-use crate::iccoa2::{get_tlv_primitive_value, identifier};
-use super::common;
+use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, identifier};
+use super::{common, KEY_ID_STATUS_TAG, KEY_ID_TAG};
 
+#[allow(dead_code)]
 const LIST_DK_INS: u8 = 0x60;
+#[allow(dead_code)]
 const LIST_DK_ALL_P1: u8 = 0x00;
+#[allow(dead_code)]
 const LIST_DK_SPEC_P1: u8 = 0x01;
+#[allow(dead_code)]
 const LIST_DK_P2: u8 = 0x00;
+#[allow(dead_code)]
 const LIST_DK_LE: u8 = 0x00;
-const LIST_DK_KEY_ID_TAG: u8 = 0x89;
-const LIST_DK_KEY_ID_STATUS_TAG: u8 = 0x88;
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct CommandApduListDk {
@@ -18,6 +21,7 @@ pub struct CommandApduListDk {
     key_id: Option<identifier::KeyId>,
 }
 
+#[allow(dead_code)]
 impl CommandApduListDk {
     pub fn new(cla: u8, key_id: Option<identifier::KeyId>) -> Self {
         CommandApduListDk {
@@ -50,11 +54,8 @@ impl CommandApduListDk {
                     LIST_DK_SPEC_P1,
                     LIST_DK_P2
                 );
-                let key_id_tag = ber::Tag::try_from(LIST_DK_KEY_ID_TAG)
-                    .map_err(|e| ErrorKind::ApduInstructionErr(format!("create list dk key id tag error")))?;
-                let key_id_value = ber::Value::Primitive(key_id.serialize()?);
-                let key_id_tlv = ber::Tlv::new(key_id_tag, key_id_value)
-                    .map_err(|e| ErrorKind::ApduInstructionErr(format!("create list dk key id tlv error")))?;
+                let key_id_tlv = create_tlv_with_primitive_value(KEY_ID_TAG, &key_id.serialize()?)
+                    .map_err(|e| ErrorKind::ApduInstructionErr(format!("create list dk key id tlv error: {}", e)))?;
                 let trailer = common::CommandApduTrailer::new(
                     Some(key_id_tlv.to_vec()),
                     Some(LIST_DK_LE),
@@ -90,11 +91,9 @@ impl CommandApduListDk {
             let data = trailer
                 .get_data()
                 .ok_or(format!("deserialize LIST DK key is NULL"))?;
-            let key_id_tag = ber::Tag::try_from(LIST_DK_KEY_ID_TAG)
-                .map_err(|e| ErrorKind::ApduInstructionErr(format!("create list dk key id tag error")))?;
             let tlv = ber::Tlv::from_bytes(data)
                 .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize list dk apdu error: {}", e)))?;
-            let serialized_key_id = get_tlv_primitive_value(&tlv, &key_id_tag)
+            let serialized_key_id = get_tlv_primitive_value(&tlv, &tlv.tag())
                 .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize list dk key id error: {}", e)))?;
             Some(identifier::KeyId::deserialize(serialized_key_id)?)
         } else {
@@ -106,7 +105,14 @@ impl CommandApduListDk {
 
 impl Display for CommandApduListDk {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        match self.get_key_id() {
+            Some(key_id) => {
+                write!(f, "{}", key_id)
+            },
+            None => {
+                write!(f, "All")
+            }
+        }
     }
 }
 
@@ -116,6 +122,12 @@ pub enum KeyIdStatus {
     DELIVERED = 0x02,
     ACTIVATED = 0x03,
     SUSPENDED = 0x04,
+}
+
+impl Default for KeyIdStatus {
+    fn default() -> Self {
+        KeyIdStatus::UNDELIVERED
+    }
 }
 
 impl TryFrom<u8> for KeyIdStatus {
@@ -145,17 +157,23 @@ impl From<KeyIdStatus> for u8 {
 
 impl Display for KeyIdStatus {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        match self {
+            KeyIdStatus::UNDELIVERED => write!(f, "undelivered"),
+            KeyIdStatus::DELIVERED => write!(f, "delivered"),
+            KeyIdStatus::ACTIVATED => write!(f, "activated"),
+            KeyIdStatus::SUSPENDED => write!(f, "suspended"),
+        }
     }
 }
 
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(Debug, Default, PartialOrd, PartialEq)]
 pub struct ResponseApduListDk {
     key_id: identifier::KeyId,
     key_id_status: KeyIdStatus,
     status: common::ResponseApduTrailer,
 }
 
+#[allow(dead_code)]
 impl ResponseApduListDk {
     pub fn new(key_id: identifier::KeyId, key_id_status: KeyIdStatus, status: common::ResponseApduTrailer) -> Self {
         ResponseApduListDk {
@@ -183,16 +201,10 @@ impl ResponseApduListDk {
         self.status = status;
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let key_id_tag = ber::Tag::try_from(LIST_DK_KEY_ID_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create list dk key id tag error")))?;
-        let key_id_value = ber::Value::Primitive(self.get_key_id().serialize()?);
-        let key_id_tlv = ber::Tlv::new(key_id_tag, key_id_value)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create list dk key id tlv error")))?;
-        let key_id_status_tag = ber::Tag::try_from(LIST_DK_KEY_ID_STATUS_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create list dk key id status tag error")))?;
-        let key_id_status_value = ber::Value::Primitive(vec![u8::from(self.get_key_id_status().clone())]);
-        let key_id_status_tlv = ber::Tlv::new(key_id_status_tag, key_id_status_value)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create list dk key id status tlv error")))?;
+        let key_id_tlv = create_tlv_with_primitive_value(KEY_ID_TAG, &self.get_key_id().serialize()?)
+            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create list dk key id tlv error: {}", e)))?;
+        let key_id_status_tlv = create_tlv_with_primitive_value(KEY_ID_STATUS_TAG, &vec![u8::from(self.get_key_id_status().clone())])
+            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create list dk key id status tlv error: {}", e)))?;
         let mut body = Vec::new();
         body.append(&mut key_id_tlv.to_vec());
         body.append(&mut key_id_status_tlv.to_vec());
@@ -205,33 +217,22 @@ impl ResponseApduListDk {
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let response_apdu = common::ResponseApdu::deserialize(data)?;
         let status = response_apdu.get_trailer();
-        if let Some(body) = response_apdu.get_body() {
-            let tlv_collections = ber::Tlv::parse_all(body);
-            let mut serialized_key_id: Vec<u8> = Vec::new();
-            let mut key_id_status = KeyIdStatus::UNDELIVERED;
-            for tlv in tlv_collections {
-                if tlv.tag().to_bytes() == LIST_DK_KEY_ID_TAG.to_be_bytes() {
-                    let key_id_tag = ber::Tag::try_from(LIST_DK_KEY_ID_TAG)
-                        .map_err(|e| ErrorKind::ApduInstructionErr(format!("create list dk key id tag error")))?;
-                    serialized_key_id = get_tlv_primitive_value(&tlv, &key_id_tag)
-                        .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize list dk key id error: {}", e)))?.to_vec();
-                } else if tlv.tag().to_bytes() == LIST_DK_KEY_ID_STATUS_TAG.to_be_bytes() {
-                    let key_id_status_tag = ber::Tag::try_from(LIST_DK_KEY_ID_STATUS_TAG)
-                        .map_err(|e| ErrorKind::ApduInstructionErr(format!("create list dk key id status tag error")))?;
-                    let key_id_status_value = get_tlv_primitive_value(&tlv, &key_id_status_tag)
-                        .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize list dk key id status error: {}", e)))?;
-                    key_id_status = KeyIdStatus::try_from(key_id_status_value[0])?;
-                }
+        let body = response_apdu.get_body().ok_or(format!("deserialize list dk response is NULL"))?;
+        let tlv_collections = ber::Tlv::parse_all(body);
+        let mut response = ResponseApduListDk::default();
+        response.set_status(*status);
+        for tlv in tlv_collections {
+            if tlv.tag().to_bytes() == KEY_ID_TAG.to_be_bytes() {
+                let key_id = get_tlv_primitive_value(&tlv, &tlv.tag())
+                    .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize key id error: {}", e)))?;
+                response.set_key_id(identifier::KeyId::deserialize(key_id)?);
+            } else if tlv.tag().to_bytes() == KEY_ID_STATUS_TAG.to_be_bytes() {
+                let key_id_status = get_tlv_primitive_value(&tlv, &tlv.tag())
+                    .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize key id status error: {}", e)))?;
+                response.set_key_id_status(KeyIdStatus::try_from(key_id_status[0])?);
             }
-            let key_id = identifier::KeyId::deserialize(serialized_key_id.as_ref())?;
-            Ok(ResponseApduListDk::new(
-                key_id,
-                key_id_status,
-                *status,
-            ))
-        } else {
-            return Err(ErrorKind::ApduInstructionErr(format!("deserialize list dk response key id is NULL")).into());
         }
+        Ok(response)
     }
 }
 

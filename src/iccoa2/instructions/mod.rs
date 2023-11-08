@@ -12,6 +12,7 @@ mod get_challenge;
 mod get_response;
 
 const VERSIONS_TAG: u8 = 0x5A;
+const KEY_ID_STATUS_TAG: u8 = 0x88;
 const KEY_ID_TAG: u8 = 0x89;
 const SIGNATURE_TAG: u8 = 0x8F; //origin 0x9F
 
