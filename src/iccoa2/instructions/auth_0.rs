@@ -1,21 +1,15 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
 use crate::iccoa2::errors::*;
-use crate::iccoa2::{get_tlv_primitive_value, identifier};
-use super::common;
+use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, identifier};
+use super::{common, CRYPTO_GRAM_TAG, DEVICE_TEMP_PUB_KEY_TAG, RANDOM_TAG, VEHICLE_ID_TAG, VEHICLE_TEMP_PUB_KEY_TAG, VERSION_TAG};
 
+#[allow(dead_code)]
 const AUTH_0_INS: u8 = 0x67;
+#[allow(dead_code)]
 const AUTH_0_P2: u8 = 0x00;
+#[allow(dead_code)]
 const AUTH_0_LE: u8 = 0x00;
-const TEMP_PUB_KEY_LENGTH: usize = 0x41;
-const RANDOM_NUMBER_LENGTH: usize = 0x08;
-const CRYPTOGRAM_LENGTH: usize = 0x10;
-const VERSION_TAG: u8 = 0x5A;
-pub const VEHICLE_ID_TAG: u8 = 0x83;
-pub const VEHICLE_TEMP_PUB_KEY_TAG: u8 = 0x81;
-pub const RANDOM_TAG: u8 = 0x55;
-pub const DEVICE_TEMP_PUB_KEY_TAG: u8 = 0x84;
-const CRYPTO_GRAM_TAG: u8 = 0x85;
 
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 pub enum Auth0P1 {
@@ -69,6 +63,7 @@ pub struct CommandApduAuth0 {
     random: Vec<u8>,
 }
 
+#[allow(dead_code)]
 impl CommandApduAuth0 {
     pub fn new(cla: u8, p1: Auth0P1, version: u16, vehicle_id: identifier::VehicleId, vehicle_temp_pub_key: &[u8], random: &[u8]) -> Self {
         CommandApduAuth0 {
@@ -123,25 +118,13 @@ impl CommandApduAuth0 {
             u8::from(self.p1),
             AUTH_0_P2,
         );
-        let version_tag = ber::Tag::try_from(VERSION_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create version tag error: {}", e)))?;
-        let version_value = ber::Value::Primitive(self.version.to_be_bytes().to_vec());
-        let version_tlv = ber::Tlv::new(version_tag, version_value)
+        let version_tlv = create_tlv_with_primitive_value(VERSION_TAG, self.version.to_be_bytes().as_ref())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create version tlv error: {}", e)))?;
-        let vehicle_id_tag = ber::Tag::try_from(VEHICLE_ID_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create vehicle id tag error: {}", e)))?;
-        let vehicle_id_value = ber::Value::Primitive(self.vehicle_id.serialize()?);
-        let vehicle_id_tlv = ber::Tlv::new(vehicle_id_tag, vehicle_id_value)
+        let vehicle_id_tlv = create_tlv_with_primitive_value(VEHICLE_ID_TAG, &self.get_vehicle_id().serialize()?)
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create vehicle id tlv error: {}", e)))?;
-        let vehicle_temp_pub_key_tag = ber::Tag::try_from(VEHICLE_TEMP_PUB_KEY_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create vehicle temp pub key tag error: {}", e)))?;
-        let vehicle_temp_pub_key_value = ber::Value::Primitive(self.vehicle_temp_pub_key.clone());
-        let vehicle_temp_pub_key_tlv = ber::Tlv::new(vehicle_temp_pub_key_tag, vehicle_temp_pub_key_value)
+        let vehicle_temp_pub_key_tlv = create_tlv_with_primitive_value(VEHICLE_TEMP_PUB_KEY_TAG, self.get_vehicle_temp_pub_key())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create vehicle temp pub key tlv error: {}", e)))?;
-        let random_tag = ber::Tag::try_from(RANDOM_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create random tag error: {}", e)))?;
-        let random_value = ber::Value::Primitive(self.random.clone());
-        let random_tlv = ber::Tlv::new(random_tag, random_value)
+        let random_tlv = create_tlv_with_primitive_value(RANDOM_TAG, self.get_random())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create random tlv error: {}", e)))?;
         let mut data = Vec::new();
         data.append(&mut version_tlv.to_vec());
@@ -155,15 +138,15 @@ impl CommandApduAuth0 {
         common::CommandApdu::new(header, Some(trailer)).serialize()
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
-        let mut auth_0 = CommandApduAuth0::default();
         let command_apdu = common::CommandApdu::deserialize(data)?;
         let header = command_apdu.get_header();
-        auth_0.set_cla(header.get_cla());
-        auth_0.set_p1(Auth0P1::try_from(header.get_p1())?);
-
         let trailer = command_apdu
             .get_trailer()
             .ok_or(format!("deserialize trailer is NULL"))?;
+        let mut auth_0 = CommandApduAuth0::default();
+        auth_0.set_cla(header.get_cla());
+        auth_0.set_p1(Auth0P1::try_from(header.get_p1())?);
+
         let data = trailer
             .get_data()
             .ok_or(format!("deserialize data is NULL"))?;
@@ -171,9 +154,7 @@ impl CommandApduAuth0 {
         for tlv in tlv_collections {
             let tag = tlv.tag().to_bytes();
             if tag == VERSION_TAG.to_be_bytes() {
-                let version_tag = ber::Tag::try_from(VERSION_TAG)
-                    .map_err(|e| ErrorKind::ApduInstructionErr(format!("create version tag error: {}", e)))?;
-                let version = get_tlv_primitive_value(&tlv, &version_tag)
+                let version = get_tlv_primitive_value(&tlv, &tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize version error: {}", e)))?;
                 auth_0.set_version(
                     u16::from_be_bytes(
@@ -183,21 +164,15 @@ impl CommandApduAuth0 {
                     )
                 );
             } else if tag == VEHICLE_ID_TAG.to_be_bytes() {
-                let vehicle_id_tag = ber::Tag::try_from(VEHICLE_ID_TAG)
-                    .map_err(|e| ErrorKind::ApduInstructionErr(format!("create vehicle id tag error: {}", e)))?;
-                let vehicle_id_value = get_tlv_primitive_value(&tlv, &vehicle_id_tag)
+                let vehicle_id_value = get_tlv_primitive_value(&tlv, &tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize vehicle id value error: {}", e)))?;
                 auth_0.set_vehicle_id(identifier::VehicleId::deserialize(vehicle_id_value)?);
             } else if tag == VEHICLE_TEMP_PUB_KEY_TAG.to_be_bytes() {
-                let vehicle_temp_pub_key_tag = ber::Tag::try_from(VEHICLE_TEMP_PUB_KEY_TAG)
-                    .map_err(|e| ErrorKind::ApduInstructionErr(format!("create vehicle temp pub key tag error: {}", e)))?;
-                let vehicle_temp_pub_key_value = get_tlv_primitive_value(&tlv, &vehicle_temp_pub_key_tag)
+                let vehicle_temp_pub_key_value = get_tlv_primitive_value(&tlv, &tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize vehicle temp public key error: {}", e)))?;
                 auth_0.set_vehicle_temp_pub_key(vehicle_temp_pub_key_value);
             } else if tag == RANDOM_TAG.to_be_bytes() {
-                let random_tag = ber::Tag::try_from(RANDOM_TAG)
-                    .map_err(|e| ErrorKind::ApduInstructionErr(format!("create random tag error: {}", e)))?;
-                let random_value = get_tlv_primitive_value(&tlv, &random_tag)
+                let random_value = get_tlv_primitive_value(&tlv, &tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize random number error: {}", e)))?;
                 auth_0.set_random(random_value);
             }
@@ -208,7 +183,14 @@ impl CommandApduAuth0 {
 
 impl Display for CommandApduAuth0 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(
+            f,
+            "version: {}, vehicle id: {}, vehicle ePK = {:02X?}, random = {:02X?}",
+            self.get_version(),
+            self.get_vehicle_id(),
+            self.get_vehicle_temp_pub_key(),
+            self.get_random(),
+        )
     }
 }
 
@@ -219,6 +201,7 @@ pub struct ResponseApduAuth0 {
     status: common::ResponseApduTrailer,
 }
 
+#[allow(dead_code)]
 impl ResponseApduAuth0 {
     pub fn new(device_temp_pub_key: &[u8], cryptogram: Option<Vec<u8>>, status: common::ResponseApduTrailer) -> Self {
         ResponseApduAuth0 {
@@ -251,18 +234,12 @@ impl ResponseApduAuth0 {
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
         let mut data = Vec::new();
-        let device_temp_pub_key_tag = ber::Tag::try_from(DEVICE_TEMP_PUB_KEY_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create device temp pub key tag error: {}", e)))?;
-        let device_tmp_pub_key_value = ber::Value::Primitive(self.device_temp_pub_key.clone());
-        let device_temp_pub_key_tlv = ber::Tlv::new(device_temp_pub_key_tag, device_tmp_pub_key_value)
+        let device_temp_pub_key_tlv = create_tlv_with_primitive_value(DEVICE_TEMP_PUB_KEY_TAG, self.get_device_temp_pub_key())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create device temp pub key tlv error: {}", e)))?;
         data.append(&mut device_temp_pub_key_tlv.to_vec());
         if let Some(cryptogram) = self.get_cryptogram() {
-            let crypto_gram_tag = ber::Tag::try_from(CRYPTO_GRAM_TAG)
-                .map_err(|e| ErrorKind::ApduInstructionErr(format!("create cryptogram tag error: {}", e)))?;
-            let crypto_gram_value = ber::Value::Primitive(cryptogram.to_vec());
-            let crypto_gram_tlv = ber::Tlv::new(crypto_gram_tag, crypto_gram_value)
-                .map_err(|e| ErrorKind::ApduInstructionErr(format!("create cryptogram tlv error: {}", e)))?;
+            let crypto_gram_tlv = create_tlv_with_primitive_value(CRYPTO_GRAM_TAG, cryptogram)
+                .map_err(|e| ErrorKind::ApduInstructionErr(format!("create crypto gram tlv error: {}", e)))?;
             data.append(&mut crypto_gram_tlv.to_vec());
         }
         let response_apdu = common::ResponseApdu::new(
@@ -272,30 +249,24 @@ impl ResponseApduAuth0 {
         response_apdu.serialize()
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
-        let mut auth_0_response = ResponseApduAuth0::default();
         let response_apdu = common::ResponseApdu::deserialize(data)?;
-        if let Some(body) = response_apdu.get_body() {
-            let tlv_collections = ber::Tlv::parse_all(body);
-            for tlv in tlv_collections {
-                let tag = tlv.tag().to_bytes();
-                if tag == DEVICE_TEMP_PUB_KEY_TAG.to_be_bytes() {
-                    let device_temp_pub_key_tag = ber::Tag::try_from(DEVICE_TEMP_PUB_KEY_TAG)
-                        .map_err(|e| ErrorKind::ApduInstructionErr(format!("create device temp pub key tag error: {}", e)))?;
-                    let device_temp_pub_key_value = get_tlv_primitive_value(&tlv, &device_temp_pub_key_tag)
-                        .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize temp pub key value error: {}", e)))?;
-                    auth_0_response.set_device_temp_pub_key(device_temp_pub_key_value);
-                } else if tag == CRYPTO_GRAM_TAG.to_be_bytes() {
-                    let crypto_gram_tag = ber::Tag::try_from(CRYPTO_GRAM_TAG)
-                        .map_err(|e| ErrorKind::ApduInstructionErr(format!("create cryptogram tag error: {}", e)))?;
-                    let crypto_gram_value = get_tlv_primitive_value(&tlv, &crypto_gram_tag)
-                        .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize cryptogram value error: {}", e)))?;
-                    auth_0_response.set_cryptogram(Some(crypto_gram_value.to_owned()));
-                }
+        let body = response_apdu.get_body().ok_or(format!("deserialize response auth 0 body is NULL"))?;
+        let status = response_apdu.get_trailer();
+        let mut auth_0_response = ResponseApduAuth0::default();
+        auth_0_response.set_status(*status);
+        let tlv_collections = ber::Tlv::parse_all(body);
+        for tlv in tlv_collections {
+            let tag = tlv.tag().to_bytes();
+            if tag == DEVICE_TEMP_PUB_KEY_TAG.to_be_bytes() {
+                let device_temp_pub_key_value = get_tlv_primitive_value(&tlv, &tlv.tag())
+                    .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize temp pub key value error: {}", e)))?;
+                auth_0_response.set_device_temp_pub_key(device_temp_pub_key_value);
+            } else if tag == CRYPTO_GRAM_TAG.to_be_bytes() {
+                let crypto_gram_value = get_tlv_primitive_value(&tlv, &tlv.tag())
+                    .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize cryptogram value error: {}", e)))?;
+                auth_0_response.set_cryptogram(Some(crypto_gram_value.to_owned()));
             }
-        } else {
-            return Err(ErrorKind::ApduInstructionErr(format!("deserialize response auth 0 body is NULL")).into());
         }
-        auth_0_response.set_status(response_apdu.get_trailer().clone());
         Ok(auth_0_response)
     }
 }

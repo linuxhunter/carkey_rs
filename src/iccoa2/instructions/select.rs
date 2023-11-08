@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
 use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value};
 use crate::iccoa2::errors::*;
-use super::{common, VERSIONS_TAG};
+use super::{common, VERSION_TAG};
 
 #[allow(dead_code)]
 const SELECT_CLA: u8 = 0x00;
@@ -95,16 +95,16 @@ impl ResponseApduSelect {
         self.status = status;
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let versions_tlv = create_tlv_with_primitive_value(VERSIONS_TAG, self.get_version().to_be_bytes().as_ref())?;
-        common::ResponseApdu::new(Some(versions_tlv.to_vec()), self.status).serialize()
+        let version_tlv = create_tlv_with_primitive_value(VERSION_TAG, self.get_version().to_be_bytes().as_ref())?;
+        common::ResponseApdu::new(Some(version_tlv.to_vec()), self.status).serialize()
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let response = common::ResponseApdu::deserialize(data)?;
         let status = response.get_trailer();
         let body = response.get_body().ok_or(format!("deserialize SELECT response version is NULL"))?;
-        let versions_tlv = ber::Tlv::from_bytes(body)
+        let version_tlv = ber::Tlv::from_bytes(body)
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize version error: {}", e)))?;
-        let versions = get_tlv_primitive_value(&versions_tlv, &versions_tlv.tag())
+        let versions = get_tlv_primitive_value(&version_tlv, &version_tlv.tag())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize version value error: {}", e)))?;
         let version = u16::from_be_bytes(
             (versions[0..2])
