@@ -1,5 +1,4 @@
 use std::fmt::{Display, Formatter};
-use std::os::linux::raw::stat;
 use iso7816_tlv::ber;
 use crate::iccoa2::errors::*;
 use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, identifier};
