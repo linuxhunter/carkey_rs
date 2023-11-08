@@ -1,18 +1,27 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
 use crate::iccoa2::errors::*;
-use crate::iccoa2::get_tlv_primitive_value;
+use crate::iccoa2::{create_tlv_with_constructed_value, create_tlv_with_primitive_value, get_tlv_primitive_value};
 use super::common;
 
+#[allow(dead_code)]
 const VEHICLE_CA_CERT_TAG: u16 = 0x7F40;
+#[allow(dead_code)]
 const VEHICLE_MASTER_KEY_CERT_TAG: u16 = 0x7F42;
+#[allow(dead_code)]
 const TEMP_SHARED_CERT_TAG: u16 = 0x7F44;
+#[allow(dead_code)]
 const FRIEND_KEY_CERT_TAG: u16 = 0x7F46;
+#[allow(dead_code)]
 const CERT_TAG: u8 = 0x01;
 
+#[allow(dead_code)]
 const GET_DK_CERT_INS: u8 = 0x64;
+#[allow(dead_code)]
 const GET_DK_CERT_P1: u8 = 0x00;
+#[allow(dead_code)]
 const GET_DK_CERT_P2: u8 = 0x00;
+#[allow(dead_code)]
 const GET_DK_CERT_LE: u8 = 0x00;
 
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
@@ -56,7 +65,12 @@ impl From<DkCertType> for u8 {
 
 impl Display for DkCertType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        match self {
+            DkCertType::VehicleCACert => write!(f, "Vehicle CA Certificate"),
+            DkCertType::VehicleMasterKeyCert => write!(f, "Vehicle Master Key Certificate"),
+            DkCertType::TempSharedCert => write!(f, "Temp Shared Certificate"),
+            DkCertType::FriendKeyCert => write!(f, "Friend Key Certificate"),
+        }
     }
 }
 
@@ -66,6 +80,7 @@ pub struct CommandApduGetDkCert {
     dk_cert_type: DkCertType,
 }
 
+#[allow(dead_code)]
 impl CommandApduGetDkCert {
     pub fn new(cla: u8, dk_cert_type: DkCertType) -> Self {
         CommandApduGetDkCert {
@@ -129,7 +144,7 @@ impl CommandApduGetDkCert {
 
 impl Display for CommandApduGetDkCert {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "{}", self.get_dk_cert_type())
     }
 }
 
@@ -140,6 +155,7 @@ pub struct ResponseApduGetDkCert {
     status: common::ResponseApduTrailer,
 }
 
+#[allow(dead_code)]
 impl ResponseApduGetDkCert {
     pub fn new(dk_cert_type: DkCertType, dk_cert: &[u8], status: common::ResponseApduTrailer) -> Self {
         ResponseApduGetDkCert {
@@ -167,31 +183,23 @@ impl ResponseApduGetDkCert {
         self.status = status;
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
+        let cert_tlv = create_tlv_with_primitive_value(CERT_TAG, self.get_dk_cert())
+            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create inner cert tlv error: {}", e)))?;
         let response_tag = match self.dk_cert_type {
             DkCertType::VehicleCACert => {
-                ber::Tag::try_from(VEHICLE_CA_CERT_TAG)
-                    .map_err(|e| ErrorKind::ApduInstructionErr(format!("create vehicle ca cert tag error: {}", e)))?
+                VEHICLE_CA_CERT_TAG
             },
             DkCertType::VehicleMasterKeyCert => {
-                ber::Tag::try_from(VEHICLE_MASTER_KEY_CERT_TAG)
-                    .map_err(|e| ErrorKind::ApduInstructionErr(format!("create vehicle master key cert tag error: {}", e)))?
+                VEHICLE_MASTER_KEY_CERT_TAG
             },
             DkCertType::TempSharedCert => {
-                ber::Tag::try_from(TEMP_SHARED_CERT_TAG)
-                    .map_err(|e| ErrorKind::ApduInstructionErr(format!("create temp shared cert tag error: {}", e)))?
+                TEMP_SHARED_CERT_TAG
             },
             DkCertType::FriendKeyCert => {
-                ber::Tag::try_from(FRIEND_KEY_CERT_TAG)
-                    .map_err(|e| ErrorKind::ApduInstructionErr(format!("create friend key cert tag error: {}", e)))?
+                FRIEND_KEY_CERT_TAG
             }
         };
-        let cert_tag = ber::Tag::try_from(CERT_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create inner cert tag error: {}", e)))?;
-        let cert_value = ber::Value::Primitive(self.get_dk_cert().to_vec());
-        let cert_tlv = ber::Tlv::new(cert_tag, cert_value)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create inner cert tlv error: {}", e)))?;
-        let response_value = ber::Value::Constructed(vec![cert_tlv]);
-        let response_tlv = ber::Tlv::new(response_tag, response_value)
+        let response_tlv = create_tlv_with_constructed_value(response_tag, &vec![cert_tlv])
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create get dk certificate response tlv error: {}", e)))?;
 
         let response_apdu = common::ResponseApdu::new(
@@ -204,7 +212,7 @@ impl ResponseApduGetDkCert {
         let response_apdu = common::ResponseApdu::deserialize(data)?;
         let body = response_apdu
             .get_body()
-            .ok_or(format!("deserialize get dk certificate eror"))?;
+            .ok_or(format!("deserialize get dk certificate error"))?;
 
         let response_tlv = ber::Tlv::from_bytes(body)
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize origin bytes error: {}", e)))?;
@@ -217,6 +225,12 @@ impl ResponseApduGetDkCert {
             cert,
             response_apdu.get_trailer().clone(),
         ))
+    }
+}
+
+impl Display for ResponseApduGetDkCert {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}, {:02X?}", self.get_dk_cert_type(), self.get_dk_cert())
     }
 }
 
