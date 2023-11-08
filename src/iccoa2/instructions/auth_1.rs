@@ -1,18 +1,21 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
-use openssl::version::version;
 use crate::iccoa2::errors::*;
-use crate::iccoa2::{get_tlv_primitive_value, identifier};
-use super::{auth_0, common};
+use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, identifier};
+use super::{common, DEVICE_TEMP_PUB_KEY_TAG, RANDOM_TAG, SIGNATURE_TAG, VEHICLE_ID_TAG, VEHICLE_TEMP_PUB_KEY_TAG};
 
+#[allow(dead_code)]
 const AUTH_1_INS: u8 = 0x63;
+#[allow(dead_code)]
 const AUTH_1_P1: u8 = 0x00;
+#[allow(dead_code)]
 const AUTH_1_P2: u8 = 0x00;
+#[allow(dead_code)]
 const AUTH_1_LE: u8 = 0x00;
-const AUTH_1_SIGNATURE_TAG: u8 = 0x8F; //(0x9F in documents)
+#[allow(dead_code)]
 const AUTH_1_SIGNATURE_LENGTH: usize = 0x40;
 
-pub fn vehicle_signature(data: &[u8]) -> [u8; AUTH_1_SIGNATURE_LENGTH] {
+pub fn vehicle_signature(_data: &[u8]) -> [u8; AUTH_1_SIGNATURE_LENGTH] {
     [
         0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
         0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
@@ -25,11 +28,11 @@ pub fn vehicle_signature(data: &[u8]) -> [u8; AUTH_1_SIGNATURE_LENGTH] {
     ]
 }
 
-pub fn vehicle_verify(data: &[u8]) -> bool {
+pub fn vehicle_verify(_data: &[u8]) -> bool {
     true
 }
 
-pub fn device_signature(data: &[u8]) -> [u8; AUTH_1_SIGNATURE_LENGTH] {
+pub fn device_signature(_data: &[u8]) -> [u8; AUTH_1_SIGNATURE_LENGTH] {
     [
         0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
         0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
@@ -42,7 +45,7 @@ pub fn device_signature(data: &[u8]) -> [u8; AUTH_1_SIGNATURE_LENGTH] {
     ]
 }
 
-pub fn device_verify(data: &[u8]) -> bool {
+pub fn device_verify(_data: &[u8]) -> bool {
     true
 }
 
@@ -54,6 +57,7 @@ pub struct Auth1Data {
     random: Vec<u8>,
 }
 
+#[allow(dead_code)]
 impl Auth1Data {
     pub fn new(vehicle_id: identifier::VehicleId, device_temp_pub_key_x: &[u8], vehicle_temp_pub_key_x: &[u8], random: &[u8]) -> Self {
         Auth1Data {
@@ -88,25 +92,13 @@ impl Auth1Data {
         self.random = random.to_vec();
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let vehicle_id_tag = ber::Tag::try_from(auth_0::VEHICLE_ID_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create vehicle id tag error: {}", e)))?;
-        let vehicle_id_value = ber::Value::Primitive(self.get_vehicle_id().serialize()?);
-        let vehicle_id_tlv = ber::Tlv::new(vehicle_id_tag, vehicle_id_value)
+        let vehicle_id_tlv = create_tlv_with_primitive_value(VEHICLE_ID_TAG, &self.get_vehicle_id().serialize()?)
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create vehicle id tlv error: {}", e)))?;
-        let device_temp_pub_key_x_tag = ber::Tag::try_from(auth_0::DEVICE_TEMP_PUB_KEY_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create device temp public key x tag error: {}", e)))?;
-        let device_temp_pub_key_x_value = ber::Value::Primitive(self.get_device_temp_pub_key_x().to_vec());
-        let device_temp_pub_key_x_tlv = ber::Tlv::new(device_temp_pub_key_x_tag, device_temp_pub_key_x_value)
+        let device_temp_pub_key_x_tlv = create_tlv_with_primitive_value(DEVICE_TEMP_PUB_KEY_TAG, self.get_device_temp_pub_key_x())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create device temp public key x tlv error: {}", e)))?;
-        let vehicle_temp_pub_key_x_tag = ber::Tag::try_from(auth_0::VEHICLE_TEMP_PUB_KEY_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create vehicle temp public key x tag error: {}", e)))?;
-        let vehicle_temp_pub_key_x_value = ber::Value::Primitive(self.get_vehicle_temp_pub_key_x().to_vec());
-        let vehicle_temp_pub_key_x_tlv = ber::Tlv::new(vehicle_temp_pub_key_x_tag, vehicle_temp_pub_key_x_value)
+        let vehicle_temp_pub_key_x_tlv = create_tlv_with_primitive_value(VEHICLE_TEMP_PUB_KEY_TAG, self.get_vehicle_temp_pub_key_x())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create vehicle temp public key x tlv error: {}", e)))?;
-        let random_tag = ber::Tag::try_from(auth_0::RANDOM_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create random tag error: {}", e)))?;
-        let random_value = ber::Value::Primitive(self.get_random().to_vec());
-        let random_tlv = ber::Tlv::new(random_tag, random_value)
+        let random_tlv = create_tlv_with_primitive_value(RANDOM_TAG, self.get_random())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create random tlv error: {}", e)))?;
 
         let mut buffer = Vec::new();
@@ -120,28 +112,20 @@ impl Auth1Data {
         let mut auth_data = Auth1Data::default();
         let tlv_collections = ber::Tlv::parse_all(data);
         for tlv in tlv_collections {
-            if tlv.tag().to_bytes() == auth_0::VEHICLE_ID_TAG.to_be_bytes() {
-                let vehicle_id_tag = ber::Tag::try_from(auth_0::VEHICLE_ID_TAG)
-                    .map_err(|e| ErrorKind::ApduInstructionErr(format!("create vehicle id tag error: {}", e)))?;
-                let vehicle_id= get_tlv_primitive_value(&tlv, &vehicle_id_tag)
+            if tlv.tag().to_bytes() == VEHICLE_ID_TAG.to_be_bytes() {
+                let vehicle_id = get_tlv_primitive_value(&tlv, &tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize vehicle id error: {}", e)))?;
                 auth_data.set_vehicle_id(identifier::VehicleId::deserialize(vehicle_id)?);
-            } else if tlv.tag().to_bytes() == auth_0::DEVICE_TEMP_PUB_KEY_TAG.to_be_bytes() {
-                let device_temp_pub_key_x_tag = ber::Tag::try_from(auth_0::DEVICE_TEMP_PUB_KEY_TAG)
-                    .map_err(|e| ErrorKind::ApduInstructionErr(format!("create device temp public key x tag error: {}", e)))?;
-                let device_temp_pub_key_x = get_tlv_primitive_value(&tlv, &device_temp_pub_key_x_tag)
+            } else if tlv.tag().to_bytes() == DEVICE_TEMP_PUB_KEY_TAG.to_be_bytes() {
+                let device_temp_pub_key_x = get_tlv_primitive_value(&tlv, &tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize device temp public key x error: {}", e)))?;
                 auth_data.set_device_temp_pub_key_x(device_temp_pub_key_x);
-            } else if tlv.tag().to_bytes() == auth_0::VEHICLE_TEMP_PUB_KEY_TAG.to_be_bytes() {
-                let vehicle_temp_pub_key_x_tag = ber::Tag::try_from(auth_0::VEHICLE_TEMP_PUB_KEY_TAG)
-                    .map_err(|e| ErrorKind::ApduInstructionErr(format!("create vehicle temp public key x tag error: {}", e)))?;
-                let vehicle_temp_pub_key_x = get_tlv_primitive_value(&tlv, &vehicle_temp_pub_key_x_tag)
+            } else if tlv.tag().to_bytes() == VEHICLE_TEMP_PUB_KEY_TAG.to_be_bytes() {
+                let vehicle_temp_pub_key_x = get_tlv_primitive_value(&tlv, &tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize vehicle temp public key x error: {}", e)))?;
                 auth_data.set_vehicle_temp_pub_key_x(vehicle_temp_pub_key_x);
-            } else if tlv.tag().to_bytes() == auth_0::RANDOM_TAG.to_be_bytes() {
-                let random_tag = ber::Tag::try_from(auth_0::RANDOM_TAG)
-                    .map_err(|e| ErrorKind::ApduInstructionErr(format!("create random tag error: {}", e)))?;
-                let random_value = get_tlv_primitive_value(&tlv, &random_tag)
+            } else if tlv.tag().to_bytes() == RANDOM_TAG.to_be_bytes() {
+                let random_value = get_tlv_primitive_value(&tlv, &tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize random error: {}", e)))?;
                 auth_data.set_random(random_value);
             }
@@ -152,7 +136,14 @@ impl Auth1Data {
 
 impl Display for Auth1Data {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(
+            f,
+            "vehicle id: {}, device_ePK.x: {:02X?}, vehicle_ePK.x: {:02X?}, random: {:02X?}",
+            self.get_vehicle_id(),
+            self.get_device_temp_pub_key_x(),
+            self.get_vehicle_temp_pub_key_x(),
+            self.get_random(),
+        )
     }
 }
 
@@ -162,6 +153,7 @@ pub struct CommandApduAuth1 {
     auth_data: Auth1Data,
 }
 
+#[allow(dead_code)]
 impl CommandApduAuth1 {
     pub fn new(cla: u8, auth_data: Auth1Data) -> Self {
         CommandApduAuth1 {
@@ -182,10 +174,7 @@ impl CommandApduAuth1 {
         self.auth_data = auth_data;
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let signature_tag = ber::Tag::try_from(AUTH_1_SIGNATURE_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create auth1 signature tag error: {}", e)))?;
-        let signature_value = ber::Value::Primitive(self.signature()?.to_vec());
-        let signature_tlv = ber::Tlv::new(signature_tag, signature_value)
+        let signature_tlv = create_tlv_with_primitive_value(SIGNATURE_TAG, &self.signature()?)
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("crate auth1 signature tlv error: {}", e)))?;
 
         let header = common::CommandApduHeader::new(
@@ -212,12 +201,10 @@ impl CommandApduAuth1 {
 
         let tlv = ber::Tlv::from_bytes(origin_data)
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize origin data error: {}", e)))?;
-        if tlv.tag().to_bytes() != AUTH_1_SIGNATURE_TAG.to_be_bytes() {
+        if tlv.tag().to_bytes() != SIGNATURE_TAG.to_be_bytes() {
             return Err(ErrorKind::ApduInstructionErr(format!("deserialize tag is invalid")).into());
         }
-        let signature_tag = ber::Tag::try_from(AUTH_1_SIGNATURE_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create auth1 signature tag error: {}", e)))?;
-        let signature_value = get_tlv_primitive_value(&tlv, &signature_tag)
+        let signature_value = get_tlv_primitive_value(&tlv, &tlv.tag())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize signature value error: {}", e)))?;
         Ok(signature_value.to_owned())
     }
@@ -232,7 +219,7 @@ impl CommandApduAuth1 {
 
 impl Display for CommandApduAuth1 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "{:02X?}", self.signature())
     }
 }
 
@@ -242,6 +229,7 @@ pub struct ResponseApduAuth1 {
     status: common::ResponseApduTrailer,
 }
 
+#[allow(dead_code)]
 impl ResponseApduAuth1 {
     pub fn new(auth_data: Auth1Data, status: common::ResponseApduTrailer) -> Self {
         ResponseApduAuth1 {
@@ -270,11 +258,8 @@ impl ResponseApduAuth1 {
     }
     pub fn deserialize(data: &[u8]) -> Result<Vec<u8>> {
         let response_apdu = common::ResponseApdu::deserialize(data)?;
-        if let Some(body) = response_apdu.get_body() {
-            Ok(body.to_owned())
-        } else {
-            return Err(ErrorKind::ApduInstructionErr(format!("deserialize auth1 response body is NULL")).into());
-        }
+        let body = response_apdu.get_body().ok_or(format!("deserialize auth1 response body is NULL"))?;
+        Ok(body.to_vec())
     }
     pub fn signature(&self) -> Result<[u8; AUTH_1_SIGNATURE_LENGTH]> {
         Ok(device_signature(self.auth_data.serialize()?.as_ref()))
@@ -286,13 +271,12 @@ impl ResponseApduAuth1 {
 
 impl Display for ResponseApduAuth1 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "{:02X?}", self.signature())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::iccoa2::instructions::common::ResponseApdu;
     use super::*;
 
     fn create_vehicle_id(vehicle_oem_id: u16, vehicle_serial_id: &[u8]) -> identifier::VehicleId {
