@@ -1,18 +1,29 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
-use crate::iccoa2::get_tlv_primitive_value;
+use crate::iccoa2::{create_tlv_with_constructed_value, create_tlv_with_primitive_value, get_tlv_primitive_value};
 use super::errors::*;
 
+#[allow(dead_code)]
 const ENTITY_MIDDLE_TAG: u8 = 0x30;
+#[allow(dead_code)]
 const ENTITY_SECOND_MIDDLE_TAG: u8 = 0xA0;
+#[allow(dead_code)]
 const ENTITY_REQUEST_TAG: u8 = 0x84;
+#[allow(dead_code)]
 const ALL_ENTITIES_REQUEST_TAG: u8 = 0x86;
+#[allow(dead_code)]
 const ENTITY_RESPONSE_TAG: u8 = 0x80;
+#[allow(dead_code)]
 const ENTITY_STATUS_RESPONSE_TAG: u8 = 0x89;
+#[allow(dead_code)]
 const RANDOM_NUMBER_TAG: u8 = 0x8A;
+#[allow(dead_code)]
 pub const SUBSCRIBE_REQUEST_TAG: u16 = 0x7F73;
+#[allow(dead_code)]
 pub const QUERY_REQUEST_TAG: u16 = 0x7F74;
+#[allow(dead_code)]
 pub const UNSUBSCRIBE_REQUEST_TAG: u16 = 0x7F75;
+#[allow(dead_code)]
 const VEHICLE_STATUS_RESPONSE_TAG: u16 = 0x7F77;
 
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
@@ -116,6 +127,7 @@ pub struct VehicleStatusRequest {
     entity_id: VehicleStatusEntityId,
 }
 
+#[allow(dead_code)]
 impl VehicleStatusRequest {
     pub fn new(operation: VehicleStatusOperations, entity_id: VehicleStatusEntityId) -> Self {
         VehicleStatusRequest {
@@ -137,21 +149,12 @@ impl VehicleStatusRequest {
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
         let tlv = if self.get_entity_id() == VehicleStatusEntityId::All {
-            let all_tag = ber::Tag::try_from(ALL_ENTITIES_REQUEST_TAG)
-                .map_err(|e| ErrorKind::VehicleStatusError(format!("create vehicle status entity all tag error: {}", e)))?;
-            let all_value = ber::Value::Primitive(vec![]);
-            ber::Tlv::new(all_tag, all_value)
+            create_tlv_with_primitive_value(ALL_ENTITIES_REQUEST_TAG, &vec![])
                 .map_err(|e| ErrorKind::VehicleStatusError(format!("create vehicle status entity all tlv error: {}", e)))?
         } else {
-            let entity_id_tag = ber::Tag::try_from(ENTITY_REQUEST_TAG)
-                .map_err(|e| ErrorKind::VehicleStatusError(format!("create vehicle status entity id tag error: {}", e)))?;
-            let entity_id_value = ber::Value::Primitive(u16::from(self.get_entity_id()).to_be_bytes().to_vec());
-            let entity_id_tlv = ber::Tlv::new(entity_id_tag, entity_id_value)
+            let entity_id_tlv = create_tlv_with_primitive_value(ENTITY_REQUEST_TAG, &u16::from(self.get_entity_id()).to_be_bytes())
                 .map_err(|e| ErrorKind::VehicleStatusError(format!("create vehicle status entity id tlv error: {}", e)))?;
-            let entity_middle_tag = ber::Tag::try_from(ENTITY_MIDDLE_TAG)
-                .map_err(|e| ErrorKind::VehicleStatusError(format!("create vehicle status entity middle tag error: {}", e)))?;
-            let entity_middle_value = ber::Value::Constructed(vec![entity_id_tlv]);
-            ber::Tlv::new(entity_middle_tag, entity_middle_value)
+            create_tlv_with_constructed_value(u16::from(ENTITY_MIDDLE_TAG), &vec![entity_id_tlv])
                 .map_err(|e| ErrorKind::VehicleStatusError(format!("create vehicle status entity middle tlv error: {}", e)))?
         };
         let vehicle_status_tag = match self.get_operation() {
@@ -228,6 +231,7 @@ pub struct SubscribeVerificationResponse {
     inner: Vec<u8>,
 }
 
+#[allow(dead_code)]
 impl SubscribeVerificationResponse {
     pub fn new(random: &[u8]) -> Self {
         SubscribeVerificationResponse {
@@ -241,10 +245,7 @@ impl SubscribeVerificationResponse {
         self.inner = random.to_vec();
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let tag = ber::Tag::try_from(RANDOM_NUMBER_TAG)
-            .map_err(|e| ErrorKind::RkeError(format!("create subscribe verification response tag error: {}", e)))?;
-        let value = ber::Value::Primitive(self.inner.clone());
-        let tlv = ber::Tlv::new(tag, value)
+        let tlv = create_tlv_with_primitive_value(RANDOM_NUMBER_TAG, self.get_verification_response())
             .map_err(|e| ErrorKind::RkeError(format!("create subscribe verification response tlv error: {}", e)))?;
         Ok(tlv.to_vec())
     }
@@ -254,9 +255,7 @@ impl SubscribeVerificationResponse {
         if tlv.tag().to_bytes() != RANDOM_NUMBER_TAG.to_be_bytes() {
             return Err(ErrorKind::RkeError(format!("deserialized random number tag is not corrected")).into());
         }
-        let tag = ber::Tag::try_from(RANDOM_NUMBER_TAG)
-            .map_err(|e| ErrorKind::RkeError(format!("create subscribe verification response tag error: {}", e)))?;
-        let value = get_tlv_primitive_value(&tlv, &tag)
+        let value = get_tlv_primitive_value(&tlv, &tlv.tag())
             .map_err(|e| ErrorKind::RkeError(format!("deserialize rke verification response value error: {}", e)))?;
         Ok(SubscribeVerificationResponse::new(value))
     }
@@ -275,6 +274,7 @@ pub struct VehicleStatusResponse {
     random: Option<SubscribeVerificationResponse>,
 }
 
+#[allow(dead_code)]
 impl VehicleStatusResponse {
     pub fn new(entity_id: VehicleStatusEntityId, status: u16, random: Option<SubscribeVerificationResponse>) -> Self {
         VehicleStatusResponse {
@@ -306,30 +306,15 @@ impl VehicleStatusResponse {
         self.random = random;
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let entity_id_tag = ber::Tag::try_from(ENTITY_RESPONSE_TAG)
-            .map_err(|e| ErrorKind::VehicleStatusError(format!("create entity id tag error: {}", e)))?;
-        let entity_id_value = ber::Value::Primitive(u16::from(self.entity_id).to_be_bytes().to_vec());
-        let entity_id_tlv = ber::Tlv::new(entity_id_tag, entity_id_value)
+        let entity_id_tlv = create_tlv_with_primitive_value(ENTITY_RESPONSE_TAG, &u16::from(self.get_entity_id()).to_be_bytes())
             .map_err(|e| ErrorKind::VehicleStatusError(format!("create entity id tlv error: {}", e)))?;
-        let status_tag = ber::Tag::try_from(ENTITY_STATUS_RESPONSE_TAG)
-            .map_err(|e| ErrorKind::VehicleStatusError(format!("create entity status tag error: {}", e)))?;
-        let status_value = ber::Value::Primitive(self.status.to_be_bytes().to_vec());
-        let status_tlv = ber::Tlv::new(status_tag, status_value)
+        let status_tlv = create_tlv_with_primitive_value(ENTITY_STATUS_RESPONSE_TAG, &self.get_status().to_be_bytes())
             .map_err(|e| ErrorKind::VehicleStatusError(format!("crate entity status tlv error: {}", e)))?;
-        let second_middle_tag = ber::Tag::try_from(ENTITY_SECOND_MIDDLE_TAG)
-            .map_err(|e| ErrorKind::VehicleStatusError(format!("create second middle tag error: {}", e)))?;
-        let second_middle_value = ber::Value::Constructed(vec![entity_id_tlv, status_tlv]);
-        let second_middle_tlv = ber::Tlv::new(second_middle_tag, second_middle_value)
+        let second_middle_tlv = create_tlv_with_constructed_value(u16::from(ENTITY_SECOND_MIDDLE_TAG), &vec![entity_id_tlv, status_tlv])
             .map_err(|e| ErrorKind::VehicleStatusError(format!("create second middle tlv error: {}", e)))?;
-        let middle_tag = ber::Tag::try_from(ENTITY_MIDDLE_TAG)
-            .map_err(|e| ErrorKind::VehicleStatusError(format!("create middle tag error: {}", e)))?;
-        let middle_value = ber::Value::Constructed(vec![second_middle_tlv]);
-        let middle_tlv = ber::Tlv::new(middle_tag, middle_value)
+        let middle_tlv = create_tlv_with_constructed_value(u16::from(ENTITY_MIDDLE_TAG), &vec![second_middle_tlv])
             .map_err(|e| ErrorKind::VehicleStatusError(format!("crate middle tlv error: {}", e)))?;
-        let response_tag = ber::Tag::try_from(VEHICLE_STATUS_RESPONSE_TAG)
-            .map_err(|e| ErrorKind::VehicleStatusError(format!("create vehicle status response tag error: {}", e)))?;
-        let response_value = ber::Value::Constructed(vec![middle_tlv]);
-        let response_tlv = ber::Tlv::new(response_tag, response_value)
+        let response_tlv = create_tlv_with_constructed_value(VEHICLE_STATUS_RESPONSE_TAG, &vec![middle_tlv])
             .map_err(|e| ErrorKind::VehicleStatusError(format!("create vehicle status response tlv error: {}", e)))?;
         if self.random.is_none() {
             Ok(response_tlv.to_vec())
@@ -403,6 +388,7 @@ pub enum VehicleStatus {
     SubscribeVerificationResponse(SubscribeVerificationResponse),
 }
 
+#[allow(dead_code)]
 impl VehicleStatus {
     pub fn serialize(&self) -> Result<Vec<u8>> {
         match self {
