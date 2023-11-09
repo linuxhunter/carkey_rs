@@ -1,12 +1,17 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
-use crate::iccoa2::get_tlv_primitive_value;
+use crate::iccoa2::{create_tlv_with_constructed_value, create_tlv_with_primitive_value, get_tlv_primitive_value};
 use super::errors::*;
 
+#[allow(dead_code)]
 const MEASURE_TYPE_TAG: u8 = 0x19;
+#[allow(dead_code)]
 const MEASURE_ACTION_TAG: u8 = 0x1A;
+#[allow(dead_code)]
 const MEASURE_DURATION_TAG: u8 = 0x1B;
+#[allow(dead_code)]
 const MEASURE_REQUEST_TAG: u16 = 0x7F2E;
+#[allow(dead_code)]
 const MEASURE_RESPONSE_TAG: u16 = 0x7F30;
 
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
@@ -130,6 +135,7 @@ pub struct MeasureRequest {
     request_duration: MeasureDuration,
 }
 
+#[allow(dead_code)]
 impl MeasureRequest {
     pub fn new(request_type: MeasureType, request_action: MeasureAction, request_duration: MeasureDuration) -> Self {
         MeasureRequest {
@@ -157,28 +163,13 @@ impl MeasureRequest {
         self.request_duration = request_duration;
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let type_tag = ber::Tag::try_from(MEASURE_TYPE_TAG)
-            .map_err(|e| ErrorKind::MeasureError(format!("create measure request type tag error: {:?}", e)))?;
-        let type_value = ber::Value::Primitive(vec![self.request_type.into()]);
-        let type_tlv = ber::Tlv::new(type_tag, type_value)
+        let type_tlv = create_tlv_with_primitive_value(MEASURE_TYPE_TAG, &vec![self.get_request_type().into()])
             .map_err(|e| ErrorKind::MeasureError(format!("create measure request type tlv error: {:?}", e)))?;
-
-        let action_tag = ber::Tag::try_from(MEASURE_ACTION_TAG)
-            .map_err(|e| ErrorKind::MeasureError(format!("create measure request action tag error: {:?}", e)))?;
-        let action_value = ber::Value::Primitive(vec![self.request_action.into()]);
-        let action_tlv = ber::Tlv::new(action_tag, action_value)
+        let action_tlv = create_tlv_with_primitive_value(MEASURE_ACTION_TAG, &vec![self.get_request_action().into()])
             .map_err(|e| ErrorKind::MeasureError(format!("create measure request action tlv error: {:?}", e)))?;
-
-        let duration_tag = ber::Tag::try_from(MEASURE_DURATION_TAG)
-            .map_err(|e| ErrorKind::MeasureError(format!("create measure request duration tag error: {:?}", e)))?;
-        let duration_value = ber::Value::Primitive(vec![self.request_duration.into()]);
-        let duration_tlv = ber::Tlv::new(duration_tag, duration_value)
+        let duration_tlv = create_tlv_with_primitive_value(MEASURE_DURATION_TAG, &vec![self.get_request_duration().into()])
             .map_err(|e| ErrorKind::MeasureError(format!("create measure request duration tlv error: {:?}", e)))?;
-
-        let measure_tag = ber::Tag::try_from(MEASURE_REQUEST_TAG)
-            .map_err(|e| ErrorKind::MeasureError(format!("create measure tag error: {:?}", e)))?;
-        let measure_value = ber::Value::Constructed(vec![type_tlv, action_tlv, duration_tlv]);
-        let measure_tlv = ber::Tlv::new(measure_tag, measure_value)
+        let measure_tlv = create_tlv_with_constructed_value(MEASURE_REQUEST_TAG, &vec![type_tlv, action_tlv, duration_tlv])
             .map_err(|e| ErrorKind::MeasureError(format!("create measure tlv error: {:?}", e)))?;
         Ok(measure_tlv.to_vec())
     }
@@ -227,6 +218,7 @@ pub struct MeasureResponse {
     response_duration: MeasureDuration,
 }
 
+#[allow(dead_code)]
 impl MeasureResponse {
     pub fn new(response_action: MeasureAction, response_duration: MeasureDuration) -> Self {
         MeasureResponse {
@@ -247,22 +239,11 @@ impl MeasureResponse {
         self.response_duration = response_duration;
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let action_tag = ber::Tag::try_from(MEASURE_ACTION_TAG)
-            .map_err(|e| ErrorKind::MeasureError(format!("create measure response action tag error: {:?}", e)))?;
-        let action_value = ber::Value::Primitive(vec![self.response_action.into()]);
-        let action_tlv = ber::Tlv::new(action_tag, action_value)
+        let action_tlv = create_tlv_with_primitive_value(MEASURE_ACTION_TAG, &vec![self.get_response_action().into()])
             .map_err(|e| ErrorKind::MeasureError(format!("create measure response action tlv error: {:?}", e)))?;
-
-        let duration_tag = ber::Tag::try_from(MEASURE_DURATION_TAG)
-            .map_err(|e| ErrorKind::MeasureError(format!("create measure response duration tag error: {:?}", e)))?;
-        let duration_value = ber::Value::Primitive(vec![self.response_duration.into()]);
-        let duration_tlv = ber::Tlv::new(duration_tag, duration_value)
+        let duration_tlv = create_tlv_with_primitive_value(MEASURE_DURATION_TAG, &vec![self.get_response_duration().into()])
             .map_err(|e| ErrorKind::MeasureError(format!("create measure response duration tlv error: {:?}", e)))?;
-
-        let measure_tag = ber::Tag::try_from(MEASURE_RESPONSE_TAG)
-            .map_err(|e| ErrorKind::MeasureError(format!("create measure tag error: {:?}", e)))?;
-        let measure_value = ber::Value::Constructed(vec![action_tlv, duration_tlv]);
-        let measure_tlv = ber::Tlv::new(measure_tag, measure_value)
+        let measure_tlv = create_tlv_with_constructed_value(MEASURE_RESPONSE_TAG, &vec![action_tlv, duration_tlv])
             .map_err(|e| ErrorKind::MeasureError(format!("create measure tlv error: {:?}", e)))?;
         Ok(measure_tlv.to_vec())
     }
@@ -304,6 +285,7 @@ pub enum Measure {
     Response(MeasureResponse),
 }
 
+#[allow(dead_code)]
 impl Measure {
     pub fn serialize(&self) -> Result<Vec<u8>> {
         match self {
