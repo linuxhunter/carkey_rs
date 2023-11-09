@@ -1,17 +1,27 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
-use crate::iccoa2::get_tlv_primitive_value;
+use crate::iccoa2::{create_tlv_with_constructed_value, create_tlv_with_primitive_value, get_tlv_primitive_value};
 use super::errors::*;
 
+#[allow(dead_code)]
 const RKE_FUNCTION_TAG: u8 = 0x80;
+#[allow(dead_code)]
 const RKE_ACTION_TAG: u8 = 0x81;
+#[allow(dead_code)]
 const RKE_CONTINUED_CUSTOM_TAG: u8 = 0x88;
+#[allow(dead_code)]
 const RKE_RESPONSE_ACTION_TAG: u8 = 0x83;
+#[allow(dead_code)]
 const RKE_RESPONSE_STATUS_TAG: u8 = 0x89;
+#[allow(dead_code)]
 const RKE_RESPONSE_MIDDLE_TAG: u8 = 0xA0;
+#[allow(dead_code)]
 const RKE_VERIFICATION_RESPONSE_TAG: u8 = 0x8A;
+#[allow(dead_code)]
 pub const RKE_REQUEST_TAG: u16 = 0x7F70;
+#[allow(dead_code)]
 const RKE_CONTINUED_REQUEST_TAG: u16 = 0x7F76;
+#[allow(dead_code)]
 const RKE_RESPONSE_TAG: u16 = 0x7F72;
 
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
@@ -358,6 +368,7 @@ pub struct RkeRequest {
     rke_action: RkeActions,
 }
 
+#[allow(dead_code)]
 impl RkeRequest {
     pub fn new(rke_function: RkeFunctions, rke_action: RkeActions) -> Result<Self> {
         if is_rke_function_action_match(rke_function, rke_action) {
@@ -382,22 +393,11 @@ impl RkeRequest {
         self.rke_action = rke_actions;
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let function_tag = ber::Tag::try_from(RKE_FUNCTION_TAG)
-            .map_err(|e| ErrorKind::RkeError(format!("create rke function tag error: {}", e)))?;
-        let function_value = ber::Value::Primitive(u16::from(self.rke_function).to_be_bytes().to_vec());
-        let function_tlv = ber::Tlv::new(function_tag, function_value)
+        let function_tlv = create_tlv_with_primitive_value(RKE_FUNCTION_TAG, &u16::from(self.get_rke_function()).to_be_bytes())
             .map_err(|e| ErrorKind::RkeError(format!("create rke function tlv error: {}", e)))?;
-
-        let action_tag = ber::Tag::try_from(RKE_ACTION_TAG)
-            .map_err(|e| ErrorKind::RkeError(format!("create rke action tag error: {}", e)))?;
-        let action_value = ber::Value::Primitive(vec![self.rke_action.into()]);
-        let action_tlv = ber::Tlv::new(action_tag, action_value)
+        let action_tlv = create_tlv_with_primitive_value(RKE_ACTION_TAG, &vec![self.get_rke_action().into()])
             .map_err(|e| ErrorKind::RkeError(format!("create rke action tlv error: {}", e)))?;
-
-        let rke_request_tag = ber::Tag::try_from(RKE_REQUEST_TAG)
-            .map_err(|e| ErrorKind::RkeError(format!("create rke request tag error: {}", e)))?;
-        let rke_request_value = ber::Value::Constructed(vec![function_tlv, action_tlv]);
-        let rke_request_tlv = ber::Tlv::new(rke_request_tag, rke_request_value)
+        let rke_request_tlv = create_tlv_with_constructed_value(RKE_REQUEST_TAG, &vec![function_tlv, action_tlv])
             .map_err(|e| ErrorKind::RkeError(format!("create rke request tlv error: {}", e)))?;
         Ok(rke_request_tlv.to_vec())
     }
@@ -449,6 +449,7 @@ pub struct RkeContinuedRequest {
     rke_custom: Vec<u8>,
 }
 
+#[allow(dead_code)]
 impl RkeContinuedRequest {
     pub fn new(rke_request: RkeRequest, rke_custom: &[u8]) -> Self {
         RkeContinuedRequest {
@@ -469,28 +470,13 @@ impl RkeContinuedRequest {
         self.rke_custom = rke_custom.to_vec();
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let function_tag = ber::Tag::try_from(RKE_FUNCTION_TAG)
-            .map_err(|e| ErrorKind::RkeError(format!("create rke continued function tag error: {}", e)))?;
-        let function_value = ber::Value::Primitive(u16::from(self.rke_request.rke_function).to_be_bytes().to_vec());
-        let function_tlv = ber::Tlv::new(function_tag, function_value)
+        let function_tlv = create_tlv_with_primitive_value(RKE_FUNCTION_TAG, &u16::from(self.get_rke_request().get_rke_function()).to_be_bytes())
             .map_err(|e| ErrorKind::RkeError(format!("create rke continued function tlv error: {}", e)))?;
-
-        let action_tag = ber::Tag::try_from(RKE_ACTION_TAG)
-            .map_err(|e| ErrorKind::RkeError(format!("create rke continued action tag error: {}", e)))?;
-        let action_value = ber::Value::Primitive(vec![self.rke_request.rke_action.into()]);
-        let action_tlv = ber::Tlv::new(action_tag, action_value)
+        let action_tlv = create_tlv_with_primitive_value(RKE_ACTION_TAG, &vec![self.get_rke_request().get_rke_action().into()])
             .map_err(|e| ErrorKind::RkeError(format!("create rke continued action tlv error: {}", e)))?;
-
-        let custom_tag = ber::Tag::try_from(RKE_CONTINUED_CUSTOM_TAG)
-            .map_err(|e| ErrorKind::RkeError(format!("create rke continued custom tag error: {}", e)))?;
-        let custom_value = ber::Value::Primitive(self.rke_custom.clone());
-        let custom_tlv = ber::Tlv::new(custom_tag, custom_value)
+        let custom_tlv = create_tlv_with_primitive_value(RKE_CONTINUED_CUSTOM_TAG, self.get_rke_custom())
             .map_err(|e| ErrorKind::RkeError(format!("create rke continued custom tlv error: {}", e)))?;
-
-        let rke_request_tag = ber::Tag::try_from(RKE_CONTINUED_REQUEST_TAG)
-            .map_err(|e| ErrorKind::RkeError(format!("create rke continued request tag error: {}", e)))?;
-        let rke_request_value = ber::Value::Constructed(vec![function_tlv, action_tlv, custom_tlv]);
-        let rke_request_tlv = ber::Tlv::new(rke_request_tag, rke_request_value)
+        let rke_request_tlv = create_tlv_with_constructed_value(RKE_CONTINUED_REQUEST_TAG, &vec![function_tlv, action_tlv, custom_tlv])
             .map_err(|e| ErrorKind::RkeError(format!("create rke continued request tlv error: {}", e)))?;
         Ok(rke_request_tlv.to_vec())
     }
@@ -551,6 +537,7 @@ pub struct RkeResponse {
     rke_status: u16,
 }
 
+#[allow(dead_code)]
 impl RkeResponse {
     pub fn new(rke_function: RkeFunctions, rke_action: RkeActions, rke_status: u16) -> Result<Self> {
         if is_rke_function_action_match(rke_function, rke_action) {
@@ -582,36 +569,15 @@ impl RkeResponse {
         self.rke_status = rke_status;
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let function_tag = ber::Tag::try_from(RKE_FUNCTION_TAG)
-            .map_err(|e| ErrorKind::RkeError(format!("create rke function tag error: {}", e)))?;
-        let function_value = ber::Value::Primitive(u16::from(self.rke_function).to_be_bytes().to_vec());
-        let function_tlv = ber::Tlv::new(function_tag, function_value)
+        let function_tlv = create_tlv_with_primitive_value(RKE_FUNCTION_TAG, &u16::from(self.get_rke_function()).to_be_bytes())
             .map_err(|e| ErrorKind::RkeError(format!("create rke function tlv error: {}", e)))?;
-
-        let action_tag = ber::Tag::try_from(RKE_RESPONSE_ACTION_TAG)
-            .map_err(|e| ErrorKind::RkeError(format!("create rke action tag error: {}", e)))?;
-        let action_value = ber::Value::Primitive(u16::from(u8::from(self.rke_action)).to_be_bytes().to_vec());
-        let action_tlv = ber::Tlv::new(action_tag, action_value)
+        let action_tlv = create_tlv_with_primitive_value(RKE_RESPONSE_ACTION_TAG, &u16::from(u8::from(self.get_rke_action())).to_be_bytes())
             .map_err(|e| ErrorKind::RkeError(format!("create rke action tlv error: {}", e)))?;
-
-        let status_tag = ber::Tag::try_from(RKE_RESPONSE_STATUS_TAG)
-            .map_err(|e| ErrorKind::RkeError(format!("create rke response status tag error: {}", e)))?;
-        let status_value = ber::Value::Primitive(
-            self.rke_status.to_be_bytes().to_vec()
-        );
-        let status_tlv = ber::Tlv::new(status_tag, status_value)
+        let status_tlv = create_tlv_with_primitive_value(RKE_RESPONSE_STATUS_TAG, &self.get_rke_status().to_be_bytes())
             .map_err(|e| ErrorKind::RkeError(format!("create rke response status tlv error: {}", e)))?;
-
-        let response_middle_tag = ber::Tag::try_from(RKE_RESPONSE_MIDDLE_TAG)
-            .map_err(|e| ErrorKind::RkeError(format!("create rke reponse middle tag error: {}", e)))?;
-        let response_middle_value = ber::Value::Constructed(vec![function_tlv, action_tlv, status_tlv]);
-        let response_middle_tlv = ber::Tlv::new(response_middle_tag, response_middle_value)
+        let response_middle_tlv = create_tlv_with_constructed_value(u16::from(RKE_RESPONSE_MIDDLE_TAG), &vec![function_tlv, action_tlv, status_tlv])
             .map_err(|e| ErrorKind::RkeError(format!("create rke response middle tlv error: {}", e)))?;
-
-        let rke_response_tag = ber::Tag::try_from(RKE_RESPONSE_TAG)
-            .map_err(|e| ErrorKind::RkeError(format!("create rke response tag error: {}", e)))?;
-        let rke_response_value = ber::Value::Constructed(vec![response_middle_tlv]);
-        let rke_response_tlv = ber::Tlv::new(rke_response_tag, rke_response_value)
+        let rke_response_tlv= create_tlv_with_constructed_value(RKE_RESPONSE_TAG, &vec![response_middle_tlv])
             .map_err(|e| ErrorKind::RkeError(format!("create rke response tlv error: {}", e)))?;
         Ok(rke_response_tlv.to_vec())
     }
@@ -679,6 +645,7 @@ pub struct RkeVerificationResponse {
     inner: Vec<u8>,
 }
 
+#[allow(dead_code)]
 impl RkeVerificationResponse {
     pub fn new(random: &[u8]) -> Self {
         RkeVerificationResponse {
@@ -692,10 +659,7 @@ impl RkeVerificationResponse {
         self.inner = random.to_vec();
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let tag = ber::Tag::try_from(RKE_VERIFICATION_RESPONSE_TAG)
-            .map_err(|e| ErrorKind::RkeError(format!("create rke verification response tag error: {}", e)))?;
-        let value = ber::Value::Primitive(self.inner.clone());
-        let tlv = ber::Tlv::new(tag, value)
+        let tlv = create_tlv_with_primitive_value(RKE_VERIFICATION_RESPONSE_TAG, self.get_rke_verification_response())
             .map_err(|e| ErrorKind::RkeError(format!("create rke verification response tlv error: {}", e)))?;
         Ok(tlv.to_vec())
     }
@@ -705,9 +669,7 @@ impl RkeVerificationResponse {
         if tlv.tag().to_bytes() != RKE_VERIFICATION_RESPONSE_TAG.to_be_bytes() {
             return Err(ErrorKind::RkeError(format!("deserialized rke request tag is not corrected")).into());
         }
-        let tag = ber::Tag::try_from(RKE_VERIFICATION_RESPONSE_TAG)
-            .map_err(|e| ErrorKind::RkeError(format!("create rke verification response tag error: {}", e)))?;
-        let value = get_tlv_primitive_value(&tlv, &tag)
+        let value = get_tlv_primitive_value(&tlv, &tlv.tag())
             .map_err(|e| ErrorKind::RkeError(format!("deserialize rke verification response value error: {}", e)))?;
         Ok(RkeVerificationResponse::new(value))
     }
@@ -720,6 +682,7 @@ pub enum Rke {
     Response(RkeResponse),
 }
 
+#[allow(dead_code)]
 impl Rke {
     pub fn serialize(&self) -> Result<Vec<u8>> {
         match self {
