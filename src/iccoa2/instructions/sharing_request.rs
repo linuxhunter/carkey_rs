@@ -1,27 +1,33 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
 use crate::iccoa2::errors::*;
-use crate::iccoa2::{get_tlv_primitive_value, identifier};
-use super::common;
+use crate::iccoa2::{create_tlv_with_constructed_value, create_tlv_with_primitive_value, get_tlv_primitive_value, identifier};
+use super::{common, KEY_ID_TAG};
 
-const KEY_ID_TAG: u8 = 0x89;
+#[allow(dead_code)]
 const INNER_CSR_TAG: u8 = 0x02;
+#[allow(dead_code)]
 const INNER_CERT_TAG: u8 = 0x03;
+#[allow(dead_code)]
 const TEMP_CSR_TAG: u16 = 0x7F22;
+#[allow(dead_code)]
 const TEMP_CERT_TAG: u16 = 0x7F48;
+#[allow(dead_code)]
 const SHARING_REQUEST_INS: u8 = 0x65;
+#[allow(dead_code)]
 const SHARING_REQUEST_P2: u8 = 0x00;
+#[allow(dead_code)]
 const SHARING_REQUEST_LE: u8 = 0x00;
 
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 pub enum SharingRequestP1 {
-    FromDevice = 0x00,
-    FromVehicle = 0x01,
+    FromDeviceCarKeyApp = 0x00,
+    FromVehicleApp = 0x01,
 }
 
 impl Default for SharingRequestP1 {
     fn default() -> Self {
-        SharingRequestP1::FromDevice
+        SharingRequestP1::FromDeviceCarKeyApp
     }
 }
 
@@ -30,8 +36,8 @@ impl TryFrom<u8> for SharingRequestP1 {
 
     fn try_from(value: u8) -> std::result::Result<Self, Self::Error> {
         match value {
-            0x00 => Ok(SharingRequestP1::FromDevice),
-            0x01 => Ok(SharingRequestP1::FromVehicle),
+            0x00 => Ok(SharingRequestP1::FromDeviceCarKeyApp),
+            0x01 => Ok(SharingRequestP1::FromVehicleApp),
             _ => Err(format!("Unsupported Sharing Request P1 value: {}", value)),
         }
     }
@@ -40,15 +46,18 @@ impl TryFrom<u8> for SharingRequestP1 {
 impl From<SharingRequestP1> for u8 {
     fn from(value: SharingRequestP1) -> Self {
         match value {
-            SharingRequestP1::FromDevice => 0x00,
-            SharingRequestP1::FromVehicle => 0x01,
+            SharingRequestP1::FromDeviceCarKeyApp => 0x00,
+            SharingRequestP1::FromVehicleApp => 0x01,
         }
     }
 }
 
 impl Display for SharingRequestP1 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        match self {
+            SharingRequestP1::FromDeviceCarKeyApp => write!(f, "From Device Car Key App"),
+            SharingRequestP1::FromVehicleApp => write!(f, "From Vehicle App"),
+        }
     }
 }
 
@@ -60,6 +69,7 @@ pub struct CommandApduSharingRequest {
     temp_csr: Vec<u8>,
 }
 
+#[allow(dead_code)]
 impl CommandApduSharingRequest {
     pub fn new(cla: u8, p1: SharingRequestP1, key_id: identifier::KeyId, temp_csr: &[u8]) -> Self {
         CommandApduSharingRequest {
@@ -100,30 +110,20 @@ impl CommandApduSharingRequest {
             u8::from(self.get_p1()),
             SHARING_REQUEST_P2,
         );
-        let mut buffer = Vec::new();
-        let key_id_tag = ber::Tag::try_from(KEY_ID_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create key id tag error")))?;
-        let key_id_value = ber::Value::Primitive(self.get_key_id().serialize()?);
-        let key_id_tlv = ber::Tlv::new(key_id_tag, key_id_value)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create key id tlv error")))?;
-        let inner_temp_csr_tag = ber::Tag::try_from(INNER_CSR_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create inner temp csr tag error: {}", e)))?;
-        let inner_temp_csr_value = ber::Value::Primitive(self.get_temp_csr().to_vec());
-        let inner_temp_csr_tlv = ber::Tlv::new(inner_temp_csr_tag, inner_temp_csr_value)
+        let key_id_tlv = create_tlv_with_primitive_value(KEY_ID_TAG, &self.get_key_id().serialize()?)
+            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create key id tlv error: {}", e)))?;
+        let inner_temp_csr_tlv = create_tlv_with_primitive_value(INNER_CSR_TAG, self.get_temp_csr())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create inner temp csr tlv error: {}", e)))?;
-        let temp_csr_tag = ber::Tag::try_from(TEMP_CSR_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("crate temp csr tag error: {}", e)))?;
-        let temp_csr_value = ber::Value::Constructed(vec![inner_temp_csr_tlv]);
-        let temp_csr_tlv = ber::Tlv::new(temp_csr_tag, temp_csr_value)
+        let temp_csr_tlv = create_tlv_with_constructed_value(TEMP_CSR_TAG, &vec![inner_temp_csr_tlv])
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create temp csr tlv error: {}", e)))?;
+        let mut buffer = Vec::new();
         buffer.append(&mut key_id_tlv.to_vec());
         buffer.append(&mut temp_csr_tlv.to_vec());
         let trailer = common::CommandApduTrailer::new(
             Some(buffer),
             Some(SHARING_REQUEST_LE),
         );
-        let request = common::CommandApdu::new(header, Some(trailer));
-        request.serialize()
+        common::CommandApdu::new(header, Some(trailer)).serialize()
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let request = common::CommandApdu::deserialize(data)?;
@@ -133,10 +133,10 @@ impl CommandApduSharingRequest {
         let p1 = SharingRequestP1::try_from(header.get_p1())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize P1 error: {}", e)))?;
         let data = trailer.get_data().ok_or(format!("deserialize trailer data is NULL"))?;
-        let tlv_collections = ber::Tlv::parse_all(data);
         let mut request = CommandApduSharingRequest::default();
         request.set_cla(cla);
         request.set_p1(p1);
+        let tlv_collections = ber::Tlv::parse_all(data);
         for tlv in tlv_collections {
             if tlv.tag().to_bytes() == KEY_ID_TAG.to_be_bytes() {
                 let key_id_data = get_tlv_primitive_value(&tlv, tlv.tag())
@@ -156,7 +156,7 @@ impl CommandApduSharingRequest {
 
 impl Display for CommandApduSharingRequest {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "key id: {}, temp csr: {:02X?}", self.get_key_id(), self.get_temp_csr())
     }
 }
 
@@ -166,6 +166,7 @@ pub struct ResponseApduSharingRequest {
     status: common::ResponseApduTrailer,
 }
 
+#[allow(dead_code)]
 impl ResponseApduSharingRequest {
     pub fn new(temp_cert: &[u8], status: common::ResponseApduTrailer) -> Self {
         ResponseApduSharingRequest {
@@ -186,15 +187,9 @@ impl ResponseApduSharingRequest {
         self.status = status;
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let inner_cert_tag = ber::Tag::try_from(INNER_CERT_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create inner cert tag error: {}", e)))?;
-        let inner_cert_value = ber::Value::Primitive(self.get_temp_cert().to_vec());
-        let inner_cert_tlv = ber::Tlv::new(inner_cert_tag, inner_cert_value)
+        let inner_cert_tlv = create_tlv_with_primitive_value(INNER_CERT_TAG, self.get_temp_cert())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create inner cert tlv error: {}", e)))?;
-        let cert_tag = ber::Tag::try_from(TEMP_CERT_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create temp cert tag error: {}", e)))?;
-        let cert_value = ber::Value::Constructed(vec![inner_cert_tlv]);
-        let cert_tlv = ber::Tlv::new(cert_tag, cert_value)
+        let cert_tlv = create_tlv_with_constructed_value(TEMP_CERT_TAG, &vec![inner_cert_tlv])
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create temp cert tlv error: {}", e)))?;
         let response = common::ResponseApdu::new(
             Some(cert_tlv.to_vec()),
@@ -226,7 +221,7 @@ impl ResponseApduSharingRequest {
 
 impl Display for ResponseApduSharingRequest {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "temp cert: {:02X?}", self.get_temp_cert())
     }
 }
 
@@ -237,7 +232,7 @@ mod tests {
     #[test]
     fn test_create_sharing_request() {
         let cla = 0x00;
-        let p1 = SharingRequestP1::FromDevice;
+        let p1 = SharingRequestP1::FromDeviceCarKeyApp;
         let device_oem_id = 0x0102;
         let vehicle_oem_id = 0x0304;
         let key_serial_id = [0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10];
@@ -250,14 +245,14 @@ mod tests {
             temp_csr.as_ref(),
         );
         assert_eq!(request.get_cla(), cla);
-        assert_eq!(request.get_p1(), SharingRequestP1::FromDevice);
+        assert_eq!(request.get_p1(), SharingRequestP1::FromDeviceCarKeyApp);
         assert_eq!(request.get_key_id(), &identifier::KeyId::new(device_oem_id, vehicle_oem_id, &key_serial_id).unwrap());
         assert_eq!(request.get_temp_csr(), &vec![0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
     }
     #[test]
     fn test_update_sharing_request() {
         let cla = 0x00;
-        let p1 = SharingRequestP1::FromDevice;
+        let p1 = SharingRequestP1::FromDeviceCarKeyApp;
         let device_oem_id = 0x0102;
         let vehicle_oem_id = 0x0304;
         let key_serial_id = [0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10];
@@ -270,7 +265,7 @@ mod tests {
             temp_csr.as_ref(),
         );
         let new_cla = 0xFF;
-        let new_p1 = SharingRequestP1::FromVehicle;
+        let new_p1 = SharingRequestP1::FromVehicleApp;
         let new_device_oem_id = 0x1112;
         let new_vehicle_oem_id = 0x1314;
         let new_key_serial_id = [0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20];
@@ -281,14 +276,14 @@ mod tests {
         request.set_key_id(new_key_id);
         request.set_temp_csr(&new_tmp_csr);
         assert_eq!(request.get_cla(), 0xFF);
-        assert_eq!(request.get_p1(), SharingRequestP1::FromVehicle);
+        assert_eq!(request.get_p1(), SharingRequestP1::FromVehicleApp);
         assert_eq!(request.get_key_id(), &identifier::KeyId::new(new_device_oem_id, new_vehicle_oem_id, &new_key_serial_id).unwrap());
         assert_eq!(request.get_temp_csr(), &vec![0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00]);
     }
     #[test]
     fn test_sharing_request_serialize() {
         let cla = 0x00;
-        let p1 = SharingRequestP1::FromDevice;
+        let p1 = SharingRequestP1::FromDeviceCarKeyApp;
         let device_oem_id = 0x0102;
         let vehicle_oem_id = 0x0304;
         let key_serial_id = [0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10];
@@ -336,7 +331,7 @@ mod tests {
         let request = request.unwrap();
 
         assert_eq!(request.get_cla(), 0x00);
-        assert_eq!(request.get_p1(), SharingRequestP1::FromDevice);
+        assert_eq!(request.get_p1(), SharingRequestP1::FromDeviceCarKeyApp);
         let device_oem_id = 0x0102;
         let vehicle_oem_id = 0x0304;
         let key_serial_id = [0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10];
