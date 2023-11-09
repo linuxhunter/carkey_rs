@@ -1,9 +1,13 @@
 use std::fmt::{Display, Formatter};
 use super::errors::*;
 
+#[allow(dead_code)]
 const KEY_SERIAL_ID_LENGTH: usize = 12;
+#[allow(dead_code)]
 const VEHICLE_SERIAL_ID_LENGTH: usize = 14;
+#[allow(dead_code)]
 const KEY_ID_LENGTH: usize = 16;
+#[allow(dead_code)]
 const VEHICLE_ID_LENGTH: usize = 16;
 
 #[derive(Debug, Default, PartialOrd, PartialEq)]
@@ -13,6 +17,7 @@ pub struct KeyId {
     key_serial_id: [u8; KEY_SERIAL_ID_LENGTH],
 }
 
+#[allow(dead_code)]
 impl KeyId {
     pub fn new(device_oem_id: u16, vehicle_oem_id: u16, key_serial_id: &[u8]) -> Result<Self> {
         Ok(KeyId {
@@ -88,6 +93,7 @@ pub struct VehicleId {
     vehicle_serial_id: [u8; VEHICLE_SERIAL_ID_LENGTH],
 }
 
+#[allow(dead_code)]
 impl VehicleId {
     pub fn new(vehicle_oem_id: u16, vehicle_serial_id: &[u8]) -> Result<Self> {
         Ok(VehicleId {
