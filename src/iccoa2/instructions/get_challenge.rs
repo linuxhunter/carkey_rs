@@ -2,15 +2,21 @@ use std::fmt::{Display, Formatter};
 use crate::iccoa2::errors::*;
 use super::common;
 
+#[allow(dead_code)]
 const GET_CHALLENGE_CLA: u8 = 0x00;
+#[allow(dead_code)]
 const GET_CHALLENGE_INS: u8 = 0x84;
+#[allow(dead_code)]
 const GET_CHALLENGE_P1: u8 = 0x00;
+#[allow(dead_code)]
 const GET_CHALLENGE_P2: u8 = 0x00;
+#[allow(dead_code)]
 const GET_CHALLENGE_LE: u8 = 0x08;
 
 #[derive(Debug, Default, PartialOrd, PartialEq)]
 pub struct CommandApduGetChallenge();
 
+#[allow(dead_code)]
 impl CommandApduGetChallenge {
     pub fn new() -> Self {
         CommandApduGetChallenge()
@@ -49,7 +55,7 @@ impl CommandApduGetChallenge {
 
 impl Display for CommandApduGetChallenge {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "Get Challenge Request")
     }
 }
 
@@ -59,6 +65,7 @@ pub struct ResponseApduGetChallenge {
     status: common::ResponseApduTrailer,
 }
 
+#[allow(dead_code)]
 impl ResponseApduGetChallenge {
     pub fn new(random: &[u8], status: common::ResponseApduTrailer) -> Self {
         ResponseApduGetChallenge {
@@ -98,7 +105,7 @@ impl ResponseApduGetChallenge {
 
 impl Display for ResponseApduGetChallenge {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "Random: {:02X?}", self.get_random())
     }
 }
 
