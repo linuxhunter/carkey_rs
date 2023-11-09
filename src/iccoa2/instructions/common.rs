@@ -1,8 +1,9 @@
 use std::fmt::{Display, Formatter};
-use rand::Fill;
 use crate::iccoa2::errors::*;
 
+#[allow(dead_code)]
 const COMMAND_APDU_HEADER_LENGTH: usize = 0x04;
+#[allow(dead_code)]
 const RESPONSE_APDU_TRAILER_LENGTH: usize = 0x02;
 
 #[derive(Debug, Default, PartialOrd, PartialEq)]
@@ -13,6 +14,7 @@ pub struct CommandApduHeader {
     p2: u8,
 }
 
+#[allow(dead_code)]
 impl CommandApduHeader {
     pub fn new(cla: u8, ins: u8, p1: u8, p2: u8) -> Self {
         CommandApduHeader {
@@ -79,6 +81,7 @@ pub struct CommandApduTrailer {
     le: Option<u8>,
 }
 
+#[allow(dead_code)]
 impl CommandApduTrailer {
     pub fn new(data: Option<Vec<u8>>, le: Option<u8>) -> Self {
         CommandApduTrailer {
@@ -168,6 +171,7 @@ pub struct CommandApdu {
     trailer: Option<CommandApduTrailer>,
 }
 
+#[allow(dead_code)]
 impl CommandApdu {
     pub fn new(header: CommandApduHeader, trailer: Option<CommandApduTrailer>) -> Self {
         CommandApdu {
@@ -234,6 +238,7 @@ pub struct ResponseApduTrailer {
     sw2: u8,
 }
 
+#[allow(dead_code)]
 impl ResponseApduTrailer {
     pub fn new(sw1: u8, sw2: u8) -> Self {
         ResponseApduTrailer {
@@ -331,6 +336,7 @@ pub struct ResponseApdu {
     trailer: ResponseApduTrailer,
 }
 
+#[allow(dead_code)]
 impl ResponseApdu {
     pub fn new(body: Option<Vec<u8>>, trailer: ResponseApduTrailer) -> Self {
         ResponseApdu {

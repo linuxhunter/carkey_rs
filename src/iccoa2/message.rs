@@ -7,11 +7,17 @@ use crate::iccoa2::rke::Rke;
 use crate::iccoa2::vehicle_status::VehicleStatus;
 use super::errors::*;
 
+#[allow(dead_code)]
 const MESSAGE_VERSION: u8 = 0x01;
+#[allow(dead_code)]
 const MESSAGE_LENGTH_MINIMUM: usize = 0x06;
+#[allow(dead_code)]
 const MESSAGE_TYPE_OFFSET: usize = 0x01;
+#[allow(dead_code)]
 const MESSAGE_STATUS_OFFSET: usize = 0x02;
+#[allow(dead_code)]
 const MESSAGE_DATA_LENGTH_OFFSET: usize = 0x04;
+#[allow(dead_code)]
 const MESSAGE_DATA_OFFSET: usize = 0x06;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -185,6 +191,7 @@ pub struct Message {
     message_data: MessageData,
 }
 
+#[allow(dead_code)]
 impl Message {
     pub fn new(message_type: MessageType, message_status: MessageStatus, message_data_length: u16, message_data: MessageData) -> Self {
         Message {
