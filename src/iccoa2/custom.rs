@@ -1,11 +1,15 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
-use crate::iccoa2::get_tlv_primitive_value;
+use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value};
 use super::errors::*;
 
+#[allow(dead_code)]
 const VEHICLE_APP_CUSTOM_REQUEST_TAG: u8 = 0x80;
+#[allow(dead_code)]
 const VEHICLE_APP_CUSTOM_RESPONSE_TAG: u8 = 0x81;
+#[allow(dead_code)]
 const VEHICLE_SERVER_CUSTOM_REQUEST_TAG: u8 = 0x82;
+#[allow(dead_code)]
 const VEHICLE_SERVER_CUSTOM_RESPONSE_TAG: u8 = 0x83;
 
 #[derive(Debug, PartialOrd, PartialEq)]
@@ -13,6 +17,7 @@ pub struct VehicleAppCustomRequest {
     inner: Vec<u8>,
 }
 
+#[allow(dead_code)]
 impl VehicleAppCustomRequest {
     pub fn new(custom_data: &[u8]) -> Self {
         VehicleAppCustomRequest {
@@ -26,10 +31,7 @@ impl VehicleAppCustomRequest {
         self.inner = custom_data.to_vec();
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let tag = ber::Tag::try_from(VEHICLE_APP_CUSTOM_REQUEST_TAG)
-            .map_err(|e| ErrorKind::CustomError(format!("create vehicle app custom request tag error: {}", e)))?;
-        let value = ber::Value::Primitive(self.inner.clone());
-        let tlv = ber::Tlv::new(tag, value)
+        let tlv = create_tlv_with_primitive_value(VEHICLE_APP_CUSTOM_REQUEST_TAG, self.get_custom_data())
             .map_err(|e| ErrorKind::CustomError(format!("crate vehicle app custom request tlv error: {}", e)))?;
         Ok(tlv.to_vec())
     }
@@ -39,9 +41,7 @@ impl VehicleAppCustomRequest {
         if tlv.tag().to_bytes() != VEHICLE_APP_CUSTOM_REQUEST_TAG.to_be_bytes() {
             return Err(ErrorKind::CustomError(format!("deserialize tag value is invalid")).into());
         }
-        let tag = ber::Tag::try_from(VEHICLE_APP_CUSTOM_REQUEST_TAG)
-            .map_err(|e| ErrorKind::CustomError(format!("create vehicle app custom request tag error: {}", e)))?;
-        let custom_data = get_tlv_primitive_value(&tlv, &tag)
+        let custom_data = get_tlv_primitive_value(&tlv, &tlv.tag())
             .map_err(|e| ErrorKind::CustomError(format!("deserialize custom data error: {}", e)))?;
         Ok(VehicleAppCustomRequest::new(custom_data))
     }
@@ -58,6 +58,7 @@ pub struct VehicleAppCustomResponse {
     inner: Vec<u8>,
 }
 
+#[allow(dead_code)]
 impl VehicleAppCustomResponse {
     pub fn new(custom_data: &[u8]) -> Self {
         VehicleAppCustomResponse {
@@ -71,10 +72,7 @@ impl VehicleAppCustomResponse {
         self.inner = custom_data.to_vec();
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let tag = ber::Tag::try_from(VEHICLE_APP_CUSTOM_RESPONSE_TAG)
-            .map_err(|e| ErrorKind::CustomError(format!("create vehicle app custom response tag error: {}", e)))?;
-        let value = ber::Value::Primitive(self.inner.clone());
-        let tlv = ber::Tlv::new(tag, value)
+        let tlv = create_tlv_with_primitive_value(VEHICLE_APP_CUSTOM_RESPONSE_TAG, self.get_custom_data())
             .map_err(|e| ErrorKind::CustomError(format!("crate vehicle app custom response tlv error: {}", e)))?;
         Ok(tlv.to_vec())
     }
@@ -84,9 +82,7 @@ impl VehicleAppCustomResponse {
         if tlv.tag().to_bytes() != VEHICLE_APP_CUSTOM_RESPONSE_TAG.to_be_bytes() {
             return Err(ErrorKind::CustomError(format!("deserialize tag value is invalid")).into());
         }
-        let tag = ber::Tag::try_from(VEHICLE_APP_CUSTOM_RESPONSE_TAG)
-            .map_err(|e| ErrorKind::CustomError(format!("create vehicle app custom response tag error: {}", e)))?;
-        let custom_data = get_tlv_primitive_value(&tlv, &tag)
+        let custom_data = get_tlv_primitive_value(&tlv, &tlv.tag())
             .map_err(|e| ErrorKind::CustomError(format!("deserialize custom data error: {}", e)))?;
         Ok(VehicleAppCustomResponse::new(custom_data))
     }
@@ -104,6 +100,7 @@ pub struct VehicleServerCustomRequest {
     length: u8,
 }
 
+#[allow(dead_code)]
 impl VehicleServerCustomRequest {
     pub fn new(offset: u16, length: u8) -> Self {
         VehicleServerCustomRequest {
@@ -124,13 +121,10 @@ impl VehicleServerCustomRequest {
         self.length = length;
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let tag = ber::Tag::try_from(VEHICLE_SERVER_CUSTOM_REQUEST_TAG)
-            .map_err(|e| ErrorKind::CustomError(format!("create vehicle server request tag error: {}", e)))?;
         let mut data_buffer = Vec::with_capacity(3);
         data_buffer.append(&mut self.offset.to_be_bytes().to_vec());
         data_buffer.push(self.length);
-        let value = ber::Value::Primitive(data_buffer);
-        let tlv = ber::Tlv::new(tag, value)
+        let tlv = create_tlv_with_primitive_value(VEHICLE_SERVER_CUSTOM_REQUEST_TAG, data_buffer.as_ref())
             .map_err(|e| ErrorKind::CustomError(format!("create vehicle server request tlv error: {}", e)))?;
         Ok(tlv.to_vec())
     }
@@ -140,9 +134,7 @@ impl VehicleServerCustomRequest {
         if tlv.tag().to_bytes() != VEHICLE_SERVER_CUSTOM_REQUEST_TAG.to_be_bytes() {
             return Err(ErrorKind::CustomError(format!("deserialize tag value is invalid")).into());
         }
-        let tag = ber::Tag::try_from(VEHICLE_SERVER_CUSTOM_REQUEST_TAG)
-            .map_err(|e| ErrorKind::CustomError(format!("create vehicle server custom request tag error: {}", e)))?;
-        let custom_data = get_tlv_primitive_value(&tlv, &tag)
+        let custom_data = get_tlv_primitive_value(&tlv, &tlv.tag())
             .map_err(|e| ErrorKind::CustomError(format!("deserialize custom data error: {}", e)))?;
         if custom_data.len() < 3 {
             return Err(ErrorKind::CustomError(format!("deserialize custom data length less than 3")).into());
@@ -168,6 +160,7 @@ pub struct VehicleServerCustomResponse {
     inner: Vec<u8>,
 }
 
+#[allow(dead_code)]
 impl VehicleServerCustomResponse {
     pub fn new(custom_data: &[u8]) -> Self {
         VehicleServerCustomResponse {
@@ -181,10 +174,7 @@ impl VehicleServerCustomResponse {
         self.inner = custom_data.to_vec();
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let tag = ber::Tag::try_from(VEHICLE_SERVER_CUSTOM_RESPONSE_TAG)
-            .map_err(|e| ErrorKind::CustomError(format!("create vehicle server custom response tag error: {}", e)))?;
-        let value = ber::Value::Primitive(self.inner.clone());
-        let tlv = ber::Tlv::new(tag, value)
+        let tlv = create_tlv_with_primitive_value(VEHICLE_SERVER_CUSTOM_RESPONSE_TAG, self.get_custom_data())
             .map_err(|e| ErrorKind::CustomError(format!("crate vehicle server custom response tlv error: {}", e)))?;
         Ok(tlv.to_vec())
     }
@@ -194,9 +184,7 @@ impl VehicleServerCustomResponse {
         if tlv.tag().to_bytes() != VEHICLE_SERVER_CUSTOM_RESPONSE_TAG.to_be_bytes() {
             return Err(ErrorKind::CustomError(format!("deserialize tag value is invalid")).into());
         }
-        let tag = ber::Tag::try_from(VEHICLE_SERVER_CUSTOM_RESPONSE_TAG)
-            .map_err(|e| ErrorKind::CustomError(format!("create vehicle server custom response tag error: {}", e)))?;
-        let custom_data = get_tlv_primitive_value(&tlv, &tag)
+        let custom_data = get_tlv_primitive_value(&tlv, &tlv.tag())
             .map_err(|e| ErrorKind::CustomError(format!("deserialize custom data error: {}", e)))?;
         Ok(VehicleServerCustomResponse::new(custom_data))
     }
@@ -216,6 +204,7 @@ pub enum CustomMessage {
     VehicleServerCustomResponse(VehicleServerCustomResponse),
 }
 
+#[allow(dead_code)]
 impl CustomMessage {
     pub fn serialize(&self) -> Result<Vec<u8>> {
         match self {
