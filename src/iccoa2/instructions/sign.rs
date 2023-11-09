@@ -2,13 +2,16 @@ use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
 use crate::iccoa2::errors::*;
 use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, identifier};
-use super::{common, KEY_ID_TAG, SIGNATURE_TAG};
+use super::{common, KEY_ID_TAG, SIGN_DATA_TAG, SIGNATURE_TAG};
 
+#[allow(dead_code)]
 const SIGN_INS: u8 = 0x67;
+#[allow(dead_code)]
 const SIGN_P1: u8 = 0x00;
+#[allow(dead_code)]
 const SIGN_P2: u8 = 0x00;
+#[allow(dead_code)]
 const SIGN_LE: u8 = 0x00;
-const SIGN_DATA_TAG: u8 = 0x58;
 
 #[derive(Debug, Default, PartialOrd, PartialEq)]
 pub struct CommandApduSign {
@@ -17,6 +20,7 @@ pub struct CommandApduSign {
     data: Vec<u8>,
 }
 
+#[allow(dead_code)]
 impl CommandApduSign {
     pub fn new(cla: u8, key_id: identifier::KeyId, data: &[u8]) -> Self {
         CommandApduSign {
@@ -92,7 +96,7 @@ impl CommandApduSign {
 
 impl Display for CommandApduSign {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "key id: {}, data: {:02X?}", self.get_key_id(), self.get_data())
     }
 }
 
@@ -103,6 +107,7 @@ pub struct ResponseApduSign {
     status: common::ResponseApduTrailer,
 }
 
+#[allow(dead_code)]
 impl ResponseApduSign {
     pub fn new(key_id: identifier::KeyId, signature: &[u8], status: common::ResponseApduTrailer) -> Self {
         ResponseApduSign {
@@ -165,7 +170,7 @@ impl ResponseApduSign {
 
 impl Display for ResponseApduSign {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "key id: {}, signature: {:02X?}", self.get_key_id(), self.get_signature())
     }
 }
 

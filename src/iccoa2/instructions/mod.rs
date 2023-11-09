@@ -14,6 +14,7 @@ mod get_response;
 const VERSION_TAG: u8 = 0x5A;
 const RANDOM_TAG: u8 = 0x55;
 const RKE_CMD_TAG: u8 = 0x57;
+const SIGN_DATA_TAG: u8 = 0x58;
 const VEHICLE_TEMP_PUB_KEY_TAG: u8 = 0x81;
 const VEHICLE_ID_TAG: u8 = 0x83;
 const DEVICE_TEMP_PUB_KEY_TAG: u8 = 0x84;
