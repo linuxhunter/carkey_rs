@@ -1,18 +1,17 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
 use crate::iccoa2::errors::*;
-use crate::iccoa2::{get_tlv_primitive_value, identifier};
-use crate::iccoa2::instructions::auth_0::RANDOM_TAG;
-use super::common;
+use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, identifier};
+use super::{common, KEY_ID_TAG, RANDOM_TAG, RKE_CMD_TAG, SIGNATURE_TAG};
 
+#[allow(dead_code)]
 const RKE_INS: u8 = 0x66;
+#[allow(dead_code)]
 const RKE_P1: u8 = 0x00;
+#[allow(dead_code)]
 const RKE_P2: u8 = 0x00;
+#[allow(dead_code)]
 const RKE_LE: u8 = 0x00;
-const RKE_KEY_ID_TAG: u8 = 0x89;
-const RKE_VEHICLE_RANDOM_TAG: u8 = 0x55;
-const RKE_CMD_TAG: u8 = 0x57;
-const RKE_SIGNATURE_TAG: u8 = 0x8F; //0x9F
 
 #[derive(Debug, Default, PartialOrd, PartialEq)]
 pub struct CommandApduRke {
@@ -22,6 +21,7 @@ pub struct CommandApduRke {
     command: Vec<u8>,
 }
 
+#[allow(dead_code)]
 impl CommandApduRke {
     pub fn new(cla: u8, key_id: identifier::KeyId, random: &[u8], command: &[u8]) -> Self {
         CommandApduRke {
@@ -62,22 +62,13 @@ impl CommandApduRke {
             RKE_P1,
             RKE_P2,
         );
-        let mut data = Vec::new();
-        let key_id_tag = ber::Tag::try_from(RKE_KEY_ID_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create key id tag error: {}", e)))?;
-        let key_id_value = ber::Value::Primitive(self.get_key_id().serialize()?);
-        let key_id_tlv = ber::Tlv::new(key_id_tag, key_id_value)
+        let key_id_tlv = create_tlv_with_primitive_value(KEY_ID_TAG, &self.get_key_id().serialize()?)
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("crate key id tlv error: {}", e)))?;
-        let random_tag = ber::Tag::try_from(RKE_VEHICLE_RANDOM_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create vehicle random tag error: {}", e)))?;
-        let random_value = ber::Value::Primitive(self.get_random().to_vec());
-        let random_tlv = ber::Tlv::new(random_tag, random_value)
+        let random_tlv = create_tlv_with_primitive_value(RANDOM_TAG, self.get_random())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create vehicle random tlv error: {}", e)))?;
-        let rke_cmd_tag = ber::Tag::try_from(RKE_CMD_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create rke command tag error: {}", e)))?;
-        let rke_cmd_value = ber::Value::Primitive(self.get_command().to_vec());
-        let rke_cmd_tlv = ber::Tlv::new(rke_cmd_tag, rke_cmd_value)
+        let rke_cmd_tlv = create_tlv_with_primitive_value(RKE_CMD_TAG, self.get_command())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create rke command tlv error: {}", e)))?;
+        let mut data = Vec::new();
         data.append(&mut key_id_tlv.to_vec());
         data.append(&mut random_tlv.to_vec());
         data.append(&mut rke_cmd_tlv.to_vec());
@@ -96,7 +87,7 @@ impl CommandApduRke {
         let mut rke = CommandApduRke::default();
         rke.set_cla(header.get_cla());
         for tlv in tlv_collections {
-            if tlv.tag().to_bytes() == RKE_KEY_ID_TAG.to_be_bytes() {
+            if tlv.tag().to_bytes() == KEY_ID_TAG.to_be_bytes() {
                 let key_id = get_tlv_primitive_value(&tlv, &tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize key id error: {}", e)))?;
                 rke.set_key_id(identifier::KeyId::deserialize(key_id)?);
@@ -116,7 +107,7 @@ impl CommandApduRke {
 
 impl Display for CommandApduRke {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "key id: {}, random: {:02X?}, rke command: {:02X?}", self.get_key_id(), self.get_random(), self.get_command())
     }
 }
 
@@ -127,6 +118,7 @@ pub struct ResponseApduRke {
     status: common::ResponseApduTrailer,
 }
 
+#[allow(dead_code)]
 impl ResponseApduRke {
     pub fn new(key_id: identifier::KeyId, signature: &[u8], status: common::ResponseApduTrailer) -> Self {
         ResponseApduRke {
@@ -154,15 +146,9 @@ impl ResponseApduRke {
         self.status = status;
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let key_id_tag = ber::Tag::try_from(RKE_KEY_ID_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create key id tag error: {}", e)))?;
-        let key_id_value = ber::Value::Primitive(self.get_key_id().serialize()?);
-        let key_id_tlv = ber::Tlv::new(key_id_tag, key_id_value)
+        let key_id_tlv = create_tlv_with_primitive_value(KEY_ID_TAG, &self.get_key_id().serialize()?)
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create key id tlv error: {}", e)))?;
-        let signature_tag = ber::Tag::try_from(RKE_SIGNATURE_TAG)
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create rke signature tag error: {}", e)))?;
-        let signature_value = ber::Value::Primitive(self.get_signature().to_vec());
-        let signature_tlv = ber::Tlv::new(signature_tag, signature_value)
+        let signature_tlv = create_tlv_with_primitive_value(SIGNATURE_TAG, self.get_signature())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create rke signature tlv error: {}", e)))?;
         let mut body = Vec::new();
         body.append(&mut key_id_tlv.to_vec());
@@ -177,15 +163,15 @@ impl ResponseApduRke {
         let response = common::ResponseApdu::deserialize(data)?;
         let body = response.get_body().ok_or(format!("deserialize response body is NULL"))?;
         let status = response.get_trailer();
-        let tlv_collections = ber::Tlv::parse_all(body);
         let mut rke_response = ResponseApduRke::default();
         rke_response.set_status(*status);
+        let tlv_collections = ber::Tlv::parse_all(body);
         for tlv in tlv_collections {
-            if tlv.tag().to_bytes() == RKE_KEY_ID_TAG.to_be_bytes() {
+            if tlv.tag().to_bytes() == KEY_ID_TAG.to_be_bytes() {
                 let key_id = get_tlv_primitive_value(&tlv, &tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize response key id error: {}", e)))?;
                 rke_response.set_key_id(identifier::KeyId::deserialize(key_id)?);
-            } else if tlv.tag().to_bytes() == RKE_SIGNATURE_TAG.to_be_bytes() {
+            } else if tlv.tag().to_bytes() == SIGNATURE_TAG.to_be_bytes() {
                 let signature = get_tlv_primitive_value(&tlv, &tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize response signature error: {}", e)))?;
                 rke_response.set_signature(signature);
@@ -197,12 +183,12 @@ impl ResponseApduRke {
 
 impl Display for ResponseApduRke {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "key id: {}, signature: {:02X?}", self.get_key_id(), self.get_signature())
     }
 }
 
+#[cfg(test)]
 mod tests {
-    use std::os::linux::raw::stat;
     use super::*;
 
     #[test]
@@ -524,6 +510,5 @@ mod tests {
             ],
         );
         assert_eq!(response.get_status(), &common::ResponseApduTrailer::new(0x90, 0x00));
-
     }
 }
