@@ -4,19 +4,23 @@ use crate::iccoa2::errors::*;
 use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, identifier};
 use super::{common, KEY_ID_TAG};
 
-const DISABLE_DK_INS: u8 = 0x6E;
+#[allow(dead_code)]
 const DISABLE_DK_P1: u8 = 0x00;
+#[allow(dead_code)]
 const DISABLE_DK_P2: u8 = 0x00;
+#[allow(dead_code)]
 const DISABLE_DK_LE: u8 = 0x00;
-const ENABLE_DK_INS: u8 = 0x6F;
+#[allow(dead_code)]
 const ENABLE_DK_P1: u8 = 0x00;
+#[allow(dead_code)]
 const ENABLE_DK_P2: u8 = 0x00;
+#[allow(dead_code)]
 const ENABLE_DK_LE: u8 = 0x00;
 
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 pub enum StatusDk {
-    DisableDk = 0x00,
-    EnableDk = 0x01,
+    DisableDk = 0x6E,
+    EnableDk = 0x6F,
 }
 
 impl Default for StatusDk {
@@ -30,8 +34,8 @@ impl TryFrom<u8> for StatusDk {
 
     fn try_from(value: u8) -> std::result::Result<Self, Self::Error> {
         match value {
-            0x00 => Ok(StatusDk::DisableDk),
-            0x01 => Ok(StatusDk::EnableDk),
+            0x6E => Ok(StatusDk::DisableDk),
+            0x6F => Ok(StatusDk::EnableDk),
             _ => Err(format!("Unsupported Disable/Enable Dk value: {}", value)),
         }
     }
@@ -40,15 +44,18 @@ impl TryFrom<u8> for StatusDk {
 impl From<StatusDk> for u8 {
     fn from(value: StatusDk) -> Self {
         match value {
-            StatusDk::DisableDk => 0x00,
-            StatusDk::EnableDk => 0x01,
+            StatusDk::DisableDk => 0x6E,
+            StatusDk::EnableDk => 0x6F,
         }
     }
 }
 
 impl Display for StatusDk {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        match self {
+            StatusDk::DisableDk => write!(f, "Disable DK"),
+            StatusDk::EnableDk => write!(f, "Enable DK"),
+        }
     }
 }
 
@@ -59,6 +66,7 @@ pub struct CommandApduEnableDisable {
     key_id: identifier::KeyId,
 }
 
+#[allow(dead_code)]
 impl CommandApduEnableDisable {
     pub fn new(cla: u8, status_dk: StatusDk, key_id: identifier::KeyId) -> Self {
         CommandApduEnableDisable {
@@ -87,9 +95,9 @@ impl CommandApduEnableDisable {
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
         let (ins, p1, p2, le) = if self.get_status_dk() == StatusDk::DisableDk {
-            (DISABLE_DK_INS, DISABLE_DK_P1, DISABLE_DK_P2, DISABLE_DK_LE)
+            (u8::from(self.get_status_dk()), DISABLE_DK_P1, DISABLE_DK_P2, DISABLE_DK_LE)
         } else {
-            (ENABLE_DK_INS, ENABLE_DK_P1, ENABLE_DK_P2, ENABLE_DK_LE)
+            (u8::from(self.get_status_dk()), ENABLE_DK_P1, ENABLE_DK_P2, ENABLE_DK_LE)
         };
         let header = common::CommandApduHeader::new(
             self.get_cla(),
@@ -110,14 +118,7 @@ impl CommandApduEnableDisable {
         let trailer = apdu_request.get_trailer()
             .ok_or(format!("deserialize trailer is NULL"))?;
         let cla = header.get_cla();
-        let ins = header.get_ins();
-        let status_dk = if ins == DISABLE_DK_INS {
-            StatusDk::DisableDk
-        } else if ins == ENABLE_DK_INS {
-            StatusDk::EnableDk
-        } else {
-            return Err(ErrorKind::ApduInstructionErr(format!("deserialize ins value error")).into());
-        };
+        let status_dk = StatusDk::try_from(header.get_ins())?;
         let origin_key_id_data = trailer.get_data()
             .ok_or(format!("deserialize key id is NULL"))?;
         let key_id_tlv = ber::Tlv::from_bytes(origin_key_id_data)
@@ -135,7 +136,7 @@ impl CommandApduEnableDisable {
 
 impl Display for CommandApduEnableDisable {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "key id: {}, status: {}", self.get_key_id(), self.get_status_dk())
     }
 }
 
@@ -144,6 +145,7 @@ pub struct ResponseApduEnableDisable {
     status: common::ResponseApduTrailer,
 }
 
+#[allow(dead_code)]
 impl ResponseApduEnableDisable {
     pub fn new(status: common::ResponseApduTrailer) -> Self {
         ResponseApduEnableDisable {
@@ -172,7 +174,7 @@ impl ResponseApduEnableDisable {
 
 impl Display for ResponseApduEnableDisable {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "{}", self.get_status())
     }
 }
 
