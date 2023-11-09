@@ -3,14 +3,14 @@ use iso7816_tlv::ber;
 use crate::iccoa2::errors::ErrorKind;
 
 pub mod message;
-mod apdu;
-mod measure;
-mod rke;
-mod vehicle_status;
-mod auth;
-mod custom;
-mod identifier;
-mod instructions;
+pub mod apdu;
+pub mod measure;
+pub mod rke;
+pub mod vehicle_status;
+pub mod auth;
+pub mod custom;
+pub mod identifier;
+pub mod instructions;
 
 mod errors {
     use super::*;
