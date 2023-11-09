@@ -2,15 +2,21 @@ use std::fmt::{Display, Formatter};
 use crate::iccoa2::errors::*;
 use super::common;
 
+#[allow(dead_code)]
 const GET_RESPONSE_CLA: u8 = 0x00;
+#[allow(dead_code)]
 const GET_RESPONSE_INS: u8 = 0xC0;
+#[allow(dead_code)]
 const GET_RESPONSE_P1: u8 = 0x00;
+#[allow(dead_code)]
 const GET_RESPONSE_P2: u8 = 0x00;
+#[allow(dead_code)]
 const GET_RESPONSE_LE: u8 = 0x00;
 
 #[derive(Debug, Default, PartialOrd, PartialEq)]
 pub struct CommandApduGetResponse();
 
+#[allow(dead_code)]
 impl CommandApduGetResponse {
     pub fn new() -> Self {
         CommandApduGetResponse()
@@ -46,7 +52,7 @@ impl CommandApduGetResponse {
 
 impl Display for CommandApduGetResponse {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "Get Response request")
     }
 }
 
@@ -56,6 +62,7 @@ pub struct ResponseApduGetResponse {
     status: common::ResponseApduTrailer,
 }
 
+#[allow(dead_code)]
 impl ResponseApduGetResponse {
     pub fn new(data: &[u8], status: common::ResponseApduTrailer) -> Self {
         ResponseApduGetResponse {
@@ -92,7 +99,7 @@ impl ResponseApduGetResponse {
 
 impl Display for ResponseApduGetResponse {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "response data: {:02X?}", self.get_data())
     }
 }
 
