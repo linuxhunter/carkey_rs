@@ -1,33 +1,38 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
-use crate::iccoa2::{get_tlv_primitive_value, identifier, rke, vehicle_status};
+use crate::iccoa2::{create_tlv_with_constructed_value, create_tlv_with_primitive_value, get_tlv_primitive_value, identifier, rke, vehicle_status};
 use super::errors::*;
 
+#[allow(dead_code)]
 const AUTH_REQUEST_RANDOM_TAG: u8 = 0x8B;
+#[allow(dead_code)]
 const AUTH_REQUEST_TAG: u8 = 0x8A;
+#[allow(dead_code)]
 const AUTH_RESPONSE_TAG: u16 = 0x7F2D;
+#[allow(dead_code)]
 const AUTH_RESPONSE_KEY_ID_TAG: u8 = 0x5D;
+#[allow(dead_code)]
 const AUTH_RESPONSE_SIGNATURE_TAG: u8 = 0x9E;
+#[allow(dead_code)]
 const AUTH_RANDOM_NUMBER_LENGTH: usize = 0x10;
+#[allow(dead_code)]
 const AUTH_SIGNATURE_LENGTH: usize = 0x40;
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct AuthRequestRandom();
 
+#[allow(dead_code)]
 impl AuthRequestRandom {
     pub fn new() -> Self {
         AuthRequestRandom()
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let tag = ber::Tag::try_from(AUTH_REQUEST_RANDOM_TAG)
-            .map_err(|e| ErrorKind::AuthError(format!("create auth request random tag error: {}", e)))?;
-        let value = ber::Value::Primitive(vec![]);
-        let tlv = ber::Tlv::new(tag, value)
+        let tlv = create_tlv_with_primitive_value(AUTH_REQUEST_RANDOM_TAG, &vec![])
             .map_err(|e| ErrorKind::AuthError(format!("create auth request random tlv error: {}", e)))?;
         Ok(tlv.to_vec())
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
-        todo!()
+    pub fn deserialize(_data: &[u8]) -> Result<Self> {
+        Ok(AuthRequestRandom::new())
     }
 }
 
@@ -42,6 +47,7 @@ pub struct AuthRequest {
     random: [u8; AUTH_RANDOM_NUMBER_LENGTH],
 }
 
+#[allow(dead_code)]
 impl AuthRequest {
     pub fn new(random: &[u8]) -> Result<Self> {
         if random.len() != AUTH_RANDOM_NUMBER_LENGTH {
@@ -66,10 +72,7 @@ impl AuthRequest {
         Ok(())
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let tag = ber::Tag::try_from(AUTH_REQUEST_TAG)
-            .map_err(|e| ErrorKind::AuthError(format!("create auth request tag error: {}", e)))?;
-        let value = ber::Value::Primitive(self.random.to_vec());
-        let tlv = ber::Tlv::new(tag, value)
+        let tlv = create_tlv_with_primitive_value(AUTH_REQUEST_TAG, self.get_random())
             .map_err(|e| ErrorKind::AuthError(format!("create auth request tlv error: {}", e)))?;
         Ok(tlv.to_vec())
     }
@@ -79,9 +82,7 @@ impl AuthRequest {
         if tlv.tag().to_bytes() != AUTH_REQUEST_TAG.to_be_bytes() {
             return Err(ErrorKind::AuthError(format!("deserialize tag content error")).into());
         }
-        let tag = ber::Tag::try_from(AUTH_REQUEST_TAG)
-            .map_err(|e| ErrorKind::AuthError(format!("create auth request tag error: {}", e)))?;
-        let random = get_tlv_primitive_value(&tlv, &tag)
+        let random = get_tlv_primitive_value(&tlv, &tlv.tag())
             .map_err(|e| ErrorKind::AuthError(format!("deserialize random content error: {}", e)))?;
         AuthRequest::new(random)
     }
@@ -101,6 +102,7 @@ pub struct AuthEntries {
     unsubscribe: Option<vehicle_status::VehicleStatusRequest>,
 }
 
+#[allow(dead_code)]
 impl AuthEntries {
     pub fn new(
         rke: Option<rke::RkeRequest>,
@@ -240,6 +242,7 @@ pub struct AuthResponse {
     signature: [u8; AUTH_SIGNATURE_LENGTH],
 }
 
+#[allow(dead_code)]
 impl AuthResponse {
     pub fn new(key_id: identifier::KeyId, auth_entries: Option<AuthEntries>, signature: &[u8]) -> Result<Self> {
         Ok(AuthResponse {
@@ -276,18 +279,10 @@ impl AuthResponse {
         Ok(())
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let key_id_tag = ber::Tag::try_from(AUTH_RESPONSE_KEY_ID_TAG)
-            .map_err(|e| ErrorKind::AuthError(format!("create key id tag error: {}", e)))?;
-        let key_id_value = ber::Value::Primitive(self.key_id.serialize().unwrap());
-        let key_id_tlv = ber::Tlv::new(key_id_tag, key_id_value)
+        let key_id_tlv = create_tlv_with_primitive_value(AUTH_RESPONSE_KEY_ID_TAG, &self.get_key_id().serialize()?)
             .map_err(|e| ErrorKind::AuthError(format!("create key id tlv error: {}", e)))?;
-
-        let signature_tag = ber::Tag::try_from(AUTH_RESPONSE_SIGNATURE_TAG)
-            .map_err(|e| ErrorKind::AuthError(format!("create signature tag error: {}", e)))?;
-        let signature_value = ber::Value::Primitive(self.signature.to_vec());
-        let signature_tlv = ber::Tlv::new(signature_tag, signature_value)
+        let signature_tlv = create_tlv_with_primitive_value(AUTH_RESPONSE_SIGNATURE_TAG, self.get_signature())
             .map_err(|e| ErrorKind::AuthError(format!("create signature tlv error: {}", e)))?;
-
         let auth_entries_tlv = match &self.auth_entries {
             Some(auth_entries) => {
                 auth_entries.get_tlv()
@@ -301,16 +296,13 @@ impl AuthResponse {
         }
         auth_response_values.push(signature_tlv);
 
-        let auth_response_tag = ber::Tag::try_from(AUTH_RESPONSE_TAG)
-            .map_err(|e| ErrorKind::AuthError(format!("create auth response tag error: {}", e)))?;
-        let auth_response_value = ber::Value::Constructed(auth_response_values);
-        let auth_response_tlv = ber::Tlv::new(auth_response_tag, auth_response_value)
+        let auth_response_tlv = create_tlv_with_constructed_value(AUTH_RESPONSE_TAG, &auth_response_values)
             .map_err(|e| ErrorKind::AuthError(format!("create auth reponse tlv error: {}", e)))?;
         Ok(auth_response_tlv.to_vec())
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let tlv = ber::Tlv::from_bytes(data)
-            .map_err(|e| ErrorKind::AuthError(format!("deserialize ")))?;
+            .map_err(|e| ErrorKind::AuthError(format!("deserialize origin bytes error: {}", e)))?;
         if tlv.tag().to_bytes() != AUTH_RESPONSE_TAG.to_be_bytes() {
             return Err(ErrorKind::AuthError(format!("deserialize tag content is not {:02X?}", AUTH_RESPONSE_TAG)).into());
         }
@@ -372,7 +364,7 @@ impl AuthResponse {
 
 impl Display for AuthResponse {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "key id: {}, signature: {:02X?}", self.get_key_id(), self.get_signature())
     }
 }
 
@@ -383,6 +375,7 @@ pub enum Auth {
     Response(AuthResponse),
 }
 
+#[allow(dead_code)]
 impl Auth {
     pub fn serialize(&self) -> Result<Vec<u8>> {
         match self {
@@ -410,7 +403,11 @@ impl Auth {
 
 impl Display for Auth {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        match self {
+            Auth::Request(request) => write!(f, "{}", request),
+            Auth::Response(response) => write!(f, "{}", response),
+            Auth::RequestRandom(request) => write!(f, "{}", request),
+        }
     }
 }
 
