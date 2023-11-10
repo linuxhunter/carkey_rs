@@ -236,6 +236,12 @@ impl ResponseApduListDk {
     }
 }
 
+impl Display for ResponseApduListDk {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "key id: {}, key id status: {}", self.get_key_id(), self.get_key_id_status())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

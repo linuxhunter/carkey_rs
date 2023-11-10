@@ -271,6 +271,12 @@ impl ResponseApduAuth0 {
     }
 }
 
+impl Display for ResponseApduAuth0 {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "device temp pub key: {:02X?}, cryptogram = {:02X?}", self.get_device_temp_pub_key(), self.get_cryptogram())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

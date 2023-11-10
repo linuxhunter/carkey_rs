@@ -132,7 +132,32 @@ impl From<ApduInstructionType> for u8 {
 
 impl Display for ApduInstructionType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        match self {
+            ApduInstructionType::CommandSelect => write!(f, "Command Select"),
+            ApduInstructionType::ResponseSelect => write!(f, "Resonse Select"),
+            ApduInstructionType::CommandListDk => write!(f, "Command List Dk"),
+            ApduInstructionType::ResponseListDk => write!(f, "Response List Dk"),
+            ApduInstructionType::CommandAuth0 => write!(f, "Command Auth 0"),
+            ApduInstructionType::ResponseAuth0 => write!(f, "Reponse Auth 0"),
+            ApduInstructionType::CommandAuth1 => write!(f, "Command Auth 1"),
+            ApduInstructionType::ResponseAuth1 => write!(f, "Response Auth 1"),
+            ApduInstructionType::CommandGetDkCert => write!(f, "Comand Get Dk Certificate"),
+            ApduInstructionType::ResponseGetDkCert => write!(f, "Response Get Dk Certificate"),
+            ApduInstructionType::CommandSharingRequest => write!(f, "Command Sharing Request"),
+            ApduInstructionType::ResponseSharingRequest => write!(f, "Response Sharing Request"),
+            ApduInstructionType::CommandRke => write!(f, "Command Rke"),
+            ApduInstructionType::ResponseRke => write!(f, "Response Rke"),
+            ApduInstructionType::CommandSign => write!(f, "Command Sign"),
+            ApduInstructionType::ResponseSign => write!(f, "Response Sign"),
+            ApduInstructionType::CommandDisableDk => write!(f, "Comand Disable Dk"),
+            ApduInstructionType::ResponseDisableDk => write!(f, "Response Disable Dk"),
+            ApduInstructionType::CommandEnableDk => write!(f, "Command Enable Dk"),
+            ApduInstructionType::ResponseEnableDk => write!(f, "Response Enable Dk"),
+            ApduInstructionType::CommandGetChallenge => write!(f, "Command Get Challenge"),
+            ApduInstructionType::ResponseGetChallenge => write!(f, "Response Get Challenge"),
+            ApduInstructionType::CommandGetResponse => write!(f, "Command Get Response"),
+            ApduInstructionType::ResponseGetResponse => write!(f, "Response Get Response"),
+        }
     }
 }
 
@@ -314,6 +339,37 @@ impl ApduInstructions {
             ApduInstructionType::ResponseGetChallenge => Ok(ApduInstructions::ResponseGetChallenge(ResponseApduGetChallenge::deserialize(apdu_buffer)?)),
             ApduInstructionType::CommandGetResponse => Ok(ApduInstructions::CommandGetResponse(CommandApduGetResponse::deserialize(apdu_buffer)?)),
             ApduInstructionType::ResponseGetResponse => Ok(ApduInstructions::ResponseGetResponse(ResponseApduGetResponse::deserialize(apdu_buffer)?)),
+        }
+    }
+}
+
+impl Display for ApduInstructions {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ApduInstructions::CommandSelect(command) => write!(f, "{}", command),
+            ApduInstructions::ResponseSelect(response) => write!(f, "{}", response),
+            ApduInstructions::CommandListDk(command) => write!(f, "{}", command),
+            ApduInstructions::ResponseListDk(response) => write!(f, "{}", response),
+            ApduInstructions::CommandAuth0(command) => write!(f, "{}", command),
+            ApduInstructions::ResponseAuth0(response) => write!(f, "{}", response),
+            ApduInstructions::CommandAuth1(command) => write!(f, "{:02X?}", command),
+            ApduInstructions::ResponseAuth1(response) => write!(f, "{:02X?}", response),
+            ApduInstructions::CommandGetDkCert(command) => write!(f, "{}", command),
+            ApduInstructions::ResponseGetDkCert(response) => write!(f, "{}", response),
+            ApduInstructions::CommandSharingRequest(command) => write!(f, "{}", command),
+            ApduInstructions::ResponseSharingRequest(response) => write!(f, "{}", response),
+            ApduInstructions::CommandRke(command) => write!(f, "{}", command),
+            ApduInstructions::ResponseRke(response) => write!(f, "{}", response),
+            ApduInstructions::CommandSign(command) => write!(f, "{}", command),
+            ApduInstructions::ResponseSign(response) => write!(f, "{}", response),
+            ApduInstructions::CommandDisableDk(command) => write!(f, "{}", command),
+            ApduInstructions::ResponseDisableDk(response) => write!(f, "{}", response),
+            ApduInstructions::CommandEnableDk(command) => write!(f, "{}", command),
+            ApduInstructions::ResponseEnableDk(response) => write!(f, "{}", response),
+            ApduInstructions::CommandGetChallenge(command) => write!(f, "{}", command),
+            ApduInstructions::ResponseGetChallenge(response) => write!(f, "{}", response),
+            ApduInstructions::CommandGetResponse(command) => write!(f, "{}", command),
+            ApduInstructions::ResponseGetResponse(response) => write!(f, "{}", response),
         }
     }
 }
