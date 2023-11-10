@@ -15,6 +15,7 @@ pub struct RKECommandRequest {
     action_id: u8,
 }
 
+#[allow(dead_code)]
 impl RKECommandRequest {
     pub fn new() -> Self {
         RKECommandRequest {
@@ -74,6 +75,7 @@ pub struct RKECommandResponse {
     value: Vec<u8>,
 }
 
+#[allow(dead_code)]
 impl RKECommandResponse {
     pub fn new() -> Self {
         RKECommandResponse {
@@ -122,6 +124,7 @@ impl RKECommandResponse {
     }
 }
 
+#[allow(dead_code)]
 fn create_iccoa_rke_command_request(transaction_id: u16, request: RKECommandRequest) -> Result<ICCOA> {
     let serialized_request = request.serialize();
     let mut mark = Mark::new();
@@ -174,6 +177,7 @@ fn create_iccoa_rke_command_response(transaction_id: u16, status: Status, respon
     Ok(create_iccoa(header, body))
 }
 
+#[allow(dead_code)]
 fn create_iccoa_rke_request(transaction_id: u16, event_id: u16, function_id: u16, action_id: u8) -> Result<ICCOA> {
     let mut request = RKECommandRequest::new();
     request.set_event_id(event_id);
@@ -182,50 +186,62 @@ fn create_iccoa_rke_request(transaction_id: u16, event_id: u16, function_id: u16
     create_iccoa_rke_command_request(transaction_id, request)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_rke_central_lock_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
     create_iccoa_rke_request(transaction_id, event_id, 0x0001, 0x00)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_rke_central_unlock_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
     create_iccoa_rke_request(transaction_id, event_id, 0x0001, 0x01)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_rke_electric_window_close_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
     create_iccoa_rke_request(transaction_id, event_id, 0x0140, 0x00)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_rke_electric_window_open_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
     create_iccoa_rke_request(transaction_id, event_id, 0x0140, 0x01)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_rke_electric_sunroof_close_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
     create_iccoa_rke_request(transaction_id, event_id, 0x0141, 0x00)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_rke_electric_sunroof_open_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
     create_iccoa_rke_request(transaction_id, event_id, 0x0141, 0x01)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_rke_trunk_close_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
     create_iccoa_rke_request(transaction_id, event_id, 0x0111, 0x00)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_rke_trunk_open_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
     create_iccoa_rke_request(transaction_id, event_id, 0x0111, 0x01)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_rke_cancel_search_car_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
     create_iccoa_rke_request(transaction_id, event_id, 0x1000, 0x00)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_rke_konking_search_car_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
     create_iccoa_rke_request(transaction_id, event_id, 0x1000, 0x01)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_rke_flashing_search_car_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
     create_iccoa_rke_request(transaction_id, event_id, 0x1000, 0x02)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_rke_honking_and_flashing_search_car_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
     create_iccoa_rke_request(transaction_id, event_id, 0x1000, 0x03)
 }

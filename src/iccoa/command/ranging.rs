@@ -40,6 +40,7 @@ pub fn create_iccoa_ranging_request(transaction_id: u16, tag: u8, payloads: &[TL
     Ok(create_iccoa(header, body))
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_ranging_response(transaction_id: u16, status: Status, tag: u8, payloads: &[TLVPayload]) -> Result<ICCOA> {
     let mut payload_data= Vec::new();
     let mut payload_length = 0x00;

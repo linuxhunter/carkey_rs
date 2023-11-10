@@ -148,6 +148,7 @@ pub struct Header {
     mark: Mark,
 }
 
+#[allow(dead_code)]
 impl Header {
     pub fn new() -> Self {
         Default::default()
@@ -417,6 +418,7 @@ pub struct ICCOA {
     mac: [u8; 8],
 }
 
+#[allow(dead_code)]
 impl ICCOA {
     pub fn new() -> Self {
         Default::default()

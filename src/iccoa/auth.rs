@@ -58,6 +58,7 @@ fn create_iccoa_auth_request(transaction_id: u16, tag: u8, payloads: &[TLVPayloa
     Ok(create_iccoa(header, body))
 }
 
+#[allow(dead_code)]
 fn create_iccoa_auth_response(transaction_id: u16, status: Status, tag: u8, payloads: &[TLVPayload]) -> Result<ICCOA> {
     let mut payload_data= Vec::new();
     let mut payload_length = 0x00;
@@ -96,6 +97,7 @@ pub fn create_iccoa_standard_auth_pubkey_exchange_request(transaction_id: u16, p
     create_iccoa_auth_request(transaction_id, 0x01, payloads)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_standard_auth_pubkey_exchange_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
     create_iccoa_auth_response(transaction_id, status, 0x01, payloads)
 }
@@ -104,46 +106,57 @@ pub fn create_iccoa_standard_auth_request(transaction_id: u16, payloads: &[TLVPa
     create_iccoa_auth_request(transaction_id, 0x02, payloads)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_standard_auth_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
     create_iccoa_auth_response(transaction_id, status, 0x02, payloads)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_standard_auth_friend_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
     create_iccoa_auth_request(transaction_id, 0x03, payloads)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_standard_auth_friend_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
     create_iccoa_auth_response(transaction_id, status, 0x03, payloads)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_standard_auth_write_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
     create_iccoa_auth_request(transaction_id, 0x04, payloads)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_standard_auth_write_response(transaction_id: u16, status: Status) -> Result<ICCOA> {
     create_iccoa_auth_response(transaction_id, status, 0x04, &[])
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_standard_auth_read_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
     create_iccoa_auth_request(transaction_id, 0x05, payloads)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_standard_auth_read_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
     create_iccoa_auth_response(transaction_id, status, 0x05, payloads)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_fast_auth_pubkey_exchange_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
     create_iccoa_auth_request(transaction_id, 0xC1, payloads)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_fast_auth_pubkey_exchange_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
     create_iccoa_auth_response(transaction_id, status, 0xC1, payloads)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_fast_auth_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
     create_iccoa_auth_request(transaction_id, 0xC2, payloads)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_fast_auth_response(transaction_id: u16, status: Status) -> Result<ICCOA> {
     create_iccoa_auth_response(transaction_id, status, 0xC2, &[])
 }
@@ -162,6 +175,7 @@ pub fn create_iccoa_standard_auth_pubkey_exchange_request_package() -> Result<IC
     Ok(iccoa)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_fast_auth_pubkey_exchange_request_package() -> Result<ICCOA> {
     let transaction_id = 0x0000;
     let mut auth_sign_object = AUTH_SIGN_OBJECT.lock().unwrap();

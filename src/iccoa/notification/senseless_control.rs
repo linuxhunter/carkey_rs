@@ -13,6 +13,7 @@ pub struct SenselessControlResult {
     value: Vec<u8>,
 }
 
+#[allow(dead_code)]
 impl SenselessControlResult {
     pub fn new() -> Self {
         SenselessControlResult {
@@ -53,6 +54,7 @@ impl SenselessControlResult {
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct SenselessControlResultBuilder(SenselessControlResult);
 
+#[allow(dead_code)]
 impl SenselessControlResultBuilder {
     pub fn new() -> Self {
         SenselessControlResultBuilder(SenselessControlResult {
@@ -85,6 +87,7 @@ pub struct SenselessControlEvent {
     value: SenselessControlResult,
 }
 
+#[allow(dead_code)]
 impl SenselessControlEvent {
     pub fn new() -> Self {
         SenselessControlEvent {
@@ -125,6 +128,7 @@ impl SenselessControlEvent {
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct SenselessControlEventBuilder(SenselessControlEvent);
 
+#[allow(dead_code)]
 impl SenselessControlEventBuilder {
     pub fn new() -> Self {
         SenselessControlEventBuilder(SenselessControlEvent {

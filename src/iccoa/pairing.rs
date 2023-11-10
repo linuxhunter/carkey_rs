@@ -5,7 +5,7 @@ use log::{error, info};
 use openssl::bn::{BigNum, BigNumContext};
 use openssl::ec::EcGroup;
 use openssl::nid::Nid;
-use rand::{random, Rng};
+use rand::random;
 use crate::iccoa::objects::EncryptType;
 
 use crate::iccoa::utils::CipherKey;
@@ -183,6 +183,7 @@ pub fn get_pairing_key_mac() -> Vec<u8> {
     pairing_key.get_key_mac()
 }
 
+#[allow(dead_code)]
 pub fn get_pairing_key_enc() -> Vec<u8> {
     let pairing_key = PAIRING_KEY.lock().unwrap();
     pairing_key.get_key_enc()
@@ -199,6 +200,7 @@ pub fn get_vehicle_certificate() -> Vec<u8> {
     }
 }
 
+#[allow(dead_code)]
 pub fn get_mobile_device_server_ca_certificate() -> Vec<u8> {
     if let Ok(mut file) = std::fs::File::open("/etc/certs/mobile_server_ca.crt") {
         let metadata = std::fs::metadata("/etc/certs/mobile_server_ca.crt").unwrap();
@@ -210,6 +212,7 @@ pub fn get_mobile_device_server_ca_certificate() -> Vec<u8> {
     }
 }
 
+#[allow(dead_code)]
 pub fn get_mobile_device_tee_ca_certificate() -> Vec<u8> {
     if let Ok(mut file) = std::fs::File::open("/etc/certs/mobile_tee_ca.crt") {
         let metadata = std::fs::metadata("/etc/certs/mobile_tee_ca.crt").unwrap();
@@ -221,6 +224,7 @@ pub fn get_mobile_device_tee_ca_certificate() -> Vec<u8> {
     }
 }
 
+#[allow(dead_code)]
 pub fn get_carkey_certificate() -> Vec<u8> {
     [0x04; 16].to_vec()
 }
@@ -273,6 +277,7 @@ fn create_iccoa_pairing_request(transaction_id: u16, tag: u8, payloads: &[TLVPay
     Ok(create_iccoa(header, body))
 }
 
+#[allow(dead_code)]
 fn create_iccoa_pairing_response(transaction_id: u16, status: Status, tag: u8, payloads: &[TLVPayload]) -> Result<ICCOA> {
     let mut payload_data= Vec::new();
     let mut payload_length = 0x00;
@@ -310,6 +315,7 @@ pub fn create_iccoa_pairing_data_request(transaction_id: u16, payloads: &[TLVPay
     create_iccoa_pairing_request(transaction_id, 0x02, payloads)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_pairing_data_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
     create_iccoa_pairing_response(transaction_id, status, 0x02, payloads)
 }
@@ -318,6 +324,7 @@ pub fn create_iccoa_paring_auth_request(transaction_id: u16, payloads: &[TLVPayl
     create_iccoa_pairing_request(transaction_id, 0x03, payloads)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_pairing_auth_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
     create_iccoa_pairing_response(transaction_id, status, 0x03, payloads)
 }
@@ -326,6 +333,7 @@ pub fn create_iccoa_pairing_certificate_write_request(transaction_id: u16, paylo
     create_iccoa_pairing_request(transaction_id, 0x04, payloads)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_pairing_certificate_write_response(transaction_id: u16, status: Status) -> Result<ICCOA> {
     create_iccoa_pairing_response(transaction_id, status, 0x04, &[])
 }
@@ -334,6 +342,7 @@ pub fn create_iccoa_pairing_certificate_read_request(transaction_id: u16, payloa
     create_iccoa_pairing_request(transaction_id, 0x05, payloads)
 }
 
+#[allow(dead_code)]
 pub fn create_iccoa_pairing_certificate_read_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
     create_iccoa_pairing_response(transaction_id, status, 0x05, payloads)
 }

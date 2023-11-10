@@ -48,6 +48,7 @@ pub struct Status {
     code: u8,
 }
 
+#[allow(dead_code)]
 impl Status {
     pub fn new() -> Self {
         Status {

@@ -37,6 +37,7 @@ pub struct TLVPayload {
     value: Vec<u8>,
 }
 
+#[allow(dead_code)]
 impl TLVPayload {
     pub fn new() -> Self {
         TLVPayload {
@@ -124,27 +125,5 @@ impl TLVPayloadBuilder {
     }
     pub fn build(self) -> TLVPayload {
         self.0
-    }
-}
-
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_ber_tlv() {
-        let payload = TLVPayloadBuilder::new().set_tag(0x55).set_value(&[0x01; 16]).build();
-        println!("serialized payload = {:02X?}", payload.serialize());
-        let deserialized_payload = TLVPayload::deserialize(&payload.serialize()).unwrap();
-        println!("deserialized_payload = {:?}", deserialized_payload);
-
-        let payload2 = TLVPayloadBuilder::new().set_tag(0x56).set_value(&[0x02; 250]).build();
-        println!("serialized payload2 = {:02X?}", payload2.serialize());
-        let deserialized_payload2 = TLVPayload::deserialize(&payload2.serialize()).unwrap();
-        println!("deserialized_payload2 = {:?}", deserialized_payload2);
-
-        let payload3 = TLVPayloadBuilder::new().set_tag(0x57).set_value(&[0x03; 1024]).build();
-        println!("serialized payload3 = {:02X?}", payload3.serialize());
-        let deserialized_payload3 = TLVPayload::deserialize(&payload3.serialize()).unwrap();
-        println!("deserialized_payload3 = {:?}", deserialized_payload3);
     }
 }

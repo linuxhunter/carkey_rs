@@ -12,6 +12,7 @@ pub struct VehicleStatus {
     value: Vec<u8>,
 }
 
+#[allow(dead_code)]
 impl VehicleStatus {
         pub fn new() -> Self {
             VehicleStatus {
