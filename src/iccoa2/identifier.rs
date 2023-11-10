@@ -58,7 +58,7 @@ impl KeyId {
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         if data.len() != KEY_ID_LENGTH {
-            return Err(ErrorKind::IdentifierError(format!("key id length wrong")).into());
+            return Err(ErrorKind::IdentifierError("key id length wrong".to_string()).into());
         }
         let device_oem_id = u16::from_be_bytes(
             (&data[0..2])
@@ -126,7 +126,7 @@ impl VehicleId {
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         if data.len() != VEHICLE_ID_LENGTH {
-            return Err(ErrorKind::IdentifierError(format!("vehicle id length wrong")).into());
+            return Err(ErrorKind::IdentifierError("vehicle id length wrong".to_string()).into());
         }
         let vehicle_oem_id = u16::from_be_bytes(
             (&data[0..2])

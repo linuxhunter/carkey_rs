@@ -38,16 +38,16 @@ impl CommandApduGetChallenge {
         let apdu_request = common::CommandApdu::deserialize(data)?;
         let header = apdu_request.get_header();
         let trailer = apdu_request.get_trailer()
-            .ok_or(format!("deserialize trailer is NULL"))?;
+            .ok_or("deserialize trailer is NULL".to_string())?;
         if header.get_cla() != GET_CHALLENGE_CLA ||
             header.get_ins() != GET_CHALLENGE_INS ||
             header.get_p1() != GET_CHALLENGE_P1 ||
             header.get_p2() != GET_CHALLENGE_P2 {
-            return Err(ErrorKind::ApduInstructionErr(format!("deserialize header error")).into());
+            return Err(ErrorKind::ApduInstructionErr("deserialize header error".to_string()).into());
         }
         if trailer.get_data().is_some() ||
             trailer.get_le() != Some(&GET_CHALLENGE_LE) {
-            return  Err(ErrorKind::ApduInstructionErr(format!("deserialize trailer error")).into());
+            return  Err(ErrorKind::ApduInstructionErr("deserialize trailer error".to_string()).into());
         }
         Ok(CommandApduGetChallenge::new())
     }
@@ -88,13 +88,13 @@ impl ResponseApduGetChallenge {
     pub fn serialize(&self) -> Result<Vec<u8>> {
         let response = common::ResponseApdu::new(
             Some(self.get_random().to_vec()),
-            self.get_status().clone(),
+            *self.get_status(),
         );
         response.serialize()
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let response = common::ResponseApdu::deserialize(data)?;
-        let body = response.get_body().ok_or(format!("deserialize body is NULL"))?;
+        let body = response.get_body().ok_or("deserialize body is NULL".to_string())?;
         let trailer = response.get_trailer();
         Ok(ResponseApduGetChallenge::new(
             body,

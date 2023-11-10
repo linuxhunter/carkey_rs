@@ -1,7 +1,7 @@
 use log::info;
 use crate::iccoa::{utils::{encrypt_aes_128_cbc, decrypt_aes_128_cbc, get_default_iv}, TLVPayload, TLVPayloadBuilder, auth};
 
-use super::super::{errors::*, objects, objects::{ICCOA, create_iccoa_header, Mark, create_iccoa_body_message_data, MessageType, create_iccoa_body, create_iccoa}, status::{StatusBuilder, Status}};
+use super::super::{errors::*, objects, objects::{Iccoa, create_iccoa_header, Mark, create_iccoa_body_message_data, MessageType, create_iccoa_body, create_iccoa}, status::{StatusBuilder, Status}};
 
 lazy_static! {
     static ref RKE_COMMAND_REQUEST_DATA_LENGTH: usize = 5;
@@ -125,7 +125,7 @@ impl RKECommandResponse {
 }
 
 #[allow(dead_code)]
-fn create_iccoa_rke_command_request(transaction_id: u16, request: RKECommandRequest) -> Result<ICCOA> {
+fn create_iccoa_rke_command_request(transaction_id: u16, request: RKECommandRequest) -> Result<Iccoa> {
     let serialized_request = request.serialize();
     let mut mark = Mark::new();
     mark.set_encrypt_type(objects::EncryptType::ENCRYPT_AFTER_AUTH);
@@ -144,14 +144,14 @@ fn create_iccoa_rke_command_request(transaction_id: u16, request: RKECommandRequ
         &serialized_request,
     );
     let body = create_iccoa_body(
-        MessageType::COMMAND,
+        MessageType::Command,
         message_data,
     );
 
     Ok(create_iccoa(header, body))
 }
 
-fn create_iccoa_rke_command_response(transaction_id: u16, status: Status, response: RKECommandResponse) -> Result<ICCOA> {
+fn create_iccoa_rke_command_response(transaction_id: u16, status: Status, response: RKECommandResponse) -> Result<Iccoa> {
     let serialized_response = response.serialize();
     let mut mark = Mark::new();
     mark.set_encrypt_type(objects::EncryptType::ENCRYPT_AFTER_AUTH);
@@ -170,7 +170,7 @@ fn create_iccoa_rke_command_response(transaction_id: u16, status: Status, respon
         &serialized_response,
     );
     let body = create_iccoa_body(
-        MessageType::COMMAND,
+        MessageType::Command,
         message_data,
     );
 
@@ -178,7 +178,7 @@ fn create_iccoa_rke_command_response(transaction_id: u16, status: Status, respon
 }
 
 #[allow(dead_code)]
-fn create_iccoa_rke_request(transaction_id: u16, event_id: u16, function_id: u16, action_id: u8) -> Result<ICCOA> {
+fn create_iccoa_rke_request(transaction_id: u16, event_id: u16, function_id: u16, action_id: u8) -> Result<Iccoa> {
     let mut request = RKECommandRequest::new();
     request.set_event_id(event_id);
     request.set_function_id(function_id);
@@ -187,66 +187,66 @@ fn create_iccoa_rke_request(transaction_id: u16, event_id: u16, function_id: u16
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_rke_central_lock_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
+pub fn create_iccoa_rke_central_lock_request(transaction_id: u16, event_id: u16) -> Result<Iccoa> {
     create_iccoa_rke_request(transaction_id, event_id, 0x0001, 0x00)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_rke_central_unlock_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
+pub fn create_iccoa_rke_central_unlock_request(transaction_id: u16, event_id: u16) -> Result<Iccoa> {
     create_iccoa_rke_request(transaction_id, event_id, 0x0001, 0x01)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_rke_electric_window_close_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
+pub fn create_iccoa_rke_electric_window_close_request(transaction_id: u16, event_id: u16) -> Result<Iccoa> {
     create_iccoa_rke_request(transaction_id, event_id, 0x0140, 0x00)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_rke_electric_window_open_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
+pub fn create_iccoa_rke_electric_window_open_request(transaction_id: u16, event_id: u16) -> Result<Iccoa> {
     create_iccoa_rke_request(transaction_id, event_id, 0x0140, 0x01)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_rke_electric_sunroof_close_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
+pub fn create_iccoa_rke_electric_sunroof_close_request(transaction_id: u16, event_id: u16) -> Result<Iccoa> {
     create_iccoa_rke_request(transaction_id, event_id, 0x0141, 0x00)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_rke_electric_sunroof_open_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
+pub fn create_iccoa_rke_electric_sunroof_open_request(transaction_id: u16, event_id: u16) -> Result<Iccoa> {
     create_iccoa_rke_request(transaction_id, event_id, 0x0141, 0x01)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_rke_trunk_close_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
+pub fn create_iccoa_rke_trunk_close_request(transaction_id: u16, event_id: u16) -> Result<Iccoa> {
     create_iccoa_rke_request(transaction_id, event_id, 0x0111, 0x00)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_rke_trunk_open_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
+pub fn create_iccoa_rke_trunk_open_request(transaction_id: u16, event_id: u16) -> Result<Iccoa> {
     create_iccoa_rke_request(transaction_id, event_id, 0x0111, 0x01)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_rke_cancel_search_car_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
+pub fn create_iccoa_rke_cancel_search_car_request(transaction_id: u16, event_id: u16) -> Result<Iccoa> {
     create_iccoa_rke_request(transaction_id, event_id, 0x1000, 0x00)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_rke_konking_search_car_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
+pub fn create_iccoa_rke_konking_search_car_request(transaction_id: u16, event_id: u16) -> Result<Iccoa> {
     create_iccoa_rke_request(transaction_id, event_id, 0x1000, 0x01)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_rke_flashing_search_car_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
+pub fn create_iccoa_rke_flashing_search_car_request(transaction_id: u16, event_id: u16) -> Result<Iccoa> {
     create_iccoa_rke_request(transaction_id, event_id, 0x1000, 0x02)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_rke_honking_and_flashing_search_car_request(transaction_id: u16, event_id: u16) -> Result<ICCOA> {
+pub fn create_iccoa_rke_honking_and_flashing_search_car_request(transaction_id: u16, event_id: u16) -> Result<Iccoa> {
     create_iccoa_rke_request(transaction_id, event_id, 0x1000, 0x03)
 }
 
-pub fn create_iccoa_rke_response(transaction_id: u16, status: Status, event_id: u16, tag: u8, value: &[u8]) -> Result<ICCOA> {
+pub fn create_iccoa_rke_response(transaction_id: u16, status: Status, event_id: u16, tag: u8, value: &[u8]) -> Result<Iccoa> {
     let mut response = RKECommandResponse::new();
     response.set_event_id(event_id);
     response.set_tag(tag);
@@ -254,7 +254,7 @@ pub fn create_iccoa_rke_response(transaction_id: u16, status: Status, event_id: 
     create_iccoa_rke_command_response(transaction_id, status, response)
 }
 
-pub fn handle_iccoa_rke_command(iccoa: &ICCOA) -> Result<TLVPayload> {
+pub fn handle_iccoa_rke_command(iccoa: &Iccoa) -> Result<TLVPayload> {
     //handle rke command from iccoa object
     let rke_command = RKECommandRequest::deserialize(iccoa.get_body().get_message_data().get_value())?;
     info!("[RKE Command]:");
@@ -264,7 +264,7 @@ pub fn handle_iccoa_rke_command(iccoa: &ICCOA) -> Result<TLVPayload> {
     Ok(TLVPayloadBuilder::new().set_tag(0x00).set_value(&[0x00]).build())
 }
 
-pub fn handle_iccoa_rke_command_request_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
+pub fn handle_iccoa_rke_command_request_from_mobile(iccoa: &Iccoa) -> Result<Iccoa> {
     //handle rke command with request
     let rke_command_response = handle_iccoa_rke_command(iccoa)?;
     //create rke command response
@@ -309,7 +309,7 @@ mod tests {
             iccoa.get_body().get_message_data().get_value()
         );
         let body = objects::create_iccoa_body(
-            MessageType::COMMAND,
+            MessageType::Command,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -337,7 +337,7 @@ mod tests {
             iccoa.get_body().get_message_data().get_value()
         );
         let body = objects::create_iccoa_body(
-            MessageType::COMMAND,
+            MessageType::Command,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -365,7 +365,7 @@ mod tests {
             iccoa.get_body().get_message_data().get_value()
         );
         let body = objects::create_iccoa_body(
-            MessageType::COMMAND,
+            MessageType::Command,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -393,7 +393,7 @@ mod tests {
             iccoa.get_body().get_message_data().get_value(),
         );
         let body = objects::create_iccoa_body(
-            MessageType::COMMAND,
+            MessageType::Command,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -421,7 +421,7 @@ mod tests {
             iccoa.get_body().get_message_data().get_value()
         );
         let body = objects::create_iccoa_body(
-            MessageType::COMMAND,
+            MessageType::Command,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -449,7 +449,7 @@ mod tests {
             iccoa.get_body().get_message_data().get_value()
         );
         let body = objects::create_iccoa_body(
-            MessageType::COMMAND,
+            MessageType::Command,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -477,7 +477,7 @@ mod tests {
             iccoa.get_body().get_message_data().get_value()
         );
         let body = objects::create_iccoa_body(
-            MessageType::COMMAND,
+            MessageType::Command,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -505,7 +505,7 @@ mod tests {
             iccoa.get_body().get_message_data().get_value()
         );
         let body = objects::create_iccoa_body(
-            MessageType::COMMAND,
+            MessageType::Command,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -533,7 +533,7 @@ mod tests {
             iccoa.get_body().get_message_data().get_value()
         );
         let body = objects::create_iccoa_body(
-            MessageType::COMMAND,
+            MessageType::Command,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -561,7 +561,7 @@ mod tests {
             iccoa.get_body().get_message_data().get_value()
         );
         let body = objects::create_iccoa_body(
-            MessageType::COMMAND,
+            MessageType::Command,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -589,7 +589,7 @@ mod tests {
             iccoa.get_body().get_message_data().get_value()
         );
         let body = objects::create_iccoa_body(
-            MessageType::COMMAND,
+            MessageType::Command,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -617,7 +617,7 @@ mod tests {
             iccoa.get_body().get_message_data().get_value()
         );
         let body = objects::create_iccoa_body(
-            MessageType::COMMAND,
+            MessageType::Command,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -648,7 +648,7 @@ mod tests {
             iccoa.get_body().get_message_data().get_value()
         );
         let body = objects::create_iccoa_body(
-            MessageType::COMMAND,
+            MessageType::Command,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);

@@ -149,12 +149,12 @@ impl VehicleStatusRequest {
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
         let tlv = if self.get_entity_id() == VehicleStatusEntityId::All {
-            create_tlv_with_primitive_value(ALL_ENTITIES_REQUEST_TAG, &vec![])
+            create_tlv_with_primitive_value(ALL_ENTITIES_REQUEST_TAG, &[])
                 .map_err(|e| ErrorKind::VehicleStatusError(format!("create vehicle status entity all tlv error: {}", e)))?
         } else {
             let entity_id_tlv = create_tlv_with_primitive_value(ENTITY_REQUEST_TAG, &u16::from(self.get_entity_id()).to_be_bytes())
                 .map_err(|e| ErrorKind::VehicleStatusError(format!("create vehicle status entity id tlv error: {}", e)))?;
-            create_tlv_with_constructed_value(u16::from(ENTITY_MIDDLE_TAG), &vec![entity_id_tlv])
+            create_tlv_with_constructed_value(u16::from(ENTITY_MIDDLE_TAG), &[entity_id_tlv])
                 .map_err(|e| ErrorKind::VehicleStatusError(format!("create vehicle status entity middle tlv error: {}", e)))?
         };
         let vehicle_status_tag = match self.get_operation() {
@@ -180,7 +180,7 @@ impl VehicleStatusRequest {
         let tlv = ber::Tlv::from_bytes(data)
             .map_err(|e| ErrorKind::VehicleStatusError(format!("deserialize original tlv data error: {}", e)))?;
         if !tlv.tag().is_constructed() {
-            return Err(ErrorKind::VehicleStatusError(format!("deserialize tlv tag is not constructed")).into());
+            return Err(ErrorKind::VehicleStatusError("deserialize tlv tag is not constructed".to_string()).into());
         }
         let top_tag = tlv.tag().to_bytes();
         let operation = VehicleStatusOperations::try_from(
@@ -253,9 +253,9 @@ impl SubscribeVerificationResponse {
         let tlv = ber::Tlv::from_bytes(data)
             .map_err(|e| ErrorKind::RkeError(format!("deserialize subscribe verification response from bytes error: {}", e)))?;
         if tlv.tag().to_bytes() != RANDOM_NUMBER_TAG.to_be_bytes() {
-            return Err(ErrorKind::RkeError(format!("deserialized random number tag is not corrected")).into());
+            return Err(ErrorKind::RkeError("deserialized random number tag is not corrected".to_string()).into());
         }
-        let value = get_tlv_primitive_value(&tlv, &tlv.tag())
+        let value = get_tlv_primitive_value(&tlv, tlv.tag())
             .map_err(|e| ErrorKind::RkeError(format!("deserialize rke verification response value error: {}", e)))?;
         Ok(SubscribeVerificationResponse::new(value))
     }
@@ -310,11 +310,11 @@ impl VehicleStatusResponse {
             .map_err(|e| ErrorKind::VehicleStatusError(format!("create entity id tlv error: {}", e)))?;
         let status_tlv = create_tlv_with_primitive_value(ENTITY_STATUS_RESPONSE_TAG, &self.get_status().to_be_bytes())
             .map_err(|e| ErrorKind::VehicleStatusError(format!("crate entity status tlv error: {}", e)))?;
-        let second_middle_tlv = create_tlv_with_constructed_value(u16::from(ENTITY_SECOND_MIDDLE_TAG), &vec![entity_id_tlv, status_tlv])
+        let second_middle_tlv = create_tlv_with_constructed_value(u16::from(ENTITY_SECOND_MIDDLE_TAG), &[entity_id_tlv, status_tlv])
             .map_err(|e| ErrorKind::VehicleStatusError(format!("create second middle tlv error: {}", e)))?;
-        let middle_tlv = create_tlv_with_constructed_value(u16::from(ENTITY_MIDDLE_TAG), &vec![second_middle_tlv])
+        let middle_tlv = create_tlv_with_constructed_value(u16::from(ENTITY_MIDDLE_TAG), &[second_middle_tlv])
             .map_err(|e| ErrorKind::VehicleStatusError(format!("crate middle tlv error: {}", e)))?;
-        let response_tlv = create_tlv_with_constructed_value(VEHICLE_STATUS_RESPONSE_TAG, &vec![middle_tlv])
+        let response_tlv = create_tlv_with_constructed_value(VEHICLE_STATUS_RESPONSE_TAG, &[middle_tlv])
             .map_err(|e| ErrorKind::VehicleStatusError(format!("create vehicle status response tlv error: {}", e)))?;
         if self.random.is_none() {
             Ok(response_tlv.to_vec())
@@ -327,19 +327,19 @@ impl VehicleStatusResponse {
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let tlv_all = ber::Tlv::parse_all(data);
-        if tlv_all.len() < 1 {
-            return Err(ErrorKind::VehicleStatusError(format!("deserialize response tlv error")).into());
+        if tlv_all.is_empty() {
+            return Err(ErrorKind::VehicleStatusError("deserialize response tlv error".to_string()).into());
         }
         let tlv = &tlv_all[0];
         if tlv.tag().to_bytes() != VEHICLE_STATUS_RESPONSE_TAG.to_be_bytes() {
-            return Err(ErrorKind::VehicleStatusError(format!("deserialize response tag value error")).into());
+            return Err(ErrorKind::VehicleStatusError("deserialize response tag value error".to_string()).into());
         }
         if !tlv.value().is_constructed() {
-            return Err(ErrorKind::VehicleStatusError(format!("deserialize response value is not constructed")).into());
+            return Err(ErrorKind::VehicleStatusError("deserialize response value is not constructed".to_string()).into());
         }
         let entity_tag = ber::Tag::try_from(ENTITY_RESPONSE_TAG)
             .map_err(|e| ErrorKind::VehicleStatusError(format!("create response entity id tag error: {}", e)))?;
-        let entity_value = get_tlv_primitive_value(&tlv, &entity_tag)
+        let entity_value = get_tlv_primitive_value(tlv, &entity_tag)
             .map_err(|e| ErrorKind::VehicleStatusError(format!("deserialize get entity id value error: {}", e)))?;
         let entity_id = VehicleStatusEntityId::try_from(
             u16::from_be_bytes(
@@ -350,7 +350,7 @@ impl VehicleStatusResponse {
         ).map_err(|e| ErrorKind::VehicleStatusError(format!("deserialize translate entity id error: {}", e)))?;
         let status_tag = ber::Tag::try_from(ENTITY_STATUS_RESPONSE_TAG)
             .map_err(|e| ErrorKind::VehicleStatusError(format!("create response status tag error: {}", e)))?;
-        let status_value = get_tlv_primitive_value(&tlv, &status_tag)
+        let status_value = get_tlv_primitive_value(tlv, &status_tag)
             .map_err(|e| ErrorKind::VehicleStatusError(format!("deserialize get status value error: {}", e)))?;
         let status = u16::from_be_bytes(
             (&status_value[0..2])
@@ -361,7 +361,7 @@ impl VehicleStatusResponse {
             let tlv = &tlv_all[1];
             let random_tag = ber::Tag::try_from(RANDOM_NUMBER_TAG)
                 .map_err(|e| ErrorKind::VehicleStatusError(format!("create random number tag error: {}", e)))?;
-            let random_value = get_tlv_primitive_value(&tlv, &random_tag)
+            let random_value = get_tlv_primitive_value(tlv, &random_tag)
                 .map_err(|e| ErrorKind::VehicleStatusError(format!("get random number value error: {}", e)))?;
             Some(SubscribeVerificationResponse::new(random_value))
         } else {
@@ -411,7 +411,7 @@ impl VehicleStatus {
                 QUERY_REQUEST_TAG |
                 UNSUBSCRIBE_REQUEST_TAG => Ok(VehicleStatus::Request(VehicleStatusRequest::deserialize(data)?)),
                 VEHICLE_STATUS_RESPONSE_TAG => Ok(VehicleStatus::Response(VehicleStatusResponse::deserialize(data)?)),
-                _ => Err(ErrorKind::VehicleStatusError(format!("deserialize vehicle status tag error")).into()),
+                _ => Err(ErrorKind::VehicleStatusError("deserialize vehicle status tag error".to_string()).into()),
             }
         }
     }

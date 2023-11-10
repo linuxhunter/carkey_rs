@@ -4,12 +4,8 @@ use super::{aes128, objects::{self, Body}};
 type Result<T> = std::result::Result<T, String>;
 
 pub fn create_auth_get_process_data_payload(reader_type: &[u8], reader_id: &[u8], reader_rnd: &[u8], reader_key_parameter: &[u8]) -> Vec<u8> {
-    let mut payload= Vec::new();
+    let mut payload= vec![0x80, 0xCA, 0x00, 0x00];
 
-    payload.push(0x80);     //CLA
-    payload.push(0xCA);     //INS
-    payload.push(0x00);     //P1
-    payload.push(0x00);     //P2
     let lc = 3 + reader_type.len() + 3 + reader_id.len() + 3 + reader_rnd.len() + 3 + reader_key_parameter.len();
     payload.push(lc as u8); //Lc
 
@@ -120,12 +116,7 @@ pub fn handle_auth_get_process_data_response_payload(payload: &[u8], reader_rnd:
 }
 
 pub fn create_auth_auth_payload(card_atc: &[u8], reader_auth_parameter: &[u8], card_rnd: &[u8], session_key: &[u8], session_iv: &[u8]) -> Result<Vec<u8>> {
-    let mut payload = Vec::new();
-
-    payload.push(0x80);     //CLA
-    payload.push(0x80);     //INS
-    payload.push(0x00);     //P1
-    payload.push(0x00);     //P2
+    let mut payload = vec![0x80, 0x80, 0x00, 0x00];
 
     let mut data_domain = Vec::new();
     data_domain.push(0x9F);
@@ -191,8 +182,8 @@ pub fn handle_auth_auth_response_payload(payload: &[u8], _reader_rnd: &[u8], ses
     }
 }
 
-pub fn create_icce_auth_request(apdu: &[u8]) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_auth_request(apdu: &[u8]) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+2+apdu.len() as u16);
     icce.set_header(header);
@@ -206,7 +197,7 @@ pub fn create_icce_auth_request(apdu: &[u8]) -> objects::ICCE {
     icce
 }
 
-pub fn create_icce_auth_get_process_data_request() -> objects::ICCE {
+pub fn create_icce_auth_get_process_data_request() -> objects::Icce {
     let reader_type = aes128::get_reader_type();
     let reader_id = aes128::get_reader_id();
     let reader_rnd = aes128::get_reader_rnd();
@@ -216,8 +207,8 @@ pub fn create_icce_auth_get_process_data_request() -> objects::ICCE {
 }
 
 #[allow(dead_code)]
-pub fn create_icce_auth_response(status: u8, apdu: &[u8]) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_auth_response(status: u8, apdu: &[u8]) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(false, false, false, 0, 0, 4+3+2+apdu.len() as u16);
     icce.set_header(header);
@@ -240,7 +231,7 @@ pub fn handle_icce_auth_response(body: &Body) -> Result<Vec<u8>> {
     for payload in body.get_payloads() {
         if payload.get_payload_type() == 0x00 {
             if payload.get_payload_value()[0] != 0x00 {
-                return Err("ICCE Auth Response Status Error".to_string());
+                return Err("Icce Auth Response Status Error".to_string());
             }
         } else if payload.get_payload_type() == 0x01 {
             let value = payload.get_payload_value();
@@ -255,7 +246,7 @@ pub fn handle_icce_auth_response(body: &Body) -> Result<Vec<u8>> {
                     response.append(&mut create_icce_auth_request(&auth_request_payload).serialize());
                     return Ok(response)
                 } else {
-                    return Err("ICCE Auth Response Status Error".to_string());
+                    return Err("Icce Auth Response Status Error".to_string());
                 }
             } else {
                 //sending auth auth response
@@ -266,7 +257,7 @@ pub fn handle_icce_auth_response(body: &Body) -> Result<Vec<u8>> {
                     dbg!("reader_auth_parameter = {:02X?}", reader_auth_parameter);
                     return Ok(response)
                 } else {
-                    return Err("ICCE Auth Response Status Error".to_string());
+                    return Err("Icce Auth Response Status Error".to_string());
                 }
             }
         } else {
@@ -278,7 +269,7 @@ pub fn handle_icce_auth_response(body: &Body) -> Result<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
-    use crate::icce::objects::{ICCE, Header, Control, Payload};
+    use crate::icce::objects::{Icce, Header, Control, Payload};
 
     use super::*;
 
@@ -286,7 +277,7 @@ mod tests {
     fn test_create_icce_auth_request() {
         let apdu = vec![0x01, 0x02, 0x03, 0x04];
         let icce = create_icce_auth_request(&apdu);
-        let mut target_icce = ICCE::new();
+        let mut target_icce = Icce::new();
         let mut target_header = Header::new();
         target_header.set_sof(0x5A);
         target_header.set_length(0x0a);
@@ -310,7 +301,7 @@ mod tests {
         let status = 0x00;
         let apdu = vec![0x01, 0x02, 0x03, 0x04];
         let icce = create_icce_auth_response(status, &apdu);
-        let mut target_icce = ICCE::new();
+        let mut target_icce = Icce::new();
         let mut target_header = Header::new();
         target_header.set_sof(0x5A);
         target_header.set_length(0x0D);

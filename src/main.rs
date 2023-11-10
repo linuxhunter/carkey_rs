@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use crate::bluetooth::agent;
 use crate::bluetooth::ranging;
-use crate::iccoa::objects::ICCOA;
+use crate::iccoa::objects::Iccoa;
 use crate::iccoa::{bluetooth_io, objects, command, pairing};
 use crate::iccoa::notification::senseless_control;
 use crate::iccoa::notification::vehicle_status;
@@ -31,16 +31,11 @@ lazy_static! {
 
 static BLUETOOTH_EVENTS_MAX: usize = 10;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone)]
 enum CarkeyProtocol {
+    #[default]
     Iccoa,
     Icce,
-}
-
-impl Default for CarkeyProtocol {
-    fn default() -> Self {
-        CarkeyProtocol::Iccoa
-    }
 }
 
 impl From<&str> for CarkeyProtocol {
@@ -175,7 +170,7 @@ async fn main() -> bluer::Result<()> {
                 let mut index = 0;
                 loop {
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                    if icce::objects::is_session_key_valid() == false {
+                    if !icce::objects::is_session_key_valid() {
                         continue;
                     }
                     let icce_package = match index {
@@ -299,7 +294,7 @@ async fn main() -> bluer::Result<()> {
                             vehicle_unsafe::create_iccoa_vehicle_unsafe_headlight_state_notification().unwrap()
                         },
                         _ => {
-                            ICCOA::new()
+                            Iccoa::new()
                         },
                     };
                     if index > 0x19 {

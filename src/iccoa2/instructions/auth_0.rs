@@ -11,16 +11,11 @@ const AUTH_0_P2: u8 = 0x00;
 #[allow(dead_code)]
 const AUTH_0_LE: u8 = 0x00;
 
-#[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, PartialOrd, PartialEq)]
 pub enum Auth0P1 {
+    #[default]
     Standard = 0x00,
     Fast = 0x01,
-}
-
-impl Default for Auth0P1 {
-    fn default() -> Self {
-        Auth0P1::Standard
-    }
 }
 
 impl TryFrom<u8> for Auth0P1 {
@@ -142,19 +137,19 @@ impl CommandApduAuth0 {
         let header = command_apdu.get_header();
         let trailer = command_apdu
             .get_trailer()
-            .ok_or(format!("deserialize trailer is NULL"))?;
+            .ok_or("deserialize trailer is NULL".to_string())?;
         let mut auth_0 = CommandApduAuth0::default();
         auth_0.set_cla(header.get_cla());
         auth_0.set_p1(Auth0P1::try_from(header.get_p1())?);
 
         let data = trailer
             .get_data()
-            .ok_or(format!("deserialize data is NULL"))?;
+            .ok_or("deserialize data is NULL".to_string())?;
         let tlv_collections = ber::Tlv::parse_all(data);
         for tlv in tlv_collections {
             let tag = tlv.tag().to_bytes();
             if tag == VERSION_TAG.to_be_bytes() {
-                let version = get_tlv_primitive_value(&tlv, &tlv.tag())
+                let version = get_tlv_primitive_value(&tlv, tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize version error: {}", e)))?;
                 auth_0.set_version(
                     u16::from_be_bytes(
@@ -164,15 +159,15 @@ impl CommandApduAuth0 {
                     )
                 );
             } else if tag == VEHICLE_ID_TAG.to_be_bytes() {
-                let vehicle_id_value = get_tlv_primitive_value(&tlv, &tlv.tag())
+                let vehicle_id_value = get_tlv_primitive_value(&tlv, tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize vehicle id value error: {}", e)))?;
                 auth_0.set_vehicle_id(identifier::VehicleId::deserialize(vehicle_id_value)?);
             } else if tag == VEHICLE_TEMP_PUB_KEY_TAG.to_be_bytes() {
-                let vehicle_temp_pub_key_value = get_tlv_primitive_value(&tlv, &tlv.tag())
+                let vehicle_temp_pub_key_value = get_tlv_primitive_value(&tlv, tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize vehicle temp public key error: {}", e)))?;
                 auth_0.set_vehicle_temp_pub_key(vehicle_temp_pub_key_value);
             } else if tag == RANDOM_TAG.to_be_bytes() {
-                let random_value = get_tlv_primitive_value(&tlv, &tlv.tag())
+                let random_value = get_tlv_primitive_value(&tlv, tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize random number error: {}", e)))?;
                 auth_0.set_random(random_value);
             }
@@ -250,7 +245,7 @@ impl ResponseApduAuth0 {
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let response_apdu = common::ResponseApdu::deserialize(data)?;
-        let body = response_apdu.get_body().ok_or(format!("deserialize response auth 0 body is NULL"))?;
+        let body = response_apdu.get_body().ok_or("deserialize response auth 0 body is NULL".to_string())?;
         let status = response_apdu.get_trailer();
         let mut auth_0_response = ResponseApduAuth0::default();
         auth_0_response.set_status(*status);
@@ -258,11 +253,11 @@ impl ResponseApduAuth0 {
         for tlv in tlv_collections {
             let tag = tlv.tag().to_bytes();
             if tag == DEVICE_TEMP_PUB_KEY_TAG.to_be_bytes() {
-                let device_temp_pub_key_value = get_tlv_primitive_value(&tlv, &tlv.tag())
+                let device_temp_pub_key_value = get_tlv_primitive_value(&tlv, tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize temp pub key value error: {}", e)))?;
                 auth_0_response.set_device_temp_pub_key(device_temp_pub_key_value);
             } else if tag == CRYPTO_GRAM_TAG.to_be_bytes() {
-                let crypto_gram_value = get_tlv_primitive_value(&tlv, &tlv.tag())
+                let crypto_gram_value = get_tlv_primitive_value(&tlv, tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize cryptogram value error: {}", e)))?;
                 auth_0_response.set_cryptogram(Some(crypto_gram_value.to_owned()));
             }

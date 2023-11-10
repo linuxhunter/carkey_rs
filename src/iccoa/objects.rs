@@ -9,7 +9,7 @@ lazy_static! {
     static ref ICCOA_HEADER_MARK_LENGTH: usize = 2;
     static ref ICCOA_REQUEST_TRANSACTION_ID: Mutex<u16> = Mutex::new(0x0000);
     static ref ICCOA_RESPONSE_TRANSACTION_ID: Mutex<u16> = Mutex::new(0x0000);
-    static ref ICCOA_FRAGMENTS: Mutex<Vec<ICCOA>> = Mutex::new(Vec::new());
+    static ref ICCOA_FRAGMENTS: Mutex<Vec<Iccoa>> = Mutex::new(Vec::new());
 }
 
 #[allow(non_camel_case_types)]
@@ -51,7 +51,7 @@ pub enum EncryptType {
     NO_ENCRYPT,
     ENCRYPT_BEFORE_AUTH,
     ENCRYPT_AFTER_AUTH,
-    RFU,
+    Rfu,
 }
 
 impl TryFrom<u8> for EncryptType {
@@ -61,7 +61,7 @@ impl TryFrom<u8> for EncryptType {
         match value {
             0x00 => Ok(EncryptType::NO_ENCRYPT),
             0x01 => Ok(EncryptType::ENCRYPT_BEFORE_AUTH),
-            0x02 => Ok(EncryptType::RFU),
+            0x02 => Ok(EncryptType::Rfu),
             0x03 => Ok(EncryptType::ENCRYPT_AFTER_AUTH),
             _ => Err(String::from("Invalid Encrypt Type")),
         }
@@ -73,7 +73,7 @@ impl From<EncryptType> for u8 {
         match value {
             EncryptType::NO_ENCRYPT => 0x00,
             EncryptType::ENCRYPT_BEFORE_AUTH => 0x01,
-            EncryptType::RFU => 0x02,
+            EncryptType::Rfu => 0x02,
             EncryptType::ENCRYPT_AFTER_AUTH => 0x03,
         }
     }
@@ -262,10 +262,10 @@ pub enum MessageType {
     #[default]
     OEM_DEFINED,
     VEHICLE_PAIRING,
-    AUTH,
-    COMMAND,
-    NOTIFICATION,
-    RFU,
+    Auth,
+    Command,
+    Notification,
+    Rfu,
 }
 
 impl TryFrom<u8> for MessageType {
@@ -275,10 +275,10 @@ impl TryFrom<u8> for MessageType {
         match value {
             0x00 => Ok(MessageType::OEM_DEFINED),
             0x01 => Ok(MessageType::VEHICLE_PAIRING),
-            0x02 => Ok(MessageType::AUTH),
-            0x03 => Ok(MessageType::COMMAND),
-            0x04 => Ok(MessageType::NOTIFICATION),
-            _ => Ok(MessageType::RFU),
+            0x02 => Ok(MessageType::Auth),
+            0x03 => Ok(MessageType::Command),
+            0x04 => Ok(MessageType::Notification),
+            _ => Ok(MessageType::Rfu),
         }
     }
 }
@@ -288,10 +288,10 @@ impl From<MessageType> for u8 {
         match value {
             MessageType::OEM_DEFINED => 0x00,
             MessageType::VEHICLE_PAIRING => 0x01,
-            MessageType::AUTH => 0x02,
-            MessageType::COMMAND => 0x03,
-            MessageType::NOTIFICATION => 0x04,
-            MessageType::RFU => 0x05,
+            MessageType::Auth => 0x02,
+            MessageType::Command => 0x03,
+            MessageType::Notification => 0x04,
+            MessageType::Rfu => 0x05,
         }
     }
 }
@@ -346,12 +346,12 @@ impl MessageData {
                 let status_tag = StatusTag::from(buffer[index]);
                 let status_code = buffer[index+1];
                 let status = match status_tag {
-                    StatusTag::SUCCESS => StatusBuilder::new().success().build(),
+                    StatusTag::Success => StatusBuilder::new().success().build(),
                     StatusTag::COMMUNICATION_PROTOCOL_ERROR => StatusBuilder::new().communication_protocol_error(status_code).build(),
                     StatusTag::DATA_ERROR => StatusBuilder::new().data_error(status_code).build(),
                     StatusTag::REQUEST_ERROR => StatusBuilder::new().request_error(status_code).build(),
                     StatusTag::BUSINESS_ERROR => StatusBuilder::new().business_error(status_code).build(),
-                    StatusTag::RFU => StatusBuilder::new().rfu().build(),
+                    StatusTag::Rfu => StatusBuilder::new().rfu().build(),
                 };
                 message_data.set_status(status);
                 index += 2;
@@ -373,7 +373,7 @@ pub struct Body {
 impl Body {
     pub fn new() -> Self {
         Body {
-            message_type: MessageType::RFU,
+            message_type: MessageType::Rfu,
             ..Default::default()
         }
     }
@@ -412,14 +412,14 @@ impl Body {
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct ICCOA {
+pub struct Iccoa {
     header: Header,
     body: Body,
     mac: [u8; 8],
 }
 
 #[allow(dead_code)]
-impl ICCOA {
+impl Iccoa {
     pub fn new() -> Self {
         Default::default()
     }
@@ -442,7 +442,7 @@ impl ICCOA {
         let fragment = self.get_header().get_mark().get_fragment_offset() != 0;
         message.append(&mut self.body.serialize(request, fragment));
         let key = match self.get_body().message_type {
-            MessageType::VEHICLE_PAIRING | MessageType::AUTH => {
+            MessageType::VEHICLE_PAIRING | MessageType::Auth => {
                pairing::get_pairing_key_mac()
             },
             _ => {
@@ -462,7 +462,7 @@ impl ICCOA {
         let fragment = self.get_header().get_mark().get_fragment_offset() != 0;
         message.append(&mut self.body.serialize(request, fragment));
         let key = match self.get_body().message_type {
-            MessageType::VEHICLE_PAIRING | MessageType::AUTH => {
+            MessageType::VEHICLE_PAIRING | MessageType::Auth => {
                pairing::get_pairing_key_mac()
             },
             _ => {
@@ -487,8 +487,8 @@ impl ICCOA {
         let fragment = header.get_mark().get_fragment_offset() != 0;
         let body = Body::deserialize(&buffer[*ICCOA_HEADER_LENGTH..buffer.len()-8], request, fragment)?;
         let mac = buffer[buffer.len()-8..].try_into()
-            .map_err(|e| ErrorKind::ICCOAObjectError(format!("deserialized ICCOA mac error: {:?}", e)))?;
-        let iccoa = ICCOA {
+            .map_err(|e| ErrorKind::ICCOAObjectError(format!("deserialized Iccoa mac error: {:?}", e)))?;
+        let iccoa = Iccoa {
             header,
             body,
             mac
@@ -541,8 +541,8 @@ pub fn create_iccoa_body(message_type: MessageType, message_data: MessageData) -
     body
 }
 
-pub fn create_iccoa(header: Header, body: Body) -> ICCOA {
-    let mut iccoa = ICCOA::new();
+pub fn create_iccoa(header: Header, body: Body) -> Iccoa {
+    let mut iccoa = Iccoa::new();
     iccoa.set_header(header);
     iccoa.set_body(body);
     iccoa.calculate_mac();
@@ -550,13 +550,13 @@ pub fn create_iccoa(header: Header, body: Body) -> ICCOA {
     iccoa
 }
 
-pub fn collect_iccoa_fragments(iccoa: ICCOA) {
+pub fn collect_iccoa_fragments(iccoa: Iccoa) {
     let mut iccoa_fragments = ICCOA_FRAGMENTS.lock().unwrap();
     iccoa_fragments.push(iccoa);
 }
 
-pub fn reassemble_iccoa_fragments() -> ICCOA {
-    let mut iccoa = ICCOA::new();
+pub fn reassemble_iccoa_fragments() -> Iccoa {
+    let mut iccoa = Iccoa::new();
     let mut iccoa_fragments = ICCOA_FRAGMENTS.lock().unwrap();
     iccoa_fragments.sort_by(|a, b| {
         a.get_header().get_mark().get_fragment_offset().cmp(&b.get_header().get_mark().get_fragment_offset())
@@ -590,8 +590,8 @@ pub fn reassemble_iccoa_fragments() -> ICCOA {
     iccoa
 }
 
-pub fn split_iccoa(iccoa: &ICCOA) -> Option<Vec<ICCOA>> {
-    //according to iccoa.header.pdu_length to split ICCOA package
+pub fn split_iccoa(iccoa: &Iccoa) -> Option<Vec<Iccoa>> {
+    //according to iccoa.header.pdu_length to split Iccoa package
     if iccoa.get_header().get_pdu_length() < *BLE_DEFAULT_MTU {
         return None
     }
@@ -602,7 +602,7 @@ pub fn split_iccoa(iccoa: &ICCOA) -> Option<Vec<ICCOA>> {
         total_payload_length -= 2;
     }
     loop {
-        let mut tmp_iccoa = ICCOA::new();
+        let mut tmp_iccoa = Iccoa::new();
         tmp_iccoa.header.set_version(iccoa.get_header().get_version());
         tmp_iccoa.header.set_connection_id(iccoa.get_header().get_connection_id());
         tmp_iccoa.header.set_packet_type(iccoa.get_header().packet_type);
@@ -744,7 +744,7 @@ mod tests {
     fn test_iccoa_default_body() {
         let body = Body::new();
         assert_eq!(body, Body {
-            message_type: MessageType::RFU,
+            message_type: MessageType::Rfu,
             message_data: MessageData {
                 status: StatusBuilder::new().success().build(),
                 tag: 0x00,
@@ -807,7 +807,7 @@ mod tests {
         let serialized_request_fragment_body = vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
         let request_fragment_body = Body::deserialize(&serialized_request_fragment_body, true, true).unwrap();
         assert_eq!(request_fragment_body, Body {
-            message_type: MessageType::RFU,
+            message_type: MessageType::Rfu,
             message_data: MessageData {
                 value: vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff],
                 ..Default::default()
@@ -826,7 +826,7 @@ mod tests {
         let serialized_response_fragment_body = vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
         let response_fragment_body = Body::deserialize(&serialized_response_fragment_body, false, true).unwrap();
         assert_eq!(response_fragment_body, Body {
-            message_type: MessageType::RFU,
+            message_type: MessageType::Rfu,
             message_data: MessageData {
                 value: vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff],
                 ..Default::default()
@@ -835,8 +835,8 @@ mod tests {
     }
     #[test]
     fn test_iccoa_default() {
-        let iccoa = ICCOA::new();
-        assert_eq!(iccoa, ICCOA {
+        let iccoa = Iccoa::new();
+        assert_eq!(iccoa, Iccoa {
             header: Header {
                 ..Default::default()
             },
@@ -866,11 +866,11 @@ mod tests {
         let mut body = Body::new();
         body.set_message_type(MessageType::VEHICLE_PAIRING);
         body.set_message_data(message_data);
-        let mut iccoa = ICCOA::new();
+        let mut iccoa = Iccoa::new();
         iccoa.set_header(header);
         iccoa.set_body(body);
         iccoa.calculate_mac();
-        assert_eq!(iccoa, ICCOA {
+        assert_eq!(iccoa, Iccoa {
             header: Header {
                 version: 0x01,
                 connection_id: 0x02,
@@ -914,11 +914,11 @@ mod tests {
         message_data.set_value(&vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff]);
         let mut body = Body::new();
         body.set_message_data(message_data);
-        let mut iccoa = ICCOA::new();
+        let mut iccoa = Iccoa::new();
         iccoa.set_header(header);
         iccoa.set_body(body);
         iccoa.calculate_mac();
-        assert_eq!(iccoa, ICCOA {
+        assert_eq!(iccoa, Iccoa {
             header: Header {
                 version: 0x01,
                 connection_id: 0x02,
@@ -934,7 +934,7 @@ mod tests {
                 }
             },
             body: Body {
-                message_type: MessageType::RFU,
+                message_type: MessageType::Rfu,
                 message_data: MessageData {
                     value: vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff],
                     ..Default::default()
@@ -964,11 +964,11 @@ mod tests {
         let mut body = Body::new();
         body.set_message_type(MessageType::VEHICLE_PAIRING);
         body.set_message_data(message_data);
-        let mut iccoa = ICCOA::new();
+        let mut iccoa = Iccoa::new();
         iccoa.set_header(header);
         iccoa.set_body(body);
         iccoa.calculate_mac();
-        assert_eq!(iccoa, ICCOA {
+        assert_eq!(iccoa, Iccoa {
             header: Header {
                 version: 0x01,
                 connection_id: 0x02,
@@ -1012,11 +1012,11 @@ mod tests {
         message_data.set_value(&vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff]);
         let mut body = Body::new();
         body.set_message_data(message_data);
-        let mut iccoa = ICCOA::new();
+        let mut iccoa = Iccoa::new();
         iccoa.set_header(header);
         iccoa.set_body(body);
         iccoa.calculate_mac();
-        assert_eq!(iccoa, ICCOA {
+        assert_eq!(iccoa, Iccoa {
             header: Header {
                 version: 0x01,
                 connection_id: 0x02,
@@ -1032,7 +1032,7 @@ mod tests {
                 ..Default::default()
             },
             body: Body {
-                message_type: MessageType::RFU,
+                message_type: MessageType::Rfu,
                 message_data: MessageData {
                     value: vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff],
                     ..Default::default()
@@ -1061,7 +1061,7 @@ mod tests {
         let mut body = Body::new();
         body.set_message_type(MessageType::VEHICLE_PAIRING);
         body.set_message_data(message_data);
-        let mut iccoa = ICCOA::new();
+        let mut iccoa = Iccoa::new();
         iccoa.set_header(header);
         iccoa.set_body(body);
         iccoa.calculate_mac();
@@ -1086,7 +1086,7 @@ mod tests {
         message_data.set_value(&vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff]);
         let mut body = Body::new();
         body.set_message_data(message_data);
-        let mut iccoa = ICCOA::new();
+        let mut iccoa = Iccoa::new();
         iccoa.set_header(header);
         iccoa.set_body(body);
         iccoa.calculate_mac();
@@ -1114,7 +1114,7 @@ mod tests {
         let mut body = Body::new();
         body.set_message_type(MessageType::VEHICLE_PAIRING);
         body.set_message_data(message_data);
-        let mut iccoa = ICCOA::new();
+        let mut iccoa = Iccoa::new();
         iccoa.set_header(header);
         iccoa.set_body(body);
         iccoa.calculate_mac();
@@ -1139,7 +1139,7 @@ mod tests {
         message_data.set_value(&vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff]);
         let mut body = Body::new();
         body.set_message_data(message_data);
-        let mut iccoa = ICCOA::new();
+        let mut iccoa = Iccoa::new();
         iccoa.set_header(header);
         iccoa.set_body(body);
         iccoa.calculate_mac();
@@ -1149,8 +1149,8 @@ mod tests {
     #[test]
     fn test_iccoa_request_no_fragment_deserialize() {
         let serialized_iccoa = vec![0x01, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00, 0x00, 0x01, 0x02, 0x00, 0x06, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
-        let iccoa = ICCOA::deserialize(&serialized_iccoa).unwrap();
-        assert_eq!(iccoa, ICCOA {
+        let iccoa = Iccoa::deserialize(&serialized_iccoa).unwrap();
+        assert_eq!(iccoa, Iccoa {
             header: Header {
                 version: 0x01,
                 connection_id: 0x02,
@@ -1179,8 +1179,8 @@ mod tests {
     #[test]
     fn test_iccoa_request_fragment_deserialize() {
         let serialized_iccoa = vec![0x01, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00, 0x01, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
-        let iccoa = ICCOA::deserialize(&serialized_iccoa).unwrap();
-        assert_eq!(iccoa, ICCOA {
+        let iccoa = Iccoa::deserialize(&serialized_iccoa).unwrap();
+        assert_eq!(iccoa, Iccoa {
             header: Header {
                 version: 0x01,
                 connection_id: 0x02,
@@ -1196,7 +1196,7 @@ mod tests {
                 }
             },
             body: Body {
-                message_type: MessageType::RFU,
+                message_type: MessageType::Rfu,
                 message_data: MessageData {
                     value: vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff],
                     ..Default::default()
@@ -1208,8 +1208,8 @@ mod tests {
     #[test]
     fn test_iccoa_response_no_fragment_deserialize() {
         let serialized_iccoa = vec![0x01, 0x02, 0x02, 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00, 0x00, 0x01, 0x01, 0x01, 0x02, 0x00, 0x06, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
-        let iccoa = ICCOA::deserialize(&serialized_iccoa).unwrap();
-        assert_eq!(iccoa, ICCOA {
+        let iccoa = Iccoa::deserialize(&serialized_iccoa).unwrap();
+        assert_eq!(iccoa, Iccoa {
             header: Header {
                 version: 0x01,
                 connection_id: 0x02,
@@ -1238,8 +1238,8 @@ mod tests {
     #[test]
     fn test_iccoa_response_fragment_deserialize() {
         let serialized_iccoa = vec![0x01, 0x02, 0x02, 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00, 0x01, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
-        let iccoa = ICCOA::deserialize(&serialized_iccoa).unwrap();
-        assert_eq!(iccoa, ICCOA {
+        let iccoa = Iccoa::deserialize(&serialized_iccoa).unwrap();
+        assert_eq!(iccoa, Iccoa {
             header: Header {
                 version: 0x01,
                 connection_id: 0x02,
@@ -1255,7 +1255,7 @@ mod tests {
                 ..Default::default()
             },
             body: Body {
-                message_type: MessageType::RFU,
+                message_type: MessageType::Rfu,
                 message_data: MessageData {
                     value: vec![0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff],
                     ..Default::default()

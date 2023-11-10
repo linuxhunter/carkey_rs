@@ -24,18 +24,13 @@ const GET_DK_CERT_P2: u8 = 0x00;
 #[allow(dead_code)]
 const GET_DK_CERT_LE: u8 = 0x00;
 
-#[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, PartialOrd, PartialEq)]
 pub enum DkCertType {
-    VehicleCACert = 0x01,
-    VehicleMasterKeyCert = 0x02,
+    #[default]
+    VehicleCA = 0x01,
+    VehicleMasterKey = 0x02,
     TempSharedCert = 0x03,
-    FriendKeyCert = 0x04,
-}
-
-impl Default for DkCertType {
-    fn default() -> Self {
-        DkCertType::VehicleCACert
-    }
+    FriendKey = 0x04,
 }
 
 impl TryFrom<u8> for DkCertType {
@@ -43,10 +38,10 @@ impl TryFrom<u8> for DkCertType {
 
     fn try_from(value: u8) -> std::result::Result<Self, Self::Error> {
         match value {
-            0x01 => Ok(DkCertType::VehicleCACert),
-            0x02 => Ok(DkCertType::VehicleMasterKeyCert),
+            0x01 => Ok(DkCertType::VehicleCA),
+            0x02 => Ok(DkCertType::VehicleMasterKey),
             0x03 => Ok(DkCertType::TempSharedCert),
-            0x04 => Ok(DkCertType::FriendKeyCert),
+            0x04 => Ok(DkCertType::FriendKey),
             _ => Err(format!("Unsupported Dk Certificate Type: {}", value)),
         }
     }
@@ -55,10 +50,10 @@ impl TryFrom<u8> for DkCertType {
 impl From<DkCertType> for u8 {
     fn from(value: DkCertType) -> Self {
         match value {
-            DkCertType::VehicleCACert => 0x01,
-            DkCertType::VehicleMasterKeyCert => 0x02,
+            DkCertType::VehicleCA => 0x01,
+            DkCertType::VehicleMasterKey => 0x02,
             DkCertType::TempSharedCert => 0x03,
-            DkCertType::FriendKeyCert => 0x04,
+            DkCertType::FriendKey => 0x04,
         }
     }
 }
@@ -66,10 +61,10 @@ impl From<DkCertType> for u8 {
 impl Display for DkCertType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            DkCertType::VehicleCACert => write!(f, "Vehicle CA Certificate"),
-            DkCertType::VehicleMasterKeyCert => write!(f, "Vehicle Master Key Certificate"),
+            DkCertType::VehicleCA => write!(f, "Vehicle CA Certificate"),
+            DkCertType::VehicleMasterKey => write!(f, "Vehicle Master Key Certificate"),
             DkCertType::TempSharedCert => write!(f, "Temp Shared Certificate"),
-            DkCertType::FriendKeyCert => write!(f, "Friend Key Certificate"),
+            DkCertType::FriendKey => write!(f, "Friend Key Certificate"),
         }
     }
 }
@@ -122,17 +117,17 @@ impl CommandApduGetDkCert {
         let header = apdu_request.get_header();
         let trailer = apdu_request
             .get_trailer()
-            .ok_or(format!("deserialize trailer is NULL"))?;
+            .ok_or("deserialize trailer is NULL".to_string())?;
         if header.get_ins() != GET_DK_CERT_INS ||
             header.get_p1() != GET_DK_CERT_P1 ||
             header.get_p2() != GET_DK_CERT_P2 ||
             trailer.get_le().is_none() ||
             trailer.get_le().unwrap() != &GET_DK_CERT_LE {
-            return Err(ErrorKind::ApduInstructionErr(format!("deserialize Apdu error")).into());
+            return Err(ErrorKind::ApduInstructionErr("deserialize Apdu error".to_string()).into());
         }
         let dk_cert_type_data = trailer
             .get_data()
-            .ok_or(format!("deserialize trailer data is NULL"))?;
+            .ok_or("deserialize trailer data is NULL".to_string())?;
         let dk_cert_type = DkCertType::try_from(dk_cert_type_data[0])
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize DK Certificate Type error: {}", e)))?;
         Ok(CommandApduGetDkCert::new(
@@ -186,25 +181,25 @@ impl ResponseApduGetDkCert {
         let cert_tlv = create_tlv_with_primitive_value(CERT_TAG, self.get_dk_cert())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create inner cert tlv error: {}", e)))?;
         let response_tag = match self.dk_cert_type {
-            DkCertType::VehicleCACert => {
+            DkCertType::VehicleCA => {
                 VEHICLE_CA_CERT_TAG
             },
-            DkCertType::VehicleMasterKeyCert => {
+            DkCertType::VehicleMasterKey => {
                 VEHICLE_MASTER_KEY_CERT_TAG
             },
             DkCertType::TempSharedCert => {
                 TEMP_SHARED_CERT_TAG
             },
-            DkCertType::FriendKeyCert => {
+            DkCertType::FriendKey => {
                 FRIEND_KEY_CERT_TAG
             }
         };
-        let response_tlv = create_tlv_with_constructed_value(response_tag, &vec![cert_tlv])
+        let response_tlv = create_tlv_with_constructed_value(response_tag, &[cert_tlv])
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create get dk certificate response tlv error: {}", e)))?;
 
         let response_apdu = common::ResponseApdu::new(
             Some(response_tlv.to_vec()),
-            self.get_status().clone(),
+            *self.get_status(),
         );
         response_apdu.serialize()
     }
@@ -212,7 +207,7 @@ impl ResponseApduGetDkCert {
         let response_apdu = common::ResponseApdu::deserialize(data)?;
         let body = response_apdu
             .get_body()
-            .ok_or(format!("deserialize get dk certificate error"))?;
+            .ok_or("deserialize get dk certificate error".to_string())?;
 
         let response_tlv = ber::Tlv::from_bytes(body)
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize origin bytes error: {}", e)))?;
@@ -223,7 +218,7 @@ impl ResponseApduGetDkCert {
         Ok(ResponseApduGetDkCert::new(
             cert_type,
             cert,
-            response_apdu.get_trailer().clone(),
+            *response_apdu.get_trailer(),
         ))
     }
 }
@@ -241,15 +236,15 @@ mod tests {
     #[test]
     fn test_create_get_dk_cert_request() {
         let cla = 0x00;
-        let dk_cert_type = DkCertType::VehicleCACert;
+        let dk_cert_type = DkCertType::VehicleCA;
         let request = CommandApduGetDkCert::new(cla, dk_cert_type);
         assert_eq!(request.get_cla(), cla);
-        assert_eq!(request.get_dk_cert_type(), DkCertType::VehicleCACert);
+        assert_eq!(request.get_dk_cert_type(), DkCertType::VehicleCA);
 
-        let dk_cert_type = DkCertType::VehicleMasterKeyCert;
+        let dk_cert_type = DkCertType::VehicleMasterKey;
         let request = CommandApduGetDkCert::new(cla, dk_cert_type);
         assert_eq!(request.get_cla(), cla);
-        assert_eq!(request.get_dk_cert_type(), DkCertType::VehicleMasterKeyCert);
+        assert_eq!(request.get_dk_cert_type(), DkCertType::VehicleMasterKey);
 
 
         let dk_cert_type = DkCertType::TempSharedCert;
@@ -258,38 +253,38 @@ mod tests {
         assert_eq!(request.get_dk_cert_type(), DkCertType::TempSharedCert);
 
 
-        let dk_cert_type = DkCertType::FriendKeyCert;
+        let dk_cert_type = DkCertType::FriendKey;
         let request = CommandApduGetDkCert::new(cla, dk_cert_type);
         assert_eq!(request.get_cla(), cla);
-        assert_eq!(request.get_dk_cert_type(), DkCertType::FriendKeyCert);
+        assert_eq!(request.get_dk_cert_type(), DkCertType::FriendKey);
     }
     #[test]
     fn test_update_get_dk_cert_request() {
         let cla = 0x00;
-        let dk_cert_type = DkCertType::VehicleCACert;
+        let dk_cert_type = DkCertType::VehicleCA;
         let mut request = CommandApduGetDkCert::new(cla, dk_cert_type);
         assert_eq!(request.get_cla(), cla);
-        assert_eq!(request.get_dk_cert_type(), DkCertType::VehicleCACert);
+        assert_eq!(request.get_dk_cert_type(), DkCertType::VehicleCA);
 
         let new_cla = 0x0FF;
-        let mut new_dk_cert_type = DkCertType::VehicleMasterKeyCert;
+        let mut new_dk_cert_type = DkCertType::VehicleMasterKey;
         request.set_cla(new_cla);
         request.set_dk_cert_type(new_dk_cert_type);
         assert_eq!(request.get_cla(), new_cla);
-        assert_eq!(request.get_dk_cert_type(), DkCertType::VehicleMasterKeyCert);
+        assert_eq!(request.get_dk_cert_type(), DkCertType::VehicleMasterKey);
 
         new_dk_cert_type = DkCertType::TempSharedCert;
         request.set_dk_cert_type(new_dk_cert_type);
         assert_eq!(request.get_dk_cert_type(), DkCertType::TempSharedCert);
 
-        new_dk_cert_type = DkCertType::FriendKeyCert;
+        new_dk_cert_type = DkCertType::FriendKey;
         request.set_dk_cert_type(new_dk_cert_type);
-        assert_eq!(request.get_dk_cert_type(), DkCertType::FriendKeyCert);
+        assert_eq!(request.get_dk_cert_type(), DkCertType::FriendKey);
     }
     #[test]
     fn test_get_dk_cert_request_serialize() {
         let cla = 0x00;
-        let dk_cert_type = DkCertType::VehicleCACert;
+        let dk_cert_type = DkCertType::VehicleCA;
         let request = CommandApduGetDkCert::new(cla, dk_cert_type);
         let serialized_request = request.serialize();
         assert!(serialized_request.is_ok());
@@ -316,11 +311,11 @@ mod tests {
         assert!(request.is_ok());
         let request = request.unwrap();
         assert_eq!(request.get_cla(), 0x00);
-        assert_eq!(request.get_dk_cert_type(), DkCertType::VehicleCACert);
+        assert_eq!(request.get_dk_cert_type(), DkCertType::VehicleCA);
     }
     #[test]
     fn test_create_get_dk_cert_response() {
-        let dk_cert_type = DkCertType::VehicleCACert;
+        let dk_cert_type = DkCertType::VehicleCA;
         let vehicle_ca_cert = vec![
             0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
             0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
@@ -343,7 +338,7 @@ mod tests {
     }
     #[test]
     fn test_update_get_dk_cert_response() {
-        let dk_cert_type = DkCertType::VehicleCACert;
+        let dk_cert_type = DkCertType::VehicleCA;
         let vehicle_ca_cert = vec![
             0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
             0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
@@ -362,7 +357,7 @@ mod tests {
         );
 
         let new_status = common::ResponseApduTrailer::new(0x61, 0x10);
-        let new_dk_cert_type = DkCertType::VehicleMasterKeyCert;
+        let new_dk_cert_type = DkCertType::VehicleMasterKey;
         let vehicle_master_key_cert = vec![
             0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
             0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
@@ -396,7 +391,7 @@ mod tests {
         assert_eq!(response.get_dk_cert_type(), new_dk_cert_type);
         assert_eq!(response.get_dk_cert(), &temp_shared_cert);
 
-        let new_dk_cert_type = DkCertType::FriendKeyCert;
+        let new_dk_cert_type = DkCertType::FriendKey;
         let friend_key_cert = vec![
             0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
             0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
@@ -414,7 +409,7 @@ mod tests {
     }
     #[test]
     fn test_get_dk_cert_response_serialize() {
-        let dk_cert_type = DkCertType::VehicleCACert;
+        let dk_cert_type = DkCertType::VehicleCA;
         let vehicle_ca_cert = vec![
             0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
             0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
@@ -478,13 +473,13 @@ mod tests {
         let cert_tlv = cert_tlv.unwrap();
         let cert_tag = cert_tlv.tag().to_bytes();
         let cert_type = if cert_tag == &VEHICLE_CA_CERT_TAG.to_be_bytes() {
-            Some(DkCertType::VehicleCACert)
+            Some(DkCertType::VehicleCA)
         } else if cert_tag == &VEHICLE_MASTER_KEY_CERT_TAG.to_be_bytes() {
-            Some(DkCertType::VehicleMasterKeyCert)
+            Some(DkCertType::VehicleMasterKey)
         } else if cert_tag == &TEMP_SHARED_CERT_TAG.to_be_bytes() {
             Some(DkCertType::TempSharedCert)
         } else if cert_tag == &FRIEND_KEY_CERT_TAG.to_be_bytes() {
-            Some(DkCertType::FriendKeyCert)
+            Some(DkCertType::FriendKey)
         } else {
             None
         };
@@ -501,7 +496,7 @@ mod tests {
             cert,
             *status,
         );
-        assert_eq!(response.get_dk_cert_type(), DkCertType::VehicleCACert);
+        assert_eq!(response.get_dk_cert_type(), DkCertType::VehicleCA);
         assert_eq!(
             response.get_dk_cert(),
             vec![

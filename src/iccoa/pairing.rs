@@ -10,7 +10,7 @@ use crate::iccoa::objects::EncryptType;
 
 use crate::iccoa::utils::CipherKey;
 
-use super::objects::{ICCOA, Mark, create_iccoa_header, create_iccoa_body_message_data, create_iccoa_body, create_iccoa};
+use super::objects::{Iccoa, Mark, create_iccoa_header, create_iccoa_body_message_data, create_iccoa_body, create_iccoa};
 use super::{errors::*, TLVPayload, TLVPayloadBuilder, auth, utils};
 use super::status::{StatusBuilder, Status, StatusTag};
 
@@ -229,7 +229,7 @@ pub fn get_carkey_certificate() -> Vec<u8> {
     [0x04; 16].to_vec()
 }
 
-pub fn create_iccoa_pairing_data_request_init() -> Result<ICCOA> {
+pub fn create_iccoa_pairing_data_request_init() -> Result<Iccoa> {
     let transaction_id = 0x0000;
     let mut spake2_plus_object = SPAKE2_PLUS_OBJECT.lock().unwrap();
     spake2_plus_object.calculate_pb()?;
@@ -244,7 +244,7 @@ pub fn create_iccoa_pairing_data_request_init() -> Result<ICCOA> {
     Ok(iccoa)
 }
 
-fn create_iccoa_pairing_request(transaction_id: u16, tag: u8, payloads: &[TLVPayload]) -> Result<ICCOA> {
+fn create_iccoa_pairing_request(transaction_id: u16, tag: u8, payloads: &[TLVPayload]) -> Result<Iccoa> {
     let mut payload_data= Vec::new();
     let mut payload_length = 0x00;
     payloads.iter().for_each(|p| {
@@ -278,7 +278,7 @@ fn create_iccoa_pairing_request(transaction_id: u16, tag: u8, payloads: &[TLVPay
 }
 
 #[allow(dead_code)]
-fn create_iccoa_pairing_response(transaction_id: u16, status: Status, tag: u8, payloads: &[TLVPayload]) -> Result<ICCOA> {
+fn create_iccoa_pairing_response(transaction_id: u16, status: Status, tag: u8, payloads: &[TLVPayload]) -> Result<Iccoa> {
     let mut payload_data= Vec::new();
     let mut payload_length = 0x00;
     payloads.iter().for_each(|p| {
@@ -311,44 +311,44 @@ fn create_iccoa_pairing_response(transaction_id: u16, status: Status, tag: u8, p
     Ok(create_iccoa(header, body))
 }
 
-pub fn create_iccoa_pairing_data_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_pairing_data_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<Iccoa> {
     create_iccoa_pairing_request(transaction_id, 0x02, payloads)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_pairing_data_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_pairing_data_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<Iccoa> {
     create_iccoa_pairing_response(transaction_id, status, 0x02, payloads)
 }
 
-pub fn create_iccoa_paring_auth_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_paring_auth_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<Iccoa> {
     create_iccoa_pairing_request(transaction_id, 0x03, payloads)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_pairing_auth_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_pairing_auth_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<Iccoa> {
     create_iccoa_pairing_response(transaction_id, status, 0x03, payloads)
 }
 
-pub fn create_iccoa_pairing_certificate_write_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_pairing_certificate_write_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<Iccoa> {
     create_iccoa_pairing_request(transaction_id, 0x04, payloads)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_pairing_certificate_write_response(transaction_id: u16, status: Status) -> Result<ICCOA> {
+pub fn create_iccoa_pairing_certificate_write_response(transaction_id: u16, status: Status) -> Result<Iccoa> {
     create_iccoa_pairing_response(transaction_id, status, 0x04, &[])
 }
 
-pub fn create_iccoa_pairing_certificate_read_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_pairing_certificate_read_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<Iccoa> {
     create_iccoa_pairing_request(transaction_id, 0x05, payloads)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_pairing_certificate_read_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_pairing_certificate_read_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<Iccoa> {
     create_iccoa_pairing_response(transaction_id, status, 0x05, payloads)
 }
 
 
-pub fn handle_iccoa_pairing_p_a_payload(iccoa: &ICCOA, spake2_plus_object: &mut Spake2Plus) -> Result<()> {
+pub fn handle_iccoa_pairing_p_a_payload(iccoa: &Iccoa, spake2_plus_object: &mut Spake2Plus) -> Result<()> {
     //handle pA
     let payload = iccoa.get_body().get_message_data().get_value();
     let p_a_tlv_payload = TLVPayload::deserialize(payload)?;
@@ -361,7 +361,7 @@ pub fn handle_iccoa_pairing_p_a_payload(iccoa: &ICCOA, spake2_plus_object: &mut 
     spake2_plus_object.calculate_z_v()
 }
 
-pub fn handle_iccoa_pairing_c_a_payload(iccoa: &ICCOA, spake2_plus_object: &Spake2Plus) -> Result<()> {
+pub fn handle_iccoa_pairing_c_a_payload(iccoa: &Iccoa, spake2_plus_object: &Spake2Plus) -> Result<()> {
     let payload = iccoa.get_body().get_message_data().get_value();
     let c_a_tlv_payload = TLVPayload::deserialize(payload)?;
     if c_a_tlv_payload.get_tag() != 0x53 {
@@ -387,10 +387,10 @@ pub fn handle_iccoa_pairing_c_a_payload(iccoa: &ICCOA, spake2_plus_object: &Spak
     Ok(())
 }
 
-pub fn handle_iccoa_pairing_read_response_payload(iccoa: &ICCOA) -> Result<()> {
+pub fn handle_iccoa_pairing_read_response_payload(iccoa: &Iccoa) -> Result<()> {
     //handle read response payload
     let message_data = iccoa.get_body().get_message_data();
-    if message_data.get_status().get_tag() == StatusTag::SUCCESS {
+    if message_data.get_status().get_tag() == StatusTag::Success{
         let cert_payload = TLVPayload::deserialize(message_data.get_value()).unwrap();
         let dec_key = PAIRING_KEY.lock().unwrap().get_key_enc();
         let iv = utils::get_default_iv();
@@ -422,7 +422,7 @@ pub fn handle_iccoa_pairing_read_response_payload(iccoa: &ICCOA) -> Result<()> {
     }
 }
 
-pub fn handle_iccoa_pairing_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
+pub fn handle_iccoa_pairing_response_from_mobile(iccoa: &Iccoa) -> Result<Iccoa> {
     let transaction_id = 0x00000;
     let message_data = iccoa.get_body().get_message_data();
     let mut spake2_plus_object = SPAKE2_PLUS_OBJECT.lock().unwrap();
@@ -521,7 +521,7 @@ mod tests {
         let vehicle_certificate_payload = TLVPayloadBuilder::new().set_tag(0x55).set_value(&vehicle_certificate).build();
         let iccoa = create_iccoa_pairing_certificate_write_request(transaction_id, &[vehicle_certificate_payload]).unwrap();
         println!("seialized iccoa = {:02X?}", iccoa.serialize());
-        let deserialized_iccoa = ICCOA::deserialize(&iccoa.serialize()).unwrap();
+        let deserialized_iccoa = Iccoa::deserialize(&iccoa.serialize()).unwrap();
         assert_eq!(iccoa, deserialized_iccoa);
     }
     #[test]
@@ -531,7 +531,7 @@ mod tests {
         let vehicle_certificate_payload = TLVPayloadBuilder::new().set_tag(0x55).set_value(&vehicle_certificate).build();
         let iccoa = create_iccoa_pairing_certificate_write_request(transaction_id, &[vehicle_certificate_payload]).unwrap();
         println!("seialized iccoa = {:02X?}", iccoa.serialize());
-        let deserialized_iccoa = ICCOA::deserialize(&iccoa.serialize()).unwrap();
+        let deserialized_iccoa = Iccoa::deserialize(&iccoa.serialize()).unwrap();
         assert_eq!(iccoa, deserialized_iccoa);
     }
     #[test]
@@ -541,7 +541,7 @@ mod tests {
         let vehicle_certificate_payload = TLVPayloadBuilder::new().set_tag(0x55).set_value(&vehicle_certificate).build();
         let iccoa = create_iccoa_pairing_certificate_write_request(transaction_id, &[vehicle_certificate_payload]).unwrap();
         println!("seialized iccoa = {:02X?}", iccoa.serialize());
-        let deserialized_iccoa = ICCOA::deserialize(&iccoa.serialize()).unwrap();
+        let deserialized_iccoa = Iccoa::deserialize(&iccoa.serialize()).unwrap();
         assert_eq!(iccoa, deserialized_iccoa);
     }
     #[test]

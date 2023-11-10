@@ -113,19 +113,19 @@ impl Auth1Data {
         let tlv_collections = ber::Tlv::parse_all(data);
         for tlv in tlv_collections {
             if tlv.tag().to_bytes() == VEHICLE_ID_TAG.to_be_bytes() {
-                let vehicle_id = get_tlv_primitive_value(&tlv, &tlv.tag())
+                let vehicle_id = get_tlv_primitive_value(&tlv, tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize vehicle id error: {}", e)))?;
                 auth_data.set_vehicle_id(identifier::VehicleId::deserialize(vehicle_id)?);
             } else if tlv.tag().to_bytes() == DEVICE_TEMP_PUB_KEY_TAG.to_be_bytes() {
-                let device_temp_pub_key_x = get_tlv_primitive_value(&tlv, &tlv.tag())
+                let device_temp_pub_key_x = get_tlv_primitive_value(&tlv, tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize device temp public key x error: {}", e)))?;
                 auth_data.set_device_temp_pub_key_x(device_temp_pub_key_x);
             } else if tlv.tag().to_bytes() == VEHICLE_TEMP_PUB_KEY_TAG.to_be_bytes() {
-                let vehicle_temp_pub_key_x = get_tlv_primitive_value(&tlv, &tlv.tag())
+                let vehicle_temp_pub_key_x = get_tlv_primitive_value(&tlv, tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize vehicle temp public key x error: {}", e)))?;
                 auth_data.set_vehicle_temp_pub_key_x(vehicle_temp_pub_key_x);
             } else if tlv.tag().to_bytes() == RANDOM_TAG.to_be_bytes() {
-                let random_value = get_tlv_primitive_value(&tlv, &tlv.tag())
+                let random_value = get_tlv_primitive_value(&tlv, tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize random error: {}", e)))?;
                 auth_data.set_random(random_value);
             }
@@ -190,21 +190,21 @@ impl CommandApduAuth1 {
         common::CommandApdu::new(header, Some(trailer)).serialize()
     }
     pub fn deserialize(data: &[u8]) -> Result<Vec<u8>> {
-        let command_apdu = common::CommandApdu::deserialize(data.as_ref())?;
+        let command_apdu = common::CommandApdu::deserialize(data)?;
         let _header = command_apdu.get_header();
         let trailer = command_apdu
             .get_trailer()
-            .ok_or(format!("deserialize trailer error"))?;
+            .ok_or("deserialize trailer error".to_string())?;
         let origin_data = trailer
             .get_data()
-            .ok_or(format!("deserialize trailer data error"))?;
+            .ok_or("deserialize trailer data error".to_string())?;
 
         let tlv = ber::Tlv::from_bytes(origin_data)
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize origin data error: {}", e)))?;
         if tlv.tag().to_bytes() != SIGNATURE_TAG.to_be_bytes() {
-            return Err(ErrorKind::ApduInstructionErr(format!("deserialize tag is invalid")).into());
+            return Err(ErrorKind::ApduInstructionErr("deserialize tag is invalid".to_string()).into());
         }
-        let signature_value = get_tlv_primitive_value(&tlv, &tlv.tag())
+        let signature_value = get_tlv_primitive_value(&tlv, tlv.tag())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize signature value error: {}", e)))?;
         Ok(signature_value.to_owned())
     }
@@ -252,13 +252,13 @@ impl ResponseApduAuth1 {
     pub fn serialize(&self) -> Result<Vec<u8>> {
         let response = common::ResponseApdu::new(
             Some(self.signature()?.to_vec()),
-            self.status.clone(),
+            self.status,
         );
         response.serialize()
     }
     pub fn deserialize(data: &[u8]) -> Result<Vec<u8>> {
         let response_apdu = common::ResponseApdu::deserialize(data)?;
-        let body = response_apdu.get_body().ok_or(format!("deserialize auth1 response body is NULL"))?;
+        let body = response_apdu.get_body().ok_or("deserialize auth1 response body is NULL".to_string())?;
         Ok(body.to_vec())
     }
     pub fn signature(&self) -> Result<[u8; AUTH_1_SIGNATURE_LENGTH]> {

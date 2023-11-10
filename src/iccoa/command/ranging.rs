@@ -4,10 +4,10 @@ use crate::iccoa::TLVPayloadBuilder;
 use super::super::errors::*;
 use super::super::objects::{create_iccoa_header, Mark, create_iccoa_body_message_data, create_iccoa_body, create_iccoa};
 use super::super::status::{StatusBuilder, Status};
-use super::super::{TLVPayload, objects, objects::ICCOA};
+use super::super::{TLVPayload, objects, objects::Iccoa};
 
 
-pub fn create_iccoa_ranging_request(transaction_id: u16, tag: u8, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_ranging_request(transaction_id: u16, tag: u8, payloads: &[TLVPayload]) -> Result<Iccoa> {
     let mut payload_data= Vec::new();
     let mut payload_length = 0x00;
     payloads.iter().for_each(|p| {
@@ -33,7 +33,7 @@ pub fn create_iccoa_ranging_request(transaction_id: u16, tag: u8, payloads: &[TL
         &payload_data,
     );
     let body = create_iccoa_body(
-        objects::MessageType::COMMAND,
+        objects::MessageType::Command,
         message_data,
     );
 
@@ -41,7 +41,7 @@ pub fn create_iccoa_ranging_request(transaction_id: u16, tag: u8, payloads: &[TL
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_ranging_response(transaction_id: u16, status: Status, tag: u8, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_ranging_response(transaction_id: u16, status: Status, tag: u8, payloads: &[TLVPayload]) -> Result<Iccoa> {
     let mut payload_data= Vec::new();
     let mut payload_length = 0x00;
     payloads.iter().for_each(|p| {
@@ -67,14 +67,14 @@ pub fn create_iccoa_ranging_response(transaction_id: u16, status: Status, tag: u
         &payload_data,
     );
     let body = create_iccoa_body(
-        objects::MessageType::COMMAND,
+        objects::MessageType::Command,
         message_data,
     );
 
     Ok(create_iccoa(header, body))
 }
 
-pub fn create_iccoa_ranging_request_package() -> Result<ICCOA> {
+pub fn create_iccoa_ranging_request_package() -> Result<Iccoa> {
     let transaction_id = 0x0000;
     let ranging_type = 0x01;
     let ranging_type_payload = TLVPayloadBuilder::new().set_tag(0x01).set_value(&[ranging_type]).build();
@@ -82,7 +82,7 @@ pub fn create_iccoa_ranging_request_package() -> Result<ICCOA> {
     Ok(iccoa)
 }
 
-pub fn handle_iccoa_ranging_command_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
+pub fn handle_iccoa_ranging_command_response_from_mobile(iccoa: &Iccoa) -> Result<Iccoa> {
     let ranging_result= TLVPayload::deserialize(iccoa.get_body().get_message_data().get_value())?;
     if ranging_result.get_tag() == 0x00 {
         debug!("Ranging Success!");
@@ -123,7 +123,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::COMMAND,
+            MessageType::Command,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -153,7 +153,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::COMMAND,
+            MessageType::Command,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -185,7 +185,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::COMMAND,
+            MessageType::Command,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);

@@ -81,22 +81,22 @@ impl CommandApduRke {
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let request = common::CommandApdu::deserialize(data)?;
         let header = request.get_header();
-        let trailer = request.get_trailer().ok_or(format!("deserialize trailer is NULL"))?;
-        let data = trailer.get_data().ok_or(format!("deserialize trailer data is NULL"))?;
+        let trailer = request.get_trailer().ok_or("deserialize trailer is NULL".to_string())?;
+        let data = trailer.get_data().ok_or("deserialize trailer data is NULL".to_string())?;
         let tlv_collections = ber::Tlv::parse_all(data);
         let mut rke = CommandApduRke::default();
         rke.set_cla(header.get_cla());
         for tlv in tlv_collections {
             if tlv.tag().to_bytes() == KEY_ID_TAG.to_be_bytes() {
-                let key_id = get_tlv_primitive_value(&tlv, &tlv.tag())
+                let key_id = get_tlv_primitive_value(&tlv, tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize key id error: {}", e)))?;
                 rke.set_key_id(identifier::KeyId::deserialize(key_id)?);
             } else if tlv.tag().to_bytes() == RANDOM_TAG.to_be_bytes() {
-                let vehicle_random = get_tlv_primitive_value(&tlv, &tlv.tag())
+                let vehicle_random = get_tlv_primitive_value(&tlv, tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize vehicle random number error: {}", e)))?;
                 rke.set_random(vehicle_random);
             } else if tlv.tag().to_bytes() == RKE_CMD_TAG.to_be_bytes() {
-                let rke_cmd = get_tlv_primitive_value(&tlv, &tlv.tag())
+                let rke_cmd = get_tlv_primitive_value(&tlv, tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize rke command error: {}", e)))?;
                 rke.set_command(rke_cmd);
             }
@@ -155,24 +155,24 @@ impl ResponseApduRke {
         body.append(&mut signature_tlv.to_vec());
         let response = common::ResponseApdu::new(
             Some(body),
-            self.get_status().clone(),
+            *self.get_status(),
         );
         response.serialize()
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let response = common::ResponseApdu::deserialize(data)?;
-        let body = response.get_body().ok_or(format!("deserialize response body is NULL"))?;
+        let body = response.get_body().ok_or("deserialize response body is NULL".to_string())?;
         let status = response.get_trailer();
         let mut rke_response = ResponseApduRke::default();
         rke_response.set_status(*status);
         let tlv_collections = ber::Tlv::parse_all(body);
         for tlv in tlv_collections {
             if tlv.tag().to_bytes() == KEY_ID_TAG.to_be_bytes() {
-                let key_id = get_tlv_primitive_value(&tlv, &tlv.tag())
+                let key_id = get_tlv_primitive_value(&tlv, tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize response key id error: {}", e)))?;
                 rke_response.set_key_id(identifier::KeyId::deserialize(key_id)?);
             } else if tlv.tag().to_bytes() == SIGNATURE_TAG.to_be_bytes() {
-                let signature = get_tlv_primitive_value(&tlv, &tlv.tag())
+                let signature = get_tlv_primitive_value(&tlv, tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize response signature error: {}", e)))?;
                 rke_response.set_signature(signature);
             }

@@ -4,7 +4,7 @@ use crate::iccoa::objects;
 
 use crate::iccoa::utils::{KeyDeriveMaterial, CipherKey};
 
-use super::objects::{ICCOA, Mark, create_iccoa_header, create_iccoa_body_message_data, create_iccoa_body, create_iccoa};
+use super::objects::{Iccoa, Mark, create_iccoa_header, create_iccoa_body_message_data, create_iccoa_body, create_iccoa};
 use super::utils::KeyMaterialOperation;
 use super::{errors::*, TLVPayload, TLVPayloadBuilder};
 use super::status::{StatusBuilder, Status};
@@ -25,7 +25,7 @@ pub fn get_auth_key_enc() -> Vec<u8> {
     auth_key.get_key_enc()
 }
 
-fn create_iccoa_auth_request(transaction_id: u16, tag: u8, payloads: &[TLVPayload]) -> Result<ICCOA> {
+fn create_iccoa_auth_request(transaction_id: u16, tag: u8, payloads: &[TLVPayload]) -> Result<Iccoa> {
     let mut payload_data= Vec::new();
     let mut payload_length = 0x00;
     payloads.iter().for_each(|p| {
@@ -51,7 +51,7 @@ fn create_iccoa_auth_request(transaction_id: u16, tag: u8, payloads: &[TLVPayloa
         &payload_data,
     );
     let body = create_iccoa_body(
-        super::objects::MessageType::AUTH,
+        super::objects::MessageType::Auth,
         message_data,
     );
 
@@ -59,7 +59,7 @@ fn create_iccoa_auth_request(transaction_id: u16, tag: u8, payloads: &[TLVPayloa
 }
 
 #[allow(dead_code)]
-fn create_iccoa_auth_response(transaction_id: u16, status: Status, tag: u8, payloads: &[TLVPayload]) -> Result<ICCOA> {
+fn create_iccoa_auth_response(transaction_id: u16, status: Status, tag: u8, payloads: &[TLVPayload]) -> Result<Iccoa> {
     let mut payload_data= Vec::new();
     let mut payload_length = 0x00;
     payloads.iter().for_each(|p| {
@@ -85,7 +85,7 @@ fn create_iccoa_auth_response(transaction_id: u16, status: Status, tag: u8, payl
         &payload_data,
     );
     let body = create_iccoa_body(
-        super::objects::MessageType::AUTH,
+        super::objects::MessageType::Auth,
         message_data,
     );
 
@@ -93,75 +93,75 @@ fn create_iccoa_auth_response(transaction_id: u16, status: Status, tag: u8, payl
 }
 
 
-pub fn create_iccoa_standard_auth_pubkey_exchange_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_standard_auth_pubkey_exchange_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<Iccoa> {
     create_iccoa_auth_request(transaction_id, 0x01, payloads)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_standard_auth_pubkey_exchange_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_standard_auth_pubkey_exchange_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<Iccoa> {
     create_iccoa_auth_response(transaction_id, status, 0x01, payloads)
 }
 
-pub fn create_iccoa_standard_auth_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_standard_auth_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<Iccoa> {
     create_iccoa_auth_request(transaction_id, 0x02, payloads)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_standard_auth_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_standard_auth_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<Iccoa> {
     create_iccoa_auth_response(transaction_id, status, 0x02, payloads)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_standard_auth_friend_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_standard_auth_friend_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<Iccoa> {
     create_iccoa_auth_request(transaction_id, 0x03, payloads)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_standard_auth_friend_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_standard_auth_friend_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<Iccoa> {
     create_iccoa_auth_response(transaction_id, status, 0x03, payloads)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_standard_auth_write_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_standard_auth_write_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<Iccoa> {
     create_iccoa_auth_request(transaction_id, 0x04, payloads)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_standard_auth_write_response(transaction_id: u16, status: Status) -> Result<ICCOA> {
+pub fn create_iccoa_standard_auth_write_response(transaction_id: u16, status: Status) -> Result<Iccoa> {
     create_iccoa_auth_response(transaction_id, status, 0x04, &[])
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_standard_auth_read_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_standard_auth_read_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<Iccoa> {
     create_iccoa_auth_request(transaction_id, 0x05, payloads)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_standard_auth_read_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_standard_auth_read_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<Iccoa> {
     create_iccoa_auth_response(transaction_id, status, 0x05, payloads)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_fast_auth_pubkey_exchange_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_fast_auth_pubkey_exchange_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<Iccoa> {
     create_iccoa_auth_request(transaction_id, 0xC1, payloads)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_fast_auth_pubkey_exchange_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_fast_auth_pubkey_exchange_response(transaction_id: u16, status: Status, payloads: &[TLVPayload]) -> Result<Iccoa> {
     create_iccoa_auth_response(transaction_id, status, 0xC1, payloads)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_fast_auth_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<ICCOA> {
+pub fn create_iccoa_fast_auth_request(transaction_id: u16, payloads: &[TLVPayload]) -> Result<Iccoa> {
     create_iccoa_auth_request(transaction_id, 0xC2, payloads)
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_fast_auth_response(transaction_id: u16, status: Status) -> Result<ICCOA> {
+pub fn create_iccoa_fast_auth_response(transaction_id: u16, status: Status) -> Result<Iccoa> {
     create_iccoa_auth_response(transaction_id, status, 0xC2, &[])
 }
 
-pub fn create_iccoa_standard_auth_pubkey_exchange_request_package() -> Result<ICCOA> {
+pub fn create_iccoa_standard_auth_pubkey_exchange_request_package() -> Result<Iccoa> {
     let transaction_id = 0x0000;
     let mut auth_sign_object = AUTH_SIGN_OBJECT.lock().unwrap();
     auth_sign_object.create_vehicle_temp_keypair("ec")?;
@@ -176,7 +176,7 @@ pub fn create_iccoa_standard_auth_pubkey_exchange_request_package() -> Result<IC
 }
 
 #[allow(dead_code)]
-pub fn create_iccoa_fast_auth_pubkey_exchange_request_package() -> Result<ICCOA> {
+pub fn create_iccoa_fast_auth_pubkey_exchange_request_package() -> Result<Iccoa> {
     let transaction_id = 0x0000;
     let mut auth_sign_object = AUTH_SIGN_OBJECT.lock().unwrap();
     auth_sign_object.create_vehicle_temp_keypair("ec")?;
@@ -190,7 +190,7 @@ pub fn create_iccoa_fast_auth_pubkey_exchange_request_package() -> Result<ICCOA>
     Ok(iccoa)
 }
 
-pub fn handle_iccoa_standard_auth_data_exchange_response_payload(iccoa: &ICCOA) -> Result<Vec<u8>> {
+pub fn handle_iccoa_standard_auth_data_exchange_response_payload(iccoa: &Iccoa) -> Result<Vec<u8>> {
     //handle standard auth data exchange payload
     let message_data = iccoa.get_body().get_message_data();
     if message_data.get_status() != StatusBuilder::new().success().build() {
@@ -219,7 +219,7 @@ pub fn handle_iccoa_standard_auth_data_exchange_response_payload(iccoa: &ICCOA) 
     auth_sign_object.signature()
 }
 
-pub fn handle_iccoa_standard_auth_response_payload(iccoa: &ICCOA) -> Result<()> {
+pub fn handle_iccoa_standard_auth_response_payload(iccoa: &Iccoa) -> Result<()> {
     //handle standard auth response payload
     let message_data = iccoa.get_body().get_message_data();
     if message_data.get_status() != StatusBuilder::new().success().build() {
@@ -263,7 +263,7 @@ pub fn handle_iccoa_standard_auth_response_payload(iccoa: &ICCOA) -> Result<()> 
     }
 }
 
-pub fn handle_iccoa_fast_auth_data_exchange_response_payload(iccoa: &ICCOA) -> Result<Vec<u8>> {
+pub fn handle_iccoa_fast_auth_data_exchange_response_payload(iccoa: &Iccoa) -> Result<Vec<u8>> {
     let message_data = iccoa.get_body().get_message_data();
     if message_data.get_status() != StatusBuilder::new().success().build() {
         return Err(ErrorKind::ICCOAAuthError("standard auth data exchnage response error".to_string()).into());
@@ -308,7 +308,7 @@ pub fn handle_iccoa_fast_auth_data_exchange_response_payload(iccoa: &ICCOA) -> R
     }
 }
 
-pub fn handle_iccoa_fast_auth_response_payload(iccoa: &ICCOA) -> Result<()> {
+pub fn handle_iccoa_fast_auth_response_payload(iccoa: &Iccoa) -> Result<()> {
     //handle fast auth response payload
     let message_data = iccoa.get_body().get_message_data();
     if message_data.get_status() != StatusBuilder::new().success().build() {
@@ -345,7 +345,7 @@ pub fn handle_iccoa_fast_auth_response_payload(iccoa: &ICCOA) -> Result<()> {
     }
 }
 
-pub fn handle_iccoa_auth_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
+pub fn handle_iccoa_auth_response_from_mobile(iccoa: &Iccoa) -> Result<Iccoa> {
     let transaction_id = 0x0000;
     let message_data = iccoa.get_body().get_message_data();
     match message_data.get_tag() {
@@ -425,7 +425,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::AUTH,
+            MessageType::Auth,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -471,7 +471,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::AUTH,
+            MessageType::Auth,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -510,7 +510,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::AUTH,
+            MessageType::Auth,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -550,7 +550,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::AUTH,
+            MessageType::Auth,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -589,7 +589,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::AUTH,
+            MessageType::Auth,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -629,7 +629,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::AUTH,
+            MessageType::Auth,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -664,7 +664,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::AUTH,
+            MessageType::Auth,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -692,7 +692,7 @@ mod tests {
             vec![].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::AUTH,
+            MessageType::Auth,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -727,7 +727,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::AUTH,
+            MessageType::Auth,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -771,7 +771,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::AUTH,
+            MessageType::Auth,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -816,7 +816,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::AUTH,
+            MessageType::Auth,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -862,7 +862,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::AUTH,
+            MessageType::Auth,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -895,7 +895,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::AUTH,
+            MessageType::Auth,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -923,7 +923,7 @@ mod tests {
             vec![].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::AUTH,
+            MessageType::Auth,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);

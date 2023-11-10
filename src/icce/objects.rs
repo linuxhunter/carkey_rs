@@ -11,7 +11,7 @@ lazy_static! {
     static ref SESSION_KEY: Mutex<[u8; 16]> = Mutex::new([0; 16]);
     static ref SESSION_IV: Mutex<[u8; 16]> = Mutex::new([0; 16]);
     static ref CARD_ATC: Mutex<[u8; 4]> = Mutex::new([0; 4]);
-    static ref ICCE_FRAGMENTS: Mutex<Vec<ICCE>> = Mutex::new(Vec::new());
+    static ref ICCE_FRAGMENTS: Mutex<Vec<Icce>> = Mutex::new(Vec::new());
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq)]
@@ -298,14 +298,14 @@ impl Body {
 }
 
 #[derive(Default, Debug, Clone, PartialEq)]
-pub struct ICCE {
+pub struct Icce {
     pub header: Header,
     pub body: Body,
     pub checksum: u16,
 }
 
 #[allow(dead_code)]
-impl ICCE {
+impl Icce {
     pub fn new() -> Self {
         Default::default()
     }
@@ -364,14 +364,14 @@ impl ICCE {
             new_header.set_fsn(self.get_header().get_fsn());
             serialized_data.append(&mut new_header.serialize());
             serialized_data.append(&mut encrypted_text.to_vec());
-            let new_checksum = ICCE::calculate_bytearray_checksum(&serialized_data);
+            let new_checksum = Icce::calculate_bytearray_checksum(&serialized_data);
             serialized_data.append(&mut new_checksum.to_le_bytes().to_vec());
         }
 
         serialized_data
     }
     pub fn deserialize(byte_stream: &[u8]) -> Result<Self> {
-        let mut icce = ICCE::new();
+        let mut icce = Icce::new();
         if byte_stream.len() < 5 {
             return Err("Invalid byte stream length".to_string());
         }
@@ -398,7 +398,7 @@ impl ICCE {
             icce.set_body(Body::deserialize(&plain_text, frag_flag)?);
             let mut checksum_entry = new_header.serialize();
             checksum_entry.append(&mut plain_text.to_vec());
-            icce.set_checksum(ICCE::calculate_bytearray_checksum(&checksum_entry));
+            icce.set_checksum(Icce::calculate_bytearray_checksum(&checksum_entry));
         }
 
         Ok(icce)
@@ -486,13 +486,13 @@ pub fn get_session_iv() -> Vec<u8> {
     SESSION_IV.lock().unwrap().to_vec()
 }
 
-pub fn collect_icce_fragments(icce: ICCE) {
+pub fn collect_icce_fragments(icce: Icce) {
     let mut icce_fragments = ICCE_FRAGMENTS.lock().unwrap();
     icce_fragments.push(icce);
 }
 
-pub fn reassemble_icce_fragments() -> ICCE {
-    let mut icce = ICCE::new();
+pub fn reassemble_icce_fragments() -> Icce {
+    let mut icce = Icce::new();
     let mut icce_fragments = ICCE_FRAGMENTS.lock().unwrap();
     icce_fragments.sort_by_key(|a| a.get_header().get_fsn());
     let mut total_length: u16 = 0x0000;
@@ -533,7 +533,7 @@ pub fn reassemble_icce_fragments() -> ICCE {
     icce
 }
 
-pub fn split_icce(icce: &ICCE) -> Option<Vec<ICCE>> {
+pub fn split_icce(icce: &Icce) -> Option<Vec<Icce>> {
     if icce.get_header().get_length() + 5 < *BLE_DEFAULT_MTU {
         return None
     }
@@ -542,7 +542,7 @@ pub fn split_icce(icce: &ICCE) -> Option<Vec<ICCE>> {
     let mut fsn = 0x00;
     let total_payload_length = icce.get_header().get_length() - 4 - 1 - 3;
     loop {
-        let mut tmp_icce = ICCE::new();
+        let mut tmp_icce = Icce::new();
         tmp_icce.header.set_sof(icce.get_header().sof);
         tmp_icce.header.set_control(icce.get_header().get_control());
         let payload_length = if position == 0x00 {
@@ -902,7 +902,7 @@ mod tests {
     }
     #[test]
     fn test_icce_base() {
-        let mut icce = ICCE::new();
+        let mut icce = Icce::new();
         let mut header = Header::new();
         header.set_sof(0x5A);
         let mut control = Control::new();
@@ -923,7 +923,7 @@ mod tests {
         icce.set_body(body);
         icce.calculate_checksum();
         assert_eq!(icce,
-        ICCE {
+        Icce {
             header: Header {
                 sof: 0x5A,
                 length: 0x0C,
@@ -946,7 +946,7 @@ mod tests {
     }
     #[test]
     fn test_icce_serialize_and_deserialize() {
-        let mut icce = ICCE::new();
+        let mut icce = Icce::new();
         let mut header = Header::new();
         header.set_sof(0x5A);
         let mut control = Control::new();
@@ -968,9 +968,9 @@ mod tests {
         icce.calculate_checksum();
 
         let serialized_icce = icce.serialize();
-        let deserialized_icce = ICCE::deserialize(&serialized_icce).unwrap();
+        let deserialized_icce = Icce::deserialize(&serialized_icce).unwrap();
         assert_eq!(deserialized_icce,
-        ICCE {
+        Icce {
             header: Header {
                 sof: 0x5A,
                 length: 0x0C,
@@ -1134,8 +1134,8 @@ mod tests {
         let rke_cmd = vec![0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa];
 
         let icce = crate::icce::command::create_icce_rke_control_request(rke_type, &rke_cmd);
-        println!("RKE Command ICCE is {:02X?}", icce.serialize());
-        let origin_icce = ICCE::deserialize(&icce.serialize()).unwrap();
+        println!("RKE Command Icce is {:02X?}", icce.serialize());
+        let origin_icce = Icce::deserialize(&icce.serialize()).unwrap();
 
         let _ = crate::icce::bluetooth_io::handle_icce_mobile_request(&origin_icce).unwrap();
 
@@ -1229,7 +1229,7 @@ mod tests {
         let rke_cmd = vec![0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa];
 
         let icce = crate::icce::command::create_icce_rke_control_request(rke_type, &rke_cmd);
-        let origin_icce = ICCE::deserialize(&icce.serialize()).unwrap();
+        let origin_icce = Icce::deserialize(&icce.serialize()).unwrap();
         let _ = crate::icce::bluetooth_io::handle_icce_mobile_request(&origin_icce).unwrap();
 
         let session_key = SESSION_KEY.lock().unwrap().to_vec();
@@ -1287,12 +1287,12 @@ mod tests {
         body1.set_message_id(0x02);
         body1.set_command_id(0x01);
         body1.set_payload(payload1);
-        let mut icce1 = ICCE::new();
+        let mut icce1 = Icce::new();
         icce1.set_header(header1);
         icce1.set_body(body1);
         icce1.calculate_checksum();
         println!("serialized icce1 = {:02X?}", icce1.serialize());
-        let deserialzied_icce1 = ICCE::deserialize(&icce1.serialize()).unwrap();
+        let deserialzied_icce1 = Icce::deserialize(&icce1.serialize()).unwrap();
         println!("deserialized icce1 = {:02X?}", deserialzied_icce1);
 
         let mut control2 = Control::new();
@@ -1310,12 +1310,12 @@ mod tests {
         payload2.set_payload_value(&vec![0x05, 0x06, 0x07, 0x08]);
         let mut body2 = Body::new();
         body2.set_payload(payload2);
-        let mut icce2 = ICCE::new();
+        let mut icce2 = Icce::new();
         icce2.set_header(header2);
         icce2.set_body(body2);
         icce2.calculate_checksum();
         println!("serialized icce2 = {:02X?}", icce2.serialize());
-        let deserialized_icce2 = ICCE::deserialize(&icce2.serialize()).unwrap();
+        let deserialized_icce2 = Icce::deserialize(&icce2.serialize()).unwrap();
         println!("deserialized icce2 = {:02X?}", deserialized_icce2);
 
         let mut control3 = Control::new();
@@ -1333,12 +1333,12 @@ mod tests {
         payload3.set_payload_value(&vec![0x09, 0x0a]);
         let mut body3 = Body::new();
         body3.set_payload(payload3);
-        let mut icce3 = ICCE::new();
+        let mut icce3 = Icce::new();
         icce3.set_header(header3);
         icce3.set_body(body3);
         icce3.calculate_checksum();
         println!("serialzied icce3 = {:02X?}", icce3.serialize());
-        let deserialized_icce3 = ICCE::deserialize(&icce3.serialize()).unwrap();
+        let deserialized_icce3 = Icce::deserialize(&icce3.serialize()).unwrap();
         println!("deserialized icce3 = {:02X?}", deserialized_icce3);
 
         collect_icce_fragments(icce3);
@@ -1380,7 +1380,7 @@ mod tests {
         body1.set_message_id(0x02);
         body1.set_command_id(0x01);
         body1.set_payload(payload1);
-        let mut icce1 = ICCE::new();
+        let mut icce1 = Icce::new();
         icce1.set_header(header1);
         icce1.set_body(body1);
         icce1.calculate_checksum();

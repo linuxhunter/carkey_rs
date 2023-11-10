@@ -4,7 +4,7 @@ use super::{objects, auth};
 
 type Result<T> = std::result::Result<T, String>;
 
-pub fn handle_icce_mobile_request(icce_object: &objects::ICCE) -> Result<Vec<u8>> {
+pub fn handle_icce_mobile_request(icce_object: &objects::Icce) -> Result<Vec<u8>> {
     let mut response = Vec::new();
     let body = icce_object.get_body();
 
@@ -91,7 +91,7 @@ pub fn handle_icce_mobile_request(icce_object: &objects::ICCE) -> Result<Vec<u8>
     Ok(response)
 }
 
-pub fn handle_icce_mobile_response(icce_object: &objects::ICCE) -> Result<Vec<u8>> {
+pub fn handle_icce_mobile_response(icce_object: &objects::Icce) -> Result<Vec<u8>> {
     let _header = icce_object.get_header();
     let body = icce_object.get_body();
     match body.get_message_id() {
@@ -150,8 +150,8 @@ pub fn handle_icce_mobile_response(icce_object: &objects::ICCE) -> Result<Vec<u8
 }
 
 
-pub fn handle_data_package_from_mobile(icce_package: &[u8]) -> Result<objects::ICCE> {
-    if let Ok(mut icce_object) = objects::ICCE::deserialize(icce_package) {
+pub fn handle_data_package_from_mobile(icce_package: &[u8]) -> Result<objects::Icce> {
+    if let Ok(mut icce_object) = objects::Icce::deserialize(icce_package) {
         dbg!("icce_object is {:?}", icce_object.clone());
         let icce_header_control = icce_object.get_header().get_control();
         if icce_header_control.is_first_frag() || icce_header_control.is_conti_frag() {
@@ -165,7 +165,7 @@ pub fn handle_data_package_from_mobile(icce_package: &[u8]) -> Result<objects::I
         if icce_header_control.is_request() {
             if let Ok(response_message) = handle_icce_mobile_request(&icce_object) {
                 if response_message.len() > 1 {
-                    let icce = objects::ICCE::deserialize(&response_message)?;
+                    let icce = objects::Icce::deserialize(&response_message)?;
                     Ok(icce)
                 } else {
                     Err("not to send response".to_string())
@@ -175,7 +175,7 @@ pub fn handle_data_package_from_mobile(icce_package: &[u8]) -> Result<objects::I
             }
         } else if let Ok(response_message) = handle_icce_mobile_response(&icce_object) {
                 if !response_message.is_empty() {
-                    let icce = objects::ICCE::deserialize(&response_message)?;
+                    let icce = objects::Icce::deserialize(&response_message)?;
                     Ok(icce)
                 } else {
                     Err("not to send response".to_string())

@@ -39,9 +39,9 @@ impl VehicleAppCustomRequest {
         let tlv = ber::Tlv::from_bytes(data)
             .map_err(|e| ErrorKind::CustomError(format!("deserialize from bytes error: {}", e)))?;
         if tlv.tag().to_bytes() != VEHICLE_APP_CUSTOM_REQUEST_TAG.to_be_bytes() {
-            return Err(ErrorKind::CustomError(format!("deserialize tag value is invalid")).into());
+            return Err(ErrorKind::CustomError("deserialize tag value is invalid".to_string()).into());
         }
-        let custom_data = get_tlv_primitive_value(&tlv, &tlv.tag())
+        let custom_data = get_tlv_primitive_value(&tlv, tlv.tag())
             .map_err(|e| ErrorKind::CustomError(format!("deserialize custom data error: {}", e)))?;
         Ok(VehicleAppCustomRequest::new(custom_data))
     }
@@ -80,9 +80,9 @@ impl VehicleAppCustomResponse {
         let tlv = ber::Tlv::from_bytes(data)
             .map_err(|e| ErrorKind::CustomError(format!("deserialize from bytes error: {}", e)))?;
         if tlv.tag().to_bytes() != VEHICLE_APP_CUSTOM_RESPONSE_TAG.to_be_bytes() {
-            return Err(ErrorKind::CustomError(format!("deserialize tag value is invalid")).into());
+            return Err(ErrorKind::CustomError("deserialize tag value is invalid".to_string()).into());
         }
-        let custom_data = get_tlv_primitive_value(&tlv, &tlv.tag())
+        let custom_data = get_tlv_primitive_value(&tlv, tlv.tag())
             .map_err(|e| ErrorKind::CustomError(format!("deserialize custom data error: {}", e)))?;
         Ok(VehicleAppCustomResponse::new(custom_data))
     }
@@ -132,12 +132,12 @@ impl VehicleServerCustomRequest {
         let tlv = ber::Tlv::from_bytes(data)
             .map_err(|e| ErrorKind::CustomError(format!("deserialize from bytes error: {}", e)))?;
         if tlv.tag().to_bytes() != VEHICLE_SERVER_CUSTOM_REQUEST_TAG.to_be_bytes() {
-            return Err(ErrorKind::CustomError(format!("deserialize tag value is invalid")).into());
+            return Err(ErrorKind::CustomError("deserialize tag value is invalid".to_string()).into());
         }
-        let custom_data = get_tlv_primitive_value(&tlv, &tlv.tag())
+        let custom_data = get_tlv_primitive_value(&tlv, tlv.tag())
             .map_err(|e| ErrorKind::CustomError(format!("deserialize custom data error: {}", e)))?;
         if custom_data.len() < 3 {
-            return Err(ErrorKind::CustomError(format!("deserialize custom data length less than 3")).into());
+            return Err(ErrorKind::CustomError("deserialize custom data length less than 3".to_string()).into());
         }
         let offset = u16::from_be_bytes(
             (&custom_data[0..2])
@@ -182,9 +182,9 @@ impl VehicleServerCustomResponse {
         let tlv = ber::Tlv::from_bytes(data)
             .map_err(|e| ErrorKind::CustomError(format!("deserialize from bytes error: {}", e)))?;
         if tlv.tag().to_bytes() != VEHICLE_SERVER_CUSTOM_RESPONSE_TAG.to_be_bytes() {
-            return Err(ErrorKind::CustomError(format!("deserialize tag value is invalid")).into());
+            return Err(ErrorKind::CustomError("deserialize tag value is invalid".to_string()).into());
         }
-        let custom_data = get_tlv_primitive_value(&tlv, &tlv.tag())
+        let custom_data = get_tlv_primitive_value(&tlv, tlv.tag())
             .map_err(|e| ErrorKind::CustomError(format!("deserialize custom data error: {}", e)))?;
         Ok(VehicleServerCustomResponse::new(custom_data))
     }
@@ -198,29 +198,29 @@ impl Display for VehicleServerCustomResponse {
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub enum CustomMessage {
-    VehicleAppCustomRequest(VehicleAppCustomRequest),
-    VehicleAppCustomResponse(VehicleAppCustomResponse),
-    VehicleServerCustomRequest(VehicleServerCustomRequest),
-    VehicleServerCustomResponse(VehicleServerCustomResponse),
+    AppCustomRequest(VehicleAppCustomRequest),
+    AppCustomResponse(VehicleAppCustomResponse),
+    ServerCustomRequest(VehicleServerCustomRequest),
+    ServerCustomResponse(VehicleServerCustomResponse),
 }
 
 #[allow(dead_code)]
 impl CustomMessage {
     pub fn serialize(&self) -> Result<Vec<u8>> {
         match self {
-            CustomMessage::VehicleAppCustomRequest(request) => request.serialize(),
-            CustomMessage::VehicleAppCustomResponse(response) => response.serialize(),
-            CustomMessage::VehicleServerCustomRequest(request) => request.serialize(),
-            CustomMessage::VehicleServerCustomResponse(response) => response.serialize(),
+            CustomMessage::AppCustomRequest(request) => request.serialize(),
+            CustomMessage::AppCustomResponse(response) => response.serialize(),
+            CustomMessage::ServerCustomRequest(request) => request.serialize(),
+            CustomMessage::ServerCustomResponse(response) => response.serialize(),
         }
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         match data[0] {
-            0x80 => Ok(CustomMessage::VehicleAppCustomRequest(VehicleAppCustomRequest::deserialize(data)?)),
-            0x81 => Ok(CustomMessage::VehicleAppCustomResponse(VehicleAppCustomResponse::deserialize(data)?)),
-            0x82 => Ok(CustomMessage::VehicleServerCustomRequest(VehicleServerCustomRequest::deserialize(data)?)),
-            0x83 => Ok(CustomMessage::VehicleServerCustomResponse(VehicleServerCustomResponse::deserialize(data)?)),
-            _ => Err(ErrorKind::CustomError(format!("unsupported custom data tag")).into()),
+            0x80 => Ok(CustomMessage::AppCustomRequest(VehicleAppCustomRequest::deserialize(data)?)),
+            0x81 => Ok(CustomMessage::AppCustomResponse(VehicleAppCustomResponse::deserialize(data)?)),
+            0x82 => Ok(CustomMessage::ServerCustomRequest(VehicleServerCustomRequest::deserialize(data)?)),
+            0x83 => Ok(CustomMessage::ServerCustomResponse(VehicleServerCustomResponse::deserialize(data)?)),
+            _ => Err(ErrorKind::CustomError("unsupported custom data tag".to_string()).into()),
         }
     }
 }
@@ -228,10 +228,10 @@ impl CustomMessage {
 impl Display for CustomMessage {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            CustomMessage::VehicleAppCustomRequest(request) => write!(f, "Vehicle App Request: {}", request),
-            CustomMessage::VehicleAppCustomResponse(response) => write!(f, "Vehicle App Response: {}", response),
-            CustomMessage::VehicleServerCustomRequest(request) => write!(f, "Vehicle Server Request: {}", request),
-            CustomMessage::VehicleServerCustomResponse(response) => write!(f, "Vehicle Server Response: {}", response),
+            CustomMessage::AppCustomRequest(request) => write!(f, "Vehicle App Request: {}", request),
+            CustomMessage::AppCustomResponse(response) => write!(f, "Vehicle App Response: {}", response),
+            CustomMessage::ServerCustomRequest(request) => write!(f, "Vehicle Server Request: {}", request),
+            CustomMessage::ServerCustomResponse(response) => write!(f, "Vehicle Server Response: {}", response),
         }
     }
 }

@@ -20,8 +20,9 @@ const MESSAGE_DATA_LENGTH_OFFSET: usize = 0x04;
 #[allow(dead_code)]
 const MESSAGE_DATA_OFFSET: usize = 0x06;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
 pub enum MessageType {
+    #[default]
     Apdu = 0x00,
     MeasureBroadcastRequest = 0x01,
     Rke = 0x02,
@@ -30,12 +31,6 @@ pub enum MessageType {
     VehicleServerCustomMessage = 0x05,
     Auth = 0x06,
     Custom = 0x81,
-}
-
-impl Default for MessageType {
-    fn default() -> Self {
-        MessageType::Apdu
-    }
 }
 
 impl TryFrom<u8> for MessageType {
@@ -51,7 +46,7 @@ impl TryFrom<u8> for MessageType {
             0x05 => Ok(MessageType::VehicleServerCustomMessage),
             0x06 => Ok(MessageType::Auth),
             0x81 => Ok(MessageType::Custom),
-            _ => Err(format!("Unsupported message type")),
+            _ => Err("Unsupported message type".to_string()),
         }
     }
 }
@@ -86,8 +81,9 @@ impl Display for MessageType {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
 pub enum MessageStatus {
+    #[default]
     NoApplicable = 0x0000,
     Success = 0x2000,
     BeyondMessageLength = 0x2001,
@@ -99,12 +95,6 @@ pub enum MessageStatus {
     UnknownError = 0x5FFF,
     Custom = 0x6000,
     Reserved = 0x7FFF,
-}
-
-impl Default for MessageStatus {
-    fn default() -> Self {
-        MessageStatus::NoApplicable
-    }
 }
 
 impl TryFrom<u16> for MessageStatus {
@@ -122,12 +112,12 @@ impl TryFrom<u16> for MessageStatus {
             0x2006 => Ok(MessageStatus::InstructionVerificationFailed),
             0x5FFF => Ok(MessageStatus::UnknownError),
             _ => {
-                if value >= 0x6000 && value < 0x7FFF {
+                if (0x6000..0x7FFF).contains(&value) {
                     Ok(MessageStatus::Custom)
                 } else if value >= 0x7FFF {
                     Ok(MessageStatus::Reserved)
                 } else {
-                    Err(format!("Unsupported message status"))
+                    Err("Unsupported message status".to_string())
                 }
             }
         }

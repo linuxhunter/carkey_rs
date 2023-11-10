@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use crate::iccoa2::errors::*;
 
@@ -58,7 +59,7 @@ impl CommandApduHeader {
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         if data.len() < COMMAND_APDU_HEADER_LENGTH {
-            return Err(ErrorKind::ApduInstructionErr(format!("deserialize Command APDU Header length error")).into());
+            return Err(ErrorKind::ApduInstructionErr("deserialize Command APDU Header length error".to_string()).into());
         }
         Ok(CommandApduHeader::new(
             data[0],
@@ -111,7 +112,7 @@ impl CommandApduTrailer {
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
         if self.get_data().is_none() && self.get_le().is_none() {
-            return Err(ErrorKind::ApduInstructionErr(format!("Command Apdu Trailer Data and Le are all None")).into());
+            return Err(ErrorKind::ApduInstructionErr("Command Apdu Trailer Data and Le are all None".to_string()).into());
         }
         let mut buffer = Vec::new();
         if let Some(ref data) = self.data {
@@ -124,8 +125,8 @@ impl CommandApduTrailer {
         Ok(buffer)
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
-        if data.len() < 1 {
-            return Err(ErrorKind::ApduInstructionErr(format!("deserialize origin data length is zero")).into());
+        if data.is_empty() {
+            return Err(ErrorKind::ApduInstructionErr("deserialize origin data length is zero".to_string()).into());
         }
         if data.len() == 1 {
             Ok(CommandApduTrailer::new(
@@ -135,7 +136,7 @@ impl CommandApduTrailer {
         } else {
             let lc = data[0];
             if data.len() < 1 + lc as usize {
-                return Err(ErrorKind::ApduInstructionErr(format!("deserialize Command APDU Trailer data length error")).into());
+                return Err(ErrorKind::ApduInstructionErr("deserialize Command APDU Trailer data length error".to_string()).into());
             }
             let payload = (&data[1..1 + lc as usize])
                 .try_into()
@@ -205,19 +206,21 @@ impl CommandApdu {
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let data_len = data.len();
-        if data_len < COMMAND_APDU_HEADER_LENGTH {
-            Err(ErrorKind::ApduInstructionErr(format!("deserialize data length less than {}", COMMAND_APDU_HEADER_LENGTH)).into())
-        } else if data_len == COMMAND_APDU_HEADER_LENGTH {
-            let header = CommandApduHeader::deserialize(&data[0..COMMAND_APDU_HEADER_LENGTH])?;
-            Ok(CommandApdu::new(header, None))
-        } else {
-            let header = CommandApduHeader::deserialize(&data[0..COMMAND_APDU_HEADER_LENGTH])?;
-            let trailer = if data.len() > COMMAND_APDU_HEADER_LENGTH {
-                Some(CommandApduTrailer::deserialize(&data[COMMAND_APDU_HEADER_LENGTH..])?)
-            } else {
-                None
-            };
-            Ok(CommandApdu::new(header, trailer))
+        match data_len.cmp(&COMMAND_APDU_HEADER_LENGTH) {
+            Ordering::Less => Err(ErrorKind::ApduInstructionErr(format!("deserialize data length less than {}", COMMAND_APDU_HEADER_LENGTH)).into()),
+            Ordering::Equal => {
+                let header = CommandApduHeader::deserialize(&data[0..COMMAND_APDU_HEADER_LENGTH])?;
+                Ok(CommandApdu::new(header, None))
+            }
+            Ordering::Greater => {
+                let header = CommandApduHeader::deserialize(&data[0..COMMAND_APDU_HEADER_LENGTH])?;
+                let trailer = if data.len() > COMMAND_APDU_HEADER_LENGTH {
+                    Some(CommandApduTrailer::deserialize(&data[COMMAND_APDU_HEADER_LENGTH..])?)
+                } else {
+                    None
+                };
+                Ok(CommandApdu::new(header, trailer))
+            }
         }
     }
 }
@@ -259,18 +262,10 @@ impl ResponseApduTrailer {
         self.sw2 = sw2;
     }
     pub fn is_success(&self) -> bool {
-        if self.get_sw1() == 0x90 && self.get_sw2() == 0x00 {
-            true
-        } else {
-            false
-        }
+        self.get_sw1() == 0x90 && self.get_sw2() == 0x00
     }
     pub fn has_remain(&self) -> bool {
-        if self.get_sw1() == 0x61 {
-            true
-        } else {
-            false
-        }
+        self.get_sw1() == 0x61
     }
     pub fn remain_bytes(&self) -> u8 {
         if self.get_sw1() == 0x61 {
@@ -298,10 +293,10 @@ impl ResponseApduTrailer {
             } else if sw2 == 0x80 {
                 String::from("Data Format error")
             } else {
-                String::from(format!("Unsupported Status word: {}/{}", sw1, sw2))
+                format!("Unsupported Status word: {}/{}", sw1, sw2)
             }
         } else {
-            String::from(format!("Unsupported Status word: {}/{}", sw1, sw2))
+            format!("Unsupported Status word: {}/{}", sw1, sw2)
         }
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
@@ -370,15 +365,17 @@ impl ResponseApdu {
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let data_len = data.len();
-        if data_len < 2 {
-            Err(ErrorKind::ApduInstructionErr(format!("deserialize origin data length is zero")).into())
-        } else if data_len == 2 {
-            let trailer = ResponseApduTrailer::new(data[0], data[1]);
-            Ok(ResponseApdu::new(None, trailer))
-        } else {
-            let body = data[..data_len-2].to_vec();
-            let trailer = ResponseApduTrailer::new(data[data_len-2], data[data_len-1]);
-            Ok(ResponseApdu::new(Some(body), trailer))
+        match data_len.cmp(&2) {
+            Ordering::Less => Err(ErrorKind::ApduInstructionErr("deserialize origin data length is zero".to_string()).into()),
+            Ordering::Equal => {
+                let trailer = ResponseApduTrailer::new(data[0], data[1]);
+                Ok(ResponseApdu::new(None, trailer))
+            }
+            Ordering::Greater => {
+                let body = data[..data_len-2].to_vec();
+                let trailer = ResponseApduTrailer::new(data[data_len-2], data[data_len-1]);
+                Ok(ResponseApdu::new(Some(body), trailer))
+            }
         }
     }
 }

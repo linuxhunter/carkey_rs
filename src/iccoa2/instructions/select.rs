@@ -49,14 +49,14 @@ impl CommandApduSelect {
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let command_apdu = common::CommandApdu::deserialize(data)?;
         let header = command_apdu.get_header();
-        let trailer = command_apdu.get_trailer().ok_or(format!("deserialize trailer is NULL"))?;
+        let trailer = command_apdu.get_trailer().ok_or("deserialize trailer is NULL".to_string())?;
         if header.get_cla() != SELECT_CLA ||
             header.get_ins() != SELECT_INS ||
             header.get_p1() != SELECT_P1 ||
             header.get_p2() != SELECT_P2 ||
             trailer.get_le().is_none() ||
             *trailer.get_le().unwrap() != SELECT_LE {
-            return Err(ErrorKind::ApduInstructionErr(format!("deserialize SELECT Apdu error")).into());
+            return Err(ErrorKind::ApduInstructionErr("deserialize SELECT Apdu error".to_string()).into());
         }
         Ok(CommandApduSelect::new(trailer.get_data().unwrap()))
     }
@@ -101,10 +101,10 @@ impl ResponseApduSelect {
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let response = common::ResponseApdu::deserialize(data)?;
         let status = response.get_trailer();
-        let body = response.get_body().ok_or(format!("deserialize SELECT response version is NULL"))?;
+        let body = response.get_body().ok_or("deserialize SELECT response version is NULL".to_string())?;
         let version_tlv = ber::Tlv::from_bytes(body)
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize version error: {}", e)))?;
-        let versions = get_tlv_primitive_value(&version_tlv, &version_tlv.tag())
+        let versions = get_tlv_primitive_value(&version_tlv, version_tlv.tag())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize version value error: {}", e)))?;
         let version = u16::from_be_bytes(
             (versions[0..2])

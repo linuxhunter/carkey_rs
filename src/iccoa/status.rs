@@ -8,23 +8,23 @@ lazy_static! {
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub enum StatusTag {
     #[default]
-    SUCCESS,
+    Success,
     COMMUNICATION_PROTOCOL_ERROR,
     DATA_ERROR,
     REQUEST_ERROR,
     BUSINESS_ERROR,
-    RFU,
+    Rfu,
 }
 
 impl From<u8> for StatusTag {
     fn from(value: u8) -> Self {
         match value {
-            0x00 => StatusTag::SUCCESS,
+            0x00 => StatusTag::Success,
             0x01 => StatusTag::COMMUNICATION_PROTOCOL_ERROR,
             0x02 => StatusTag::DATA_ERROR,
             0x03 => StatusTag::REQUEST_ERROR,
             0x04 => StatusTag::BUSINESS_ERROR,
-            _ => StatusTag::RFU,
+            _ => StatusTag::Rfu,
         }
     }
 }
@@ -32,12 +32,12 @@ impl From<u8> for StatusTag {
 impl From<StatusTag> for u8 {
     fn from(value: StatusTag) -> Self {
         match value {
-            StatusTag::SUCCESS => 0x00,
+            StatusTag::Success => 0x00,
             StatusTag::COMMUNICATION_PROTOCOL_ERROR => 0x01,
             StatusTag::DATA_ERROR => 0x02,
             StatusTag::REQUEST_ERROR => 0x03,
             StatusTag::BUSINESS_ERROR => 0x04,
-            StatusTag::RFU => 0xFF,
+            StatusTag::Rfu => 0xFF,
         }
     }
 }
@@ -97,7 +97,7 @@ impl StatusBuilder {
         })
     }
     pub fn success(mut self) -> Self {
-        self.0.tag = StatusTag::SUCCESS;
+        self.0.tag = StatusTag::Success;
         self.0.code = 0x00;
         self
     }
@@ -123,7 +123,7 @@ impl StatusBuilder {
         self
     }
     pub fn rfu(mut self) -> Self {
-        self.0.tag = StatusTag::RFU;
+        self.0.tag = StatusTag::Rfu;
         self.0.code = 0x00;
         self
     }
@@ -140,7 +140,7 @@ mod tests {
     fn test_status_success() {
         let status = StatusBuilder::new().success().build();
         assert_eq!(status, Status {
-            tag: StatusTag::SUCCESS,
+            tag: StatusTag::Success,
             code: 0x00,
         });
     }
@@ -180,7 +180,7 @@ mod tests {
     fn test_status_rfu() {
         let status = StatusBuilder::new().rfu().build();
         assert_eq!(status, Status {
-            tag: StatusTag::RFU,
+            tag: StatusTag::Rfu,
             code: 0x00,
         });
     }
@@ -188,7 +188,7 @@ mod tests {
     fn test_status_default() {
         let status = Status::new();
         assert_eq!(status, Status {
-            tag: StatusTag::SUCCESS,
+            tag: StatusTag::Success,
             code: 0x00,
         });
     }

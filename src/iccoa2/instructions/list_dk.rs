@@ -82,18 +82,18 @@ impl CommandApduListDk {
         let header = command_apdu.get_header();
         let trailer = command_apdu
             .get_trailer()
-            .ok_or(format!("deserialize trailer is NULL"))?;
+            .ok_or("deserialize trailer is NULL".to_string())?;
         if trailer.get_le() != Some(&LIST_DK_LE) {
-            return Err(ErrorKind::ApduInstructionErr(format!("deserialize LIST DK Le is invalid")).into());
+            return Err(ErrorKind::ApduInstructionErr("deserialize LIST DK Le is invalid".to_string()).into());
         }
         let cla = header.get_cla();
         let key_id = if header.get_p1() == LIST_DK_SPEC_P1 {
             let data = trailer
                 .get_data()
-                .ok_or(format!("deserialize LIST DK key is NULL"))?;
+                .ok_or("deserialize LIST DK key is NULL".to_string())?;
             let tlv = ber::Tlv::from_bytes(data)
                 .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize list dk apdu error: {}", e)))?;
-            let serialized_key_id = get_tlv_primitive_value(&tlv, &tlv.tag())
+            let serialized_key_id = get_tlv_primitive_value(&tlv, tlv.tag())
                 .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize list dk key id error: {}", e)))?;
             Some(identifier::KeyId::deserialize(serialized_key_id)?)
         } else {
@@ -116,18 +116,13 @@ impl Display for CommandApduListDk {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, PartialOrd, PartialEq)]
 pub enum KeyIdStatus {
-    UNDELIVERED = 0x01,
-    DELIVERED = 0x02,
-    ACTIVATED = 0x03,
-    SUSPENDED = 0x04,
-}
-
-impl Default for KeyIdStatus {
-    fn default() -> Self {
-        KeyIdStatus::UNDELIVERED
-    }
+    #[default]
+    Undelivered = 0x01,
+    Delivered = 0x02,
+    Activated = 0x03,
+    Suspended = 0x04,
 }
 
 impl TryFrom<u8> for KeyIdStatus {
@@ -135,10 +130,10 @@ impl TryFrom<u8> for KeyIdStatus {
 
     fn try_from(value: u8) -> std::result::Result<Self, Self::Error> {
         match value {
-            0x01 => Ok(KeyIdStatus::UNDELIVERED),
-            0x02 => Ok(KeyIdStatus::DELIVERED),
-            0x03 => Ok(KeyIdStatus::ACTIVATED),
-            0x04 => Ok(KeyIdStatus::SUSPENDED),
+            0x01 => Ok(KeyIdStatus::Undelivered),
+            0x02 => Ok(KeyIdStatus::Delivered),
+            0x03 => Ok(KeyIdStatus::Activated),
+            0x04 => Ok(KeyIdStatus::Suspended),
             _ => Err(format!("Unsupported KeyIdStatus from u8: {}", value)),
         }
     }
@@ -147,10 +142,10 @@ impl TryFrom<u8> for KeyIdStatus {
 impl From<KeyIdStatus> for u8 {
     fn from(value: KeyIdStatus) -> Self {
         match value {
-            KeyIdStatus::UNDELIVERED => 0x01,
-            KeyIdStatus::DELIVERED => 0x02,
-            KeyIdStatus::ACTIVATED => 0x03,
-            KeyIdStatus::SUSPENDED => 0x04,
+            KeyIdStatus::Undelivered => 0x01,
+            KeyIdStatus::Delivered => 0x02,
+            KeyIdStatus::Activated => 0x03,
+            KeyIdStatus::Suspended => 0x04,
         }
     }
 }
@@ -158,10 +153,10 @@ impl From<KeyIdStatus> for u8 {
 impl Display for KeyIdStatus {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            KeyIdStatus::UNDELIVERED => write!(f, "undelivered"),
-            KeyIdStatus::DELIVERED => write!(f, "delivered"),
-            KeyIdStatus::ACTIVATED => write!(f, "activated"),
-            KeyIdStatus::SUSPENDED => write!(f, "suspended"),
+            KeyIdStatus::Undelivered => write!(f, "undelivered"),
+            KeyIdStatus::Delivered => write!(f, "delivered"),
+            KeyIdStatus::Activated => write!(f, "activated"),
+            KeyIdStatus::Suspended => write!(f, "suspended"),
         }
     }
 }
@@ -203,7 +198,7 @@ impl ResponseApduListDk {
     pub fn serialize(&self) -> Result<Vec<u8>> {
         let key_id_tlv = create_tlv_with_primitive_value(KEY_ID_TAG, &self.get_key_id().serialize()?)
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create list dk key id tlv error: {}", e)))?;
-        let key_id_status_tlv = create_tlv_with_primitive_value(KEY_ID_STATUS_TAG, &vec![u8::from(self.get_key_id_status().clone())])
+        let key_id_status_tlv = create_tlv_with_primitive_value(KEY_ID_STATUS_TAG, &[u8::from(*self.get_key_id_status())])
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create list dk key id status tlv error: {}", e)))?;
         let mut body = Vec::new();
         body.append(&mut key_id_tlv.to_vec());
@@ -217,17 +212,17 @@ impl ResponseApduListDk {
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let response_apdu = common::ResponseApdu::deserialize(data)?;
         let status = response_apdu.get_trailer();
-        let body = response_apdu.get_body().ok_or(format!("deserialize list dk response is NULL"))?;
+        let body = response_apdu.get_body().ok_or("deserialize list dk response is NULL".to_string())?;
         let tlv_collections = ber::Tlv::parse_all(body);
         let mut response = ResponseApduListDk::default();
         response.set_status(*status);
         for tlv in tlv_collections {
             if tlv.tag().to_bytes() == KEY_ID_TAG.to_be_bytes() {
-                let key_id = get_tlv_primitive_value(&tlv, &tlv.tag())
+                let key_id = get_tlv_primitive_value(&tlv, tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize key id error: {}", e)))?;
                 response.set_key_id(identifier::KeyId::deserialize(key_id)?);
             } else if tlv.tag().to_bytes() == KEY_ID_STATUS_TAG.to_be_bytes() {
-                let key_id_status = get_tlv_primitive_value(&tlv, &tlv.tag())
+                let key_id_status = get_tlv_primitive_value(&tlv, tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize key id status error: {}", e)))?;
                 response.set_key_id_status(KeyIdStatus::try_from(key_id_status[0])?);
             }
@@ -356,7 +351,7 @@ mod tests {
         let key_id = identifier::KeyId::new(device_oem_id, vehicle_oem_id, &key_serial_id);
         assert!(key_id.is_ok());
         let key_id = key_id.unwrap();
-        let key_id_status = KeyIdStatus::UNDELIVERED;
+        let key_id_status = KeyIdStatus::Undelivered;
         let status = common::ResponseApduTrailer::new(0x90, 0x00);
         let response = ResponseApduListDk::new(
             key_id,
@@ -364,7 +359,7 @@ mod tests {
             status,
         );
         assert_eq!(response.get_key_id(), &identifier::KeyId::new(device_oem_id, vehicle_oem_id, &key_serial_id).unwrap());
-        assert_eq!(*response.get_key_id_status(), KeyIdStatus::UNDELIVERED);
+        assert_eq!(*response.get_key_id_status(), KeyIdStatus::Undelivered);
         assert_eq!(response.status, common::ResponseApduTrailer::new(0x90, 0x00));
     }
     #[test]
@@ -375,7 +370,7 @@ mod tests {
         let key_id = identifier::KeyId::new(device_oem_id, vehicle_oem_id, &key_serial_id);
         assert!(key_id.is_ok());
         let key_id = key_id.unwrap();
-        let key_id_status = KeyIdStatus::UNDELIVERED;
+        let key_id_status = KeyIdStatus::Undelivered;
         let status = common::ResponseApduTrailer::new(0x90, 0x00);
         let mut response = ResponseApduListDk::new(
             key_id,
@@ -388,13 +383,13 @@ mod tests {
         let updated_key_id = identifier::KeyId::new(updated_device_oem_id, updated_vehicle_oem_id, &updated_key_serial_id);
         assert!(updated_key_id.is_ok());
         let updated_key_id = updated_key_id.unwrap();
-        let updated_key_id_status = KeyIdStatus::DELIVERED;
+        let updated_key_id_status = KeyIdStatus::Delivered;
         let status = common::ResponseApduTrailer::new(0x61, 0x10);
         response.set_key_id(updated_key_id);
         response.set_key_id_status(updated_key_id_status);
         response.set_status(status);
         assert_eq!(response.get_key_id(), &identifier::KeyId::new(updated_device_oem_id, updated_vehicle_oem_id, &updated_key_serial_id).unwrap());
-        assert_eq!(*response.get_key_id_status(), KeyIdStatus::DELIVERED);
+        assert_eq!(*response.get_key_id_status(), KeyIdStatus::Delivered);
         assert_eq!(response.status, common::ResponseApduTrailer::new(0x61, 0x10));
     }
     #[test]
@@ -405,7 +400,7 @@ mod tests {
         let key_id = identifier::KeyId::new(device_oem_id, vehicle_oem_id, &key_serial_id);
         assert!(key_id.is_ok());
         let key_id = key_id.unwrap();
-        let key_id_status = KeyIdStatus::UNDELIVERED;
+        let key_id_status = KeyIdStatus::Undelivered;
         let status = common::ResponseApduTrailer::new(0x90, 0x00);
         let response = ResponseApduListDk::new(
             key_id,
@@ -444,7 +439,7 @@ mod tests {
         assert!(key_id.is_ok());
         let key_id = key_id.unwrap();
         assert_eq!(response.get_key_id(), &key_id);
-        assert_eq!(*response.get_key_id_status(), KeyIdStatus::UNDELIVERED);
+        assert_eq!(*response.get_key_id_status(), KeyIdStatus::Undelivered);
         assert_eq!(response.get_status(), &common::ResponseApduTrailer::new(0x90, 0x00));
     }
 }

@@ -3,8 +3,8 @@ use super::objects;
 
 type Result<T> = std::result::Result<T, String>;
 
-pub fn create_icce_measure_request(mesaure_type: u8) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_measure_request(mesaure_type: u8) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+3);
     icce.set_header(header);
@@ -19,8 +19,8 @@ pub fn create_icce_measure_request(mesaure_type: u8) -> objects::ICCE {
 }
 
 #[allow(dead_code)]
-pub fn create_icce_measure_response(status: u8, timeout: &[u8]) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_measure_response(status: u8, timeout: &[u8]) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(false, false, false, 0, 0, 4+3+2+timeout.len() as u16);
     icce.set_header(header);
@@ -35,8 +35,8 @@ pub fn create_icce_measure_response(status: u8, timeout: &[u8]) -> objects::ICCE
     icce
 }
 
-pub fn create_icce_anti_relay_request(measure_type: u8, vehicle_info: &[u8]) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_anti_relay_request(measure_type: u8, vehicle_info: &[u8]) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+3+2+vehicle_info.len() as u16);
     icce.set_header(header);
@@ -52,8 +52,8 @@ pub fn create_icce_anti_relay_request(measure_type: u8, vehicle_info: &[u8]) -> 
 }
 
 #[allow(dead_code)]
-pub fn create_icce_anti_relay_response(status: u8, check_result: u8, device_info: &[u8]) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_anti_relay_response(status: u8, check_result: u8, device_info: &[u8]) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(false, false, false, 0, 0, 4+3+3+2+device_info.len() as u16);
     icce.set_header(header);
@@ -70,8 +70,8 @@ pub fn create_icce_anti_relay_response(status: u8, check_result: u8, device_info
 }
 
 #[allow(dead_code)]
-pub fn create_icce_rke_control_request(rke_type: u8, rke_cmd: &[u8]) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_rke_control_request(rke_type: u8, rke_cmd: &[u8]) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(true, true, false, 0, 0, 4+2+rke_cmd.len() as u16);
     icce.set_header(header);
@@ -85,8 +85,8 @@ pub fn create_icce_rke_control_request(rke_type: u8, rke_cmd: &[u8]) -> objects:
     icce
 }
 
-pub fn create_icce_rke_control_response(status: u8, rke_result: &[u8]) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_rke_control_response(status: u8, rke_result: &[u8]) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(false, true, false, 0, 0, 4+3+2+rke_result.len() as u16);
     icce.set_header(header);
@@ -102,8 +102,8 @@ pub fn create_icce_rke_control_response(status: u8, rke_result: &[u8]) -> object
 }
 
 #[allow(dead_code)]
-pub fn create_icce_rke_challege_request(rke_type: u8) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_rke_challege_request(rke_type: u8) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+3);
     icce.set_header(header);
@@ -117,8 +117,8 @@ pub fn create_icce_rke_challege_request(rke_type: u8) -> objects::ICCE {
     icce
 }
 
-pub fn create_icce_rke_challege_response(status: u8, random_value: &[u8]) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_rke_challege_response(status: u8, random_value: &[u8]) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(false, false, false, 0, 0, 4+3+2+random_value.len() as u16);
     icce.set_header(header);
@@ -134,8 +134,8 @@ pub fn create_icce_rke_challege_response(status: u8, random_value: &[u8]) -> obj
 }
 
 #[allow(dead_code)]
-pub fn create_icce_get_vehicle_info_request(request_type: &[u8]) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_get_vehicle_info_request(request_type: &[u8]) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+3);
     icce.set_header(header);
@@ -149,8 +149,8 @@ pub fn create_icce_get_vehicle_info_request(request_type: &[u8]) -> objects::ICC
     icce
 }
 
-pub fn create_icce_get_vehicle_info_response(status: u8, vehicle_info: &[u8]) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_get_vehicle_info_response(status: u8, vehicle_info: &[u8]) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(false, false, false, 0, 0, 4+3+2+vehicle_info.len() as u16);
     icce.set_header(header);
@@ -165,8 +165,8 @@ pub fn create_icce_get_vehicle_info_response(status: u8, vehicle_info: &[u8]) ->
     icce
 }
 
-pub fn create_icce_get_mobile_info_request(request_type: u8) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_get_mobile_info_request(request_type: u8) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+3);
     icce.set_header(header);
@@ -181,8 +181,8 @@ pub fn create_icce_get_mobile_info_request(request_type: u8) -> objects::ICCE {
 }
 
 #[allow(dead_code)]
-pub fn create_icce_get_mobile_info_response(status: u8, mobile_info: &[u8]) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_get_mobile_info_response(status: u8, mobile_info: &[u8]) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(false, false, false, 0, 0, 4+3+2+mobile_info.len() as u16);
     icce.set_header(header);
@@ -197,8 +197,8 @@ pub fn create_icce_get_mobile_info_response(status: u8, mobile_info: &[u8]) -> o
     icce
 }
 
-pub fn create_icce_calibrate_clock_request() -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_calibrate_clock_request() -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(true, false, false, 0, 0, 4);
     icce.set_header(header);
@@ -212,8 +212,8 @@ pub fn create_icce_calibrate_clock_request() -> objects::ICCE {
 }
 
 #[allow(dead_code)]
-pub fn create_icce_calibrate_clock_response(status: u8, clock: &[u8]) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_calibrate_clock_response(status: u8, clock: &[u8]) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(false, false, false, 0, 0, 4+3+2+clock.len() as u16);
     icce.set_header(header);
@@ -228,8 +228,8 @@ pub fn create_icce_calibrate_clock_response(status: u8, clock: &[u8]) -> objects
     icce
 }
 
-pub fn create_icce_get_protocol_request(protocol: &[u8]) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_get_protocol_request(protocol: &[u8]) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+2+protocol.len() as u16);
     icce.set_header(header);
@@ -244,8 +244,8 @@ pub fn create_icce_get_protocol_request(protocol: &[u8]) -> objects::ICCE {
 }
 
 #[allow(dead_code)]
-pub fn create_icce_get_protocol_response(status: u8, protocol: &[u8]) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_get_protocol_response(status: u8, protocol: &[u8]) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(false, false, false, 0, 0, 4+3+2+protocol.len() as u16);
     icce.set_header(header);
@@ -408,7 +408,7 @@ mod tests {
         let rke_cmd = vec![0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa];
 
         let icce = create_icce_rke_control_request(rke_type, &rke_cmd);
-        let origin_icce = objects::ICCE::deserialize(&icce.serialize()).unwrap();
+        let origin_icce = objects::Icce::deserialize(&icce.serialize()).unwrap();
     }
     #[test]
     fn test_create_get_vehicle_info_request() {

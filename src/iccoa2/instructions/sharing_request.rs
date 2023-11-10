@@ -19,16 +19,11 @@ const SHARING_REQUEST_P2: u8 = 0x00;
 #[allow(dead_code)]
 const SHARING_REQUEST_LE: u8 = 0x00;
 
-#[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, PartialOrd, PartialEq)]
 pub enum SharingRequestP1 {
+    #[default]
     FromDeviceCarKeyApp = 0x00,
     FromVehicleApp = 0x01,
-}
-
-impl Default for SharingRequestP1 {
-    fn default() -> Self {
-        SharingRequestP1::FromDeviceCarKeyApp
-    }
 }
 
 impl TryFrom<u8> for SharingRequestP1 {
@@ -114,7 +109,7 @@ impl CommandApduSharingRequest {
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create key id tlv error: {}", e)))?;
         let inner_temp_csr_tlv = create_tlv_with_primitive_value(INNER_CSR_TAG, self.get_temp_csr())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create inner temp csr tlv error: {}", e)))?;
-        let temp_csr_tlv = create_tlv_with_constructed_value(TEMP_CSR_TAG, &vec![inner_temp_csr_tlv])
+        let temp_csr_tlv = create_tlv_with_constructed_value(TEMP_CSR_TAG, &[inner_temp_csr_tlv])
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create temp csr tlv error: {}", e)))?;
         let mut buffer = Vec::new();
         buffer.append(&mut key_id_tlv.to_vec());
@@ -128,11 +123,11 @@ impl CommandApduSharingRequest {
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let request = common::CommandApdu::deserialize(data)?;
         let header = request.get_header();
-        let trailer = request.get_trailer().ok_or(format!("deserialize trailer is NULL"))?;
+        let trailer = request.get_trailer().ok_or("deserialize trailer is NULL".to_string())?;
         let cla = header.get_cla();
         let p1 = SharingRequestP1::try_from(header.get_p1())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize P1 error: {}", e)))?;
-        let data = trailer.get_data().ok_or(format!("deserialize trailer data is NULL"))?;
+        let data = trailer.get_data().ok_or("deserialize trailer data is NULL".to_string())?;
         let mut request = CommandApduSharingRequest::default();
         request.set_cla(cla);
         request.set_p1(p1);
@@ -189,11 +184,11 @@ impl ResponseApduSharingRequest {
     pub fn serialize(&self) -> Result<Vec<u8>> {
         let inner_cert_tlv = create_tlv_with_primitive_value(INNER_CERT_TAG, self.get_temp_cert())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create inner cert tlv error: {}", e)))?;
-        let cert_tlv = create_tlv_with_constructed_value(TEMP_CERT_TAG, &vec![inner_cert_tlv])
+        let cert_tlv = create_tlv_with_constructed_value(TEMP_CERT_TAG, &[inner_cert_tlv])
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create temp cert tlv error: {}", e)))?;
         let response = common::ResponseApdu::new(
             Some(cert_tlv.to_vec()),
-            self.get_status().clone(),
+            *self.get_status(),
         );
         response.serialize()
     }
@@ -201,12 +196,12 @@ impl ResponseApduSharingRequest {
         let response = common::ResponseApdu::deserialize(data)?;
         let body = response
             .get_body()
-            .ok_or(format!("deserialize response body is NULL"))?;
+            .ok_or("deserialize response body is NULL".to_string())?;
         let trailer = response.get_trailer();
         let cert_tlv = ber::Tlv::from_bytes(body)
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize temp cert tlv error: {}", e)))?;
         if cert_tlv.tag().to_bytes() != TEMP_CERT_TAG.to_be_bytes() {
-            return Err(ErrorKind::ApduInstructionErr(format!("deserialize temp cert tag is invalid")).into());
+            return Err(ErrorKind::ApduInstructionErr("deserialize temp cert tag is invalid".to_string()).into());
         }
         let inner_cert_tag = ber::Tag::try_from(INNER_CERT_TAG)
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create inner cert tag error: {}", e)))?;

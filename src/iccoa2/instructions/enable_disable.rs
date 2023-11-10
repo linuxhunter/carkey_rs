@@ -17,16 +17,11 @@ const ENABLE_DK_P2: u8 = 0x00;
 #[allow(dead_code)]
 const ENABLE_DK_LE: u8 = 0x00;
 
-#[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, PartialOrd, PartialEq)]
 pub enum StatusDk {
+    #[default]
     DisableDk = 0x6E,
     EnableDk = 0x6F,
-}
-
-impl Default for StatusDk {
-    fn default() -> Self {
-        StatusDk::DisableDk
-    }
 }
 
 impl TryFrom<u8> for StatusDk {
@@ -113,14 +108,14 @@ impl CommandApduEnableDisable {
         common::CommandApdu::new(header, Some(trailer)).serialize()
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
-        let apdu_request = common::CommandApdu::deserialize(data.as_ref())?;
+        let apdu_request = common::CommandApdu::deserialize(data)?;
         let header = apdu_request.get_header();
         let trailer = apdu_request.get_trailer()
-            .ok_or(format!("deserialize trailer is NULL"))?;
+            .ok_or("deserialize trailer is NULL".to_string())?;
         let cla = header.get_cla();
         let status_dk = StatusDk::try_from(header.get_ins())?;
         let origin_key_id_data = trailer.get_data()
-            .ok_or(format!("deserialize key id is NULL"))?;
+            .ok_or("deserialize key id is NULL".to_string())?;
         let key_id_tlv = ber::Tlv::from_bytes(origin_key_id_data)
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize key id tlv error: {}", e)))?;
         let key_id_data = get_tlv_primitive_value(&key_id_tlv, key_id_tlv.tag())
@@ -161,7 +156,7 @@ impl ResponseApduEnableDisable {
     pub fn serialize(&self) -> Result<Vec<u8>> {
         let response = common::ResponseApdu::new(
             None,
-            self.get_status().clone(),
+            *self.get_status(),
         );
         response.serialize()
     }

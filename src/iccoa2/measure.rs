@@ -18,7 +18,7 @@ const MEASURE_RESPONSE_TAG: u16 = 0x7F30;
 pub enum MeasureType {
     BtRssi = 0x00,
     BtCS = 0x01,
-    UWB = 0x02,
+    Uwb = 0x02,
 }
 
 impl TryFrom<u8> for MeasureType {
@@ -28,8 +28,8 @@ impl TryFrom<u8> for MeasureType {
         match value {
             0x00 => Ok(MeasureType::BtRssi),
             0x01 => Ok(MeasureType::BtCS),
-            0x02 => Ok(MeasureType::UWB),
-            _ => Err(format!("Unsupported measure type value")),
+            0x02 => Ok(MeasureType::Uwb),
+            _ => Err("Unsupported measure type value".to_string()),
         }
     }
 }
@@ -39,7 +39,7 @@ impl From<MeasureType> for u8 {
         match value {
             MeasureType::BtRssi => 0x00,
             MeasureType::BtCS => 0x01,
-            MeasureType::UWB => 0x02,
+            MeasureType::Uwb => 0x02,
         }
     }
 }
@@ -50,7 +50,7 @@ impl Display for MeasureType {
         match self {
             MeasureType::BtRssi => write!(f, "Bluetooth RSSI"),
             MeasureType::BtCS => write!(f, "Bluetooth CS"),
-            MeasureType::UWB => write!(f, "UWB"),
+            MeasureType::Uwb => write!(f, "UWB"),
         }
     }
 }
@@ -68,7 +68,7 @@ impl TryFrom<u8> for MeasureAction {
         match value {
             0x01 => Ok(MeasureAction::Start),
             0x02 => Ok(MeasureAction::Stop),
-            _ => Err(format!("Unsupported measure action value")),
+            _ => Err("Unsupported measure action value".to_string()),
         }
     }
 }
@@ -163,13 +163,13 @@ impl MeasureRequest {
         self.request_duration = request_duration;
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let type_tlv = create_tlv_with_primitive_value(MEASURE_TYPE_TAG, &vec![self.get_request_type().into()])
+        let type_tlv = create_tlv_with_primitive_value(MEASURE_TYPE_TAG, &[self.get_request_type().into()])
             .map_err(|e| ErrorKind::MeasureError(format!("create measure request type tlv error: {:?}", e)))?;
-        let action_tlv = create_tlv_with_primitive_value(MEASURE_ACTION_TAG, &vec![self.get_request_action().into()])
+        let action_tlv = create_tlv_with_primitive_value(MEASURE_ACTION_TAG, &[self.get_request_action().into()])
             .map_err(|e| ErrorKind::MeasureError(format!("create measure request action tlv error: {:?}", e)))?;
-        let duration_tlv = create_tlv_with_primitive_value(MEASURE_DURATION_TAG, &vec![self.get_request_duration().into()])
+        let duration_tlv = create_tlv_with_primitive_value(MEASURE_DURATION_TAG, &[self.get_request_duration().into()])
             .map_err(|e| ErrorKind::MeasureError(format!("create measure request duration tlv error: {:?}", e)))?;
-        let measure_tlv = create_tlv_with_constructed_value(MEASURE_REQUEST_TAG, &vec![type_tlv, action_tlv, duration_tlv])
+        let measure_tlv = create_tlv_with_constructed_value(MEASURE_REQUEST_TAG, &[type_tlv, action_tlv, duration_tlv])
             .map_err(|e| ErrorKind::MeasureError(format!("create measure tlv error: {:?}", e)))?;
         Ok(measure_tlv.to_vec())
     }
@@ -178,10 +178,10 @@ impl MeasureRequest {
         let tlv_data = ber::Tlv::from_bytes(data)
             .map_err(|e| ErrorKind::MeasureError(format!("deserialize measure tlv error: {:?}", e)))?;
         if tlv_data.tag().to_bytes() != MEASURE_REQUEST_TAG.to_be_bytes() {
-            return Err(ErrorKind::MeasureError(format!("deserialize measure tlv tag error")).into());
+            return Err(ErrorKind::MeasureError("deserialize measure tlv tag error".to_string()).into());
         }
         if !tlv_data.value().is_constructed() {
-            return Err(ErrorKind::MeasureError(format!("deserialize measure tlv value type error")).into());
+            return Err(ErrorKind::MeasureError("deserialize measure tlv value type error".to_string()).into());
         }
         let type_tag = ber::Tag::try_from(MEASURE_TYPE_TAG)
             .map_err(|e| ErrorKind::MeasureError(format!("create measure request type tag error: {:?}", e)))?;
@@ -239,11 +239,11 @@ impl MeasureResponse {
         self.response_duration = response_duration;
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let action_tlv = create_tlv_with_primitive_value(MEASURE_ACTION_TAG, &vec![self.get_response_action().into()])
+        let action_tlv = create_tlv_with_primitive_value(MEASURE_ACTION_TAG, &[self.get_response_action().into()])
             .map_err(|e| ErrorKind::MeasureError(format!("create measure response action tlv error: {:?}", e)))?;
-        let duration_tlv = create_tlv_with_primitive_value(MEASURE_DURATION_TAG, &vec![self.get_response_duration().into()])
+        let duration_tlv = create_tlv_with_primitive_value(MEASURE_DURATION_TAG, &[self.get_response_duration().into()])
             .map_err(|e| ErrorKind::MeasureError(format!("create measure response duration tlv error: {:?}", e)))?;
-        let measure_tlv = create_tlv_with_constructed_value(MEASURE_RESPONSE_TAG, &vec![action_tlv, duration_tlv])
+        let measure_tlv = create_tlv_with_constructed_value(MEASURE_RESPONSE_TAG, &[action_tlv, duration_tlv])
             .map_err(|e| ErrorKind::MeasureError(format!("create measure tlv error: {:?}", e)))?;
         Ok(measure_tlv.to_vec())
     }
@@ -251,10 +251,10 @@ impl MeasureResponse {
         let tlv_data = ber::Tlv::from_bytes(data)
             .map_err(|e| ErrorKind::MeasureError(format!("deserialize measure tlv error: {:?}", e)))?;
         if tlv_data.tag().to_bytes() != MEASURE_RESPONSE_TAG.to_be_bytes() {
-            return Err(ErrorKind::MeasureError(format!("deserialize measure tlv tag error")).into());
+            return Err(ErrorKind::MeasureError("deserialize measure tlv tag error".to_string()).into());
         }
         if !tlv_data.value().is_constructed() {
-            return Err(ErrorKind::MeasureError(format!("deserialize measure tlv value type error")).into());
+            return Err(ErrorKind::MeasureError("deserialize measure tlv value type error".to_string()).into());
         }
         let action_tag = ber::Tag::try_from(MEASURE_ACTION_TAG)
             .map_err(|e| ErrorKind::MeasureError(format!("create measure response action tag error: {:?}", e)))?;
@@ -306,7 +306,7 @@ impl Measure {
         match tag {
             MEASURE_REQUEST_TAG => Ok(Measure::Request(MeasureRequest::deserialize(data)?)),
             MEASURE_RESPONSE_TAG => Ok(Measure::Response(MeasureResponse::deserialize(data)?)),
-            _ => Err(ErrorKind::MeasureError(format!("deserialize measure tag is invalid")).into())
+            _ => Err(ErrorKind::MeasureError("deserialize measure tag is invalid".to_string()).into())
         }
     }
 }
@@ -446,8 +446,8 @@ mod tests {
         assert_eq!(request_tlv.get_request_type(), MeasureType::BtRssi);
         request_tlv.set_request_type(MeasureType::BtCS);
         assert_eq!(request_tlv.get_request_type(), MeasureType::BtCS);
-        request_tlv.set_request_type(MeasureType::UWB);
-        assert_eq!(request_tlv.get_request_type(), MeasureType::UWB);
+        request_tlv.set_request_type(MeasureType::Uwb);
+        assert_eq!(request_tlv.get_request_type(), MeasureType::Uwb);
     }
     #[test]
     fn test_get_measure_tlv_action() {

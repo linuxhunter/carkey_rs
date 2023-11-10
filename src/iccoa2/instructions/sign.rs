@@ -68,24 +68,24 @@ impl CommandApduSign {
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let apdu_request = common::CommandApdu::deserialize(data)?;
         let header = apdu_request.get_header();
-        let trailer = apdu_request.get_trailer().ok_or(format!("deserialize trailer is NULL"))?;
+        let trailer = apdu_request.get_trailer().ok_or("deserialize trailer is NULL".to_string())?;
         if header.get_ins() != SIGN_INS ||
             header.get_p1() != SIGN_P1 ||
             header.get_p2() != SIGN_P2 ||
             trailer.get_le() != Some(&SIGN_LE) {
-            return Err(ErrorKind::ApduInstructionErr(format!("deserialize sign request package error")).into());
+            return Err(ErrorKind::ApduInstructionErr("deserialize sign request package error".to_string()).into());
         }
-        let sign_data = trailer.get_data().ok_or(format!("deserialize sign data error"))?;
+        let sign_data = trailer.get_data().ok_or("deserialize sign data error".to_string())?;
         let tlv_collections = ber::Tlv::parse_all(sign_data);
         let mut sign_request = CommandApduSign::default();
         sign_request.set_cla(header.get_cla());
         for tlv in tlv_collections {
             if tlv.tag().to_bytes() == KEY_ID_TAG.to_be_bytes() {
-                let key_id = get_tlv_primitive_value(&tlv, &tlv.tag())
+                let key_id = get_tlv_primitive_value(&tlv, tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize key id error: {}", e)))?;
                 sign_request.set_key_id(identifier::KeyId::deserialize(key_id)?);
             } else if tlv.tag().to_bytes() == SIGN_DATA_TAG.to_be_bytes() {
-                let sign_data = get_tlv_primitive_value(&tlv, &tlv.tag())
+                let sign_data = get_tlv_primitive_value(&tlv, tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize sign data error: {}", e)))?;
                 sign_request.set_data(sign_data);
             }
@@ -142,24 +142,24 @@ impl ResponseApduSign {
         body.append(&mut signature_tlv.to_vec());
         let response = common::ResponseApdu::new(
             Some(body),
-            self.get_status().clone(),
+            *self.get_status(),
         );
         response.serialize()
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let apdu_response = common::ResponseApdu::deserialize(data)?;
-        let body = apdu_response.get_body().ok_or(format!("deserialize response body is NULL"))?;
+        let body = apdu_response.get_body().ok_or("deserialize response body is NULL".to_string())?;
         let trailer = apdu_response.get_trailer();
         let tlv_collections = ber::Tlv::parse_all(body);
         let mut response = ResponseApduSign::default();
         response.set_status(*trailer);
         for tlv in tlv_collections {
             if tlv.tag().to_bytes() == KEY_ID_TAG.to_be_bytes() {
-                let key_id = get_tlv_primitive_value(&tlv, &tlv.tag())
+                let key_id = get_tlv_primitive_value(&tlv, tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize key id error: {}",e )))?;
                 response.set_key_id(identifier::KeyId::deserialize(key_id)?);
             } else if tlv.tag().to_bytes() == SIGNATURE_TAG.to_be_bytes() {
-                let signature = get_tlv_primitive_value(&tlv, &tlv.tag())
+                let signature = get_tlv_primitive_value(&tlv, tlv.tag())
                     .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize signature error: {}", e)))?;
                 response.set_signature(signature);
             }

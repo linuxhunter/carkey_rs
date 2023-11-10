@@ -1,11 +1,11 @@
 use super::command::{rke, self};
 use super::{errors::*, objects};
-use super::objects::{ICCOA, PacketType, MessageType};
+use super::objects::{Iccoa, PacketType, MessageType};
 use super::status::StatusTag;
 use super::pairing;
 use super::auth;
 
-pub fn handle_iccoa_request_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
+pub fn handle_iccoa_request_from_mobile(iccoa: &Iccoa) -> Result<Iccoa> {
     match MessageType::try_from(iccoa.get_body().get_message_type()) {
         Ok(MessageType::OEM_DEFINED) => {
             Err(ErrorKind::ICCOAObjectError("OEM defined message type is not implemented".to_string()).into())
@@ -13,16 +13,16 @@ pub fn handle_iccoa_request_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
         Ok(MessageType::VEHICLE_PAIRING) => {
             Err(ErrorKind::ICCOAObjectError("Request Pairing message from mobile is not implemented".to_string()).into())
         }
-        Ok(MessageType::AUTH) => {
+        Ok(MessageType::Auth) => {
             Err(ErrorKind::ICCOAObjectError("Request Auth message from mobile is not implemented".to_string()).into())
         }
-        Ok(MessageType::COMMAND) => {
+        Ok(MessageType::Command) => {
             rke::handle_iccoa_rke_command_request_from_mobile(iccoa)
         }
-        Ok(MessageType::NOTIFICATION) => {
+        Ok(MessageType::Notification) => {
             Err(ErrorKind::ICCOAObjectError("Notification message from mobile is not implemented".to_string()).into())
         }
-        Ok(MessageType::RFU) => {
+        Ok(MessageType::Rfu) => {
             Err(ErrorKind::ICCOAObjectError("RFU message type is not implemented".to_string()).into())
         }
         _ => {
@@ -31,10 +31,10 @@ pub fn handle_iccoa_request_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
     }
 }
 
-pub fn handle_iccoa_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
+pub fn handle_iccoa_response_from_mobile(iccoa: &Iccoa) -> Result<Iccoa> {
     let status = iccoa.get_body().get_message_data().get_status();
     match status.get_tag() {
-        StatusTag::SUCCESS => {
+        StatusTag::Success => {
             match MessageType::try_from(iccoa.get_body().get_message_type()) {
                 Ok(MessageType::OEM_DEFINED) => {
                     Err(ErrorKind::ICCOAObjectError("OEM defined message type is not implemented".to_string()).into())
@@ -42,16 +42,16 @@ pub fn handle_iccoa_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
                 Ok(MessageType::VEHICLE_PAIRING) => {
                     pairing::handle_iccoa_pairing_response_from_mobile(iccoa)
                 }
-                Ok(MessageType::AUTH) => {
+                Ok(MessageType::Auth) => {
                     auth::handle_iccoa_auth_response_from_mobile(iccoa)
                 }
-                Ok(MessageType::COMMAND) => {
+                Ok(MessageType::Command) => {
                     command::ranging::handle_iccoa_ranging_command_response_from_mobile(iccoa)
                 }
-                Ok(MessageType::NOTIFICATION) => {
+                Ok(MessageType::Notification) => {
                     Err(ErrorKind::ICCOAObjectError("Notification message type is not implemented".to_string()).into())
                 }
-                Ok(MessageType::RFU) => {
+                Ok(MessageType::Rfu) => {
                     Err(ErrorKind::ICCOAObjectError("RFU message type is not implemented".to_string()).into())
                 }
                 _ => {
@@ -114,14 +114,14 @@ pub fn handle_iccoa_response_from_mobile(iccoa: &ICCOA) -> Result<ICCOA> {
                 },
             }
         },
-        StatusTag::RFU => {
+        StatusTag::Rfu => {
             Err(ErrorKind::ICCOAObjectError("rfu".to_string()).into())
         },
     }
 }
 
-pub fn handle_data_package_from_mobile(data_package: &[u8]) -> Result<ICCOA> {
-    if let Ok(mut iccoa) = ICCOA::deserialize(data_package) {
+pub fn handle_data_package_from_mobile(data_package: &[u8]) -> Result<Iccoa> {
+    if let Ok(mut iccoa) = Iccoa::deserialize(data_package) {
         let mark = iccoa.get_header().get_mark();
         if mark.get_more_fragment() {
             objects::collect_iccoa_fragments(iccoa);
@@ -176,7 +176,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::COMMAND,
+            MessageType::Command,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);

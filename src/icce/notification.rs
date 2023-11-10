@@ -3,8 +3,8 @@ use super::objects;
 type Result<T> = std::result::Result<T, String>;
 
 #[allow(dead_code)]
-pub fn create_icce_mobile_state_event_request(mobile_event: u8) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_mobile_state_event_request(mobile_event: u8) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+3);
     icce.set_header(header);
@@ -18,8 +18,8 @@ pub fn create_icce_mobile_state_event_request(mobile_event: u8) -> objects::ICCE
     icce
 }
 
-pub fn create_icce_mobile_state_event_response(status: u8) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_mobile_state_event_response(status: u8) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(false, false, false, 0, 0, 4+3);
     icce.set_header(header);
@@ -33,8 +33,8 @@ pub fn create_icce_mobile_state_event_response(status: u8) -> objects::ICCE {
     icce
 }
 
-pub fn create_icce_vehicle_state_event_request(vehicle_event: u8, async_result: &[u8], vehicle_state: &[u8]) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_vehicle_state_event_request(vehicle_event: u8, async_result: &[u8], vehicle_state: &[u8]) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+3+2+async_result.len() as u16 + 2+vehicle_state.len() as u16);
     icce.set_header(header);
@@ -51,8 +51,8 @@ pub fn create_icce_vehicle_state_event_request(vehicle_event: u8, async_result: 
 }
 
 #[allow(dead_code)]
-pub fn create_icce_vehicle_state_event_response(status: u8) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_vehicle_state_event_response(status: u8) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(false, false, false, 0, 0, 4+3);
     icce.set_header(header);
@@ -66,8 +66,8 @@ pub fn create_icce_vehicle_state_event_response(status: u8) -> objects::ICCE {
     icce
 }
 
-pub fn create_icce_vehicle_to_app_event_request(data: &[u8]) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_vehicle_to_app_event_request(data: &[u8]) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+2+data.len() as u16);
     icce.set_header(header);
@@ -82,8 +82,8 @@ pub fn create_icce_vehicle_to_app_event_request(data: &[u8]) -> objects::ICCE {
 }
 
 #[allow(dead_code)]
-pub fn create_icce_vehicle_to_app_event_response(status: u8) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_vehicle_to_app_event_response(status: u8) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(false, false, false, 0, 0, 4+3);
     icce.set_header(header);
@@ -97,8 +97,8 @@ pub fn create_icce_vehicle_to_app_event_response(status: u8) -> objects::ICCE {
     icce
 }
 
-pub fn create_icce_vehicle_to_server_event_request(data: &[u8]) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_vehicle_to_server_event_request(data: &[u8]) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+2+data.len() as u16);
     icce.set_header(header);
@@ -113,8 +113,8 @@ pub fn create_icce_vehicle_to_server_event_request(data: &[u8]) -> objects::ICCE
 }
 
 #[allow(dead_code)]
-pub fn create_icce_vehicle_to_server_event_response(status: u8) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_vehicle_to_server_event_response(status: u8) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(false, false, false, 0, 0, 4+3);
     icce.set_header(header);
@@ -129,8 +129,8 @@ pub fn create_icce_vehicle_to_server_event_response(status: u8) -> objects::ICCE
 }
 
 #[allow(dead_code)]
-pub fn create_icce_mobile_to_vehicle_event_request(data: &[u8]) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_mobile_to_vehicle_event_request(data: &[u8]) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+2+data.len() as u16);
     icce.set_header(header);
@@ -144,8 +144,8 @@ pub fn create_icce_mobile_to_vehicle_event_request(data: &[u8]) -> objects::ICCE
     icce
 }
 
-pub fn create_icce_mobile_to_vehicle_event_response(status: u8) -> objects::ICCE {
-    let mut icce = objects::ICCE::new();
+pub fn create_icce_mobile_to_vehicle_event_response(status: u8) -> objects::Icce {
+    let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(false, false, false, 0, 0, 4+3);
     icce.set_header(header);

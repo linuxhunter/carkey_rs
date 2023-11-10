@@ -35,7 +35,7 @@ impl Apdu {
         loop {
             let length = data[index];
             if index + length as usize > total_length {
-                return Err(ErrorKind::ApduError(format!("Apdu structure error")).into());
+                return Err(ErrorKind::ApduError("Apdu structure error".to_string()).into());
             }
             let instruction = instructions::ApduInstructions::deserialize(&data[index+1..index+1+length as usize])?;
             apdu.inner.push(instruction);

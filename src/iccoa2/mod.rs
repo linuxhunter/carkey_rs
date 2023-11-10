@@ -30,20 +30,20 @@ mod errors {
     }
 }
 
-pub fn get_tlv_primitive_value<'a, 'b>(data: &'a ber::Tlv, tag: &'b ber::Tag) -> errors::Result<&'a Vec<u8>> {
-    match data.find(&tag) {
+pub fn get_tlv_primitive_value<'a>(data: &'a ber::Tlv, tag: & ber::Tag) -> errors::Result<&'a Vec<u8>> {
+    match data.find(tag) {
         Some(tlv) => {
             match tlv.value() {
                 ber::Value::Primitive(value) => {
                     Ok(value)
                 },
                 _ => {
-                    return Err(ErrorKind::MeasureError(format!("deserialize measure duration error")).into());
+                    Err(ErrorKind::MeasureError("deserialize measure duration error".to_string()).into())
                 }
             }
         },
         None => {
-            return Err(ErrorKind::MeasureError(format!("deserialize measure duration error")).into());
+            Err(ErrorKind::MeasureError("deserialize measure duration error".to_string()).into())
         }
     }
 }

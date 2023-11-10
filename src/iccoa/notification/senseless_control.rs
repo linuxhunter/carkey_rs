@@ -1,4 +1,4 @@
-use crate::iccoa::{objects::{ICCOA, create_iccoa_header, Mark, create_iccoa_body_message_data, create_iccoa_body, MessageType, create_iccoa}, objects, status::StatusBuilder};
+use crate::iccoa::{objects::{Iccoa, create_iccoa_header, Mark, create_iccoa_body_message_data, create_iccoa_body, MessageType, create_iccoa}, objects, status::StatusBuilder};
 
 use super::super::errors::*;
 
@@ -170,7 +170,7 @@ impl SenselessControlEventBuilder {
     }
 }
 
-pub fn create_iccoa_senseless_control_event_notification(transaction_id: u16, event: &SenselessControlEvent) -> Result<ICCOA> {
+pub fn create_iccoa_senseless_control_event_notification(transaction_id: u16, event: &SenselessControlEvent) -> Result<Iccoa> {
     let mut mark = Mark::new();
     mark.set_encrypt_type(objects::EncryptType::NO_ENCRYPT);
     mark.set_more_fragment(false);
@@ -188,49 +188,49 @@ pub fn create_iccoa_senseless_control_event_notification(transaction_id: u16, ev
         &event.serialize(),
     );
     let body = create_iccoa_body(
-        MessageType::NOTIFICATION,
+        MessageType::Notification,
         message_data,
     );
 
     Ok(create_iccoa(header, body))
 }
 
-pub fn create_iccoa_senseless_control_passive_unlock_notification() -> Result<ICCOA> {
+pub fn create_iccoa_senseless_control_passive_unlock_notification() -> Result<Iccoa> {
     let transaction_id = 0x0000;
     let result = SenselessControlResultBuilder::new().success().build();
     let event = SenselessControlEventBuilder::new().passive_unlock(result).build();
     create_iccoa_senseless_control_event_notification(transaction_id, &event)
 }
 
-pub fn create_iccoa_senseless_control_passive_lock_notification() -> Result<ICCOA> {
+pub fn create_iccoa_senseless_control_passive_lock_notification() -> Result<Iccoa> {
     let transaction_id = 0x0000;
     let result = SenselessControlResultBuilder::new().success().build();
     let event = SenselessControlEventBuilder::new().passive_lock(result).build();
     create_iccoa_senseless_control_event_notification(transaction_id, &event)
 }
 
-pub fn create_iccoa_senseless_control_near_auto_unlock_notification() -> Result<ICCOA> {
+pub fn create_iccoa_senseless_control_near_auto_unlock_notification() -> Result<Iccoa> {
     let transaction_id = 0x0000;
     let result = SenselessControlResultBuilder::new().success().build();
     let event = SenselessControlEventBuilder::new().near_auto_unlock(result).build();
     create_iccoa_senseless_control_event_notification(transaction_id, &event)
 }
 
-pub fn create_iccoa_senseless_control_far_auto_lock_notification() -> Result<ICCOA> {
+pub fn create_iccoa_senseless_control_far_auto_lock_notification() -> Result<Iccoa> {
     let transaction_id = 0x0000;
     let result = SenselessControlResultBuilder::new().success().build();
     let event = SenselessControlEventBuilder::new().near_auto_unlock(result).build();
     create_iccoa_senseless_control_event_notification(transaction_id, &event)
 }
 
-pub fn create_iccoa_senseless_control_one_key_start_notification() -> Result<ICCOA> {
+pub fn create_iccoa_senseless_control_one_key_start_notification() -> Result<Iccoa> {
     let transaction_id = 0x0000;
     let result = SenselessControlResultBuilder::new().success().build();
     let event = SenselessControlEventBuilder::new().one_button_start(result).build();
     create_iccoa_senseless_control_event_notification(transaction_id, &event)
 }
 
-pub fn create_iccoa_senseless_control_welcome_notification() -> Result<ICCOA> {
+pub fn create_iccoa_senseless_control_welcome_notification() -> Result<Iccoa> {
     let transaction_id = 0x0000;
     let result = SenselessControlResultBuilder::new().success().build();
     let event = SenselessControlEventBuilder::new().welcome(result).build();
@@ -293,7 +293,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::NOTIFICATION,
+            MessageType::Notification,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -324,7 +324,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::NOTIFICATION,
+            MessageType::Notification,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -355,7 +355,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::NOTIFICATION,
+            MessageType::Notification,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -386,7 +386,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::NOTIFICATION,
+            MessageType::Notification,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -417,7 +417,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::NOTIFICATION,
+            MessageType::Notification,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -448,7 +448,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::NOTIFICATION,
+            MessageType::Notification,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);

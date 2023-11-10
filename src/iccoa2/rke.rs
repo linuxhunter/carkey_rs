@@ -287,7 +287,7 @@ impl RkeActions {
             RkeFunctions::BackTrunk => Ok(RkeActions::BackTrunkAction(BackTrunkAction::try_from(value)?)),
             RkeFunctions::Engine => Ok(RkeActions::EngineAction(EngineAction::try_from(value)?)),
             RkeFunctions::FindVehicle => Ok(RkeActions::FindVehicleAction(FindVehicleAction::try_from(value)?)),
-            _ => Err(ErrorKind::RkeError(format!("Unsupported rke action from rke function")).into())
+            _ => Err(ErrorKind::RkeError("Unsupported rke action from rke function".to_string()).into())
         }
     }
 }
@@ -359,7 +359,7 @@ fn is_rke_function_action_match(rke_functions: RkeFunctions, rke_actions: RkeAct
             }
         }
     }
-    return false;
+    false
 }
 
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
@@ -395,9 +395,9 @@ impl RkeRequest {
     pub fn serialize(&self) -> Result<Vec<u8>> {
         let function_tlv = create_tlv_with_primitive_value(RKE_FUNCTION_TAG, &u16::from(self.get_rke_function()).to_be_bytes())
             .map_err(|e| ErrorKind::RkeError(format!("create rke function tlv error: {}", e)))?;
-        let action_tlv = create_tlv_with_primitive_value(RKE_ACTION_TAG, &vec![self.get_rke_action().into()])
+        let action_tlv = create_tlv_with_primitive_value(RKE_ACTION_TAG, &[self.get_rke_action().into()])
             .map_err(|e| ErrorKind::RkeError(format!("create rke action tlv error: {}", e)))?;
-        let rke_request_tlv = create_tlv_with_constructed_value(RKE_REQUEST_TAG, &vec![function_tlv, action_tlv])
+        let rke_request_tlv = create_tlv_with_constructed_value(RKE_REQUEST_TAG, &[function_tlv, action_tlv])
             .map_err(|e| ErrorKind::RkeError(format!("create rke request tlv error: {}", e)))?;
         Ok(rke_request_tlv.to_vec())
     }
@@ -405,10 +405,10 @@ impl RkeRequest {
         let rke_request_tlv = ber::Tlv::from_bytes(data)
             .map_err(|e| ErrorKind::RkeError(format!("deserialize rke request from bytes error: {}", e)))?;
         if rke_request_tlv.tag().to_bytes() != RKE_REQUEST_TAG.to_be_bytes() {
-            return Err(ErrorKind::RkeError(format!("deserialized rke request tag is not corrected")).into());
+            return Err(ErrorKind::RkeError("deserialized rke request tag is not corrected".to_string()).into());
         }
         if !rke_request_tlv.value().is_constructed() {
-            return Err(ErrorKind::RkeError(format!("deserialized rke request value is not constructed")).into());
+            return Err(ErrorKind::RkeError("deserialized rke request value is not constructed".to_string()).into());
         }
 
         let function_tag = ber::Tag::try_from(RKE_FUNCTION_TAG)
@@ -472,11 +472,11 @@ impl RkeContinuedRequest {
     pub fn serialize(&self) -> Result<Vec<u8>> {
         let function_tlv = create_tlv_with_primitive_value(RKE_FUNCTION_TAG, &u16::from(self.get_rke_request().get_rke_function()).to_be_bytes())
             .map_err(|e| ErrorKind::RkeError(format!("create rke continued function tlv error: {}", e)))?;
-        let action_tlv = create_tlv_with_primitive_value(RKE_ACTION_TAG, &vec![self.get_rke_request().get_rke_action().into()])
+        let action_tlv = create_tlv_with_primitive_value(RKE_ACTION_TAG, &[self.get_rke_request().get_rke_action().into()])
             .map_err(|e| ErrorKind::RkeError(format!("create rke continued action tlv error: {}", e)))?;
         let custom_tlv = create_tlv_with_primitive_value(RKE_CONTINUED_CUSTOM_TAG, self.get_rke_custom())
             .map_err(|e| ErrorKind::RkeError(format!("create rke continued custom tlv error: {}", e)))?;
-        let rke_request_tlv = create_tlv_with_constructed_value(RKE_CONTINUED_REQUEST_TAG, &vec![function_tlv, action_tlv, custom_tlv])
+        let rke_request_tlv = create_tlv_with_constructed_value(RKE_CONTINUED_REQUEST_TAG, &[function_tlv, action_tlv, custom_tlv])
             .map_err(|e| ErrorKind::RkeError(format!("create rke continued request tlv error: {}", e)))?;
         Ok(rke_request_tlv.to_vec())
     }
@@ -484,10 +484,10 @@ impl RkeContinuedRequest {
         let rke_request_tlv = ber::Tlv::from_bytes(data)
             .map_err(|e| ErrorKind::RkeError(format!("deserialize rke continued request from bytes error: {}", e)))?;
         if rke_request_tlv.tag().to_bytes() != RKE_CONTINUED_REQUEST_TAG.to_be_bytes() {
-            return Err(ErrorKind::RkeError(format!("deserialized rke continued request tag is not corrected")).into());
+            return Err(ErrorKind::RkeError("deserialized rke continued request tag is not corrected".to_string()).into());
         }
         if !rke_request_tlv.value().is_constructed() {
-            return Err(ErrorKind::RkeError(format!("deserialized rke continued request value is not constructed")).into());
+            return Err(ErrorKind::RkeError("deserialized rke continued request value is not constructed".to_string()).into());
         }
 
         let function_tag = ber::Tag::try_from(RKE_FUNCTION_TAG)
@@ -575,9 +575,9 @@ impl RkeResponse {
             .map_err(|e| ErrorKind::RkeError(format!("create rke action tlv error: {}", e)))?;
         let status_tlv = create_tlv_with_primitive_value(RKE_RESPONSE_STATUS_TAG, &self.get_rke_status().to_be_bytes())
             .map_err(|e| ErrorKind::RkeError(format!("create rke response status tlv error: {}", e)))?;
-        let response_middle_tlv = create_tlv_with_constructed_value(u16::from(RKE_RESPONSE_MIDDLE_TAG), &vec![function_tlv, action_tlv, status_tlv])
+        let response_middle_tlv = create_tlv_with_constructed_value(u16::from(RKE_RESPONSE_MIDDLE_TAG), &[function_tlv, action_tlv, status_tlv])
             .map_err(|e| ErrorKind::RkeError(format!("create rke response middle tlv error: {}", e)))?;
-        let rke_response_tlv= create_tlv_with_constructed_value(RKE_RESPONSE_TAG, &vec![response_middle_tlv])
+        let rke_response_tlv= create_tlv_with_constructed_value(RKE_RESPONSE_TAG, &[response_middle_tlv])
             .map_err(|e| ErrorKind::RkeError(format!("create rke response tlv error: {}", e)))?;
         Ok(rke_response_tlv.to_vec())
     }
@@ -585,10 +585,10 @@ impl RkeResponse {
         let rke_response_tlv = ber::Tlv::from_bytes(data)
             .map_err(|e| ErrorKind::RkeError(format!("deserialize rke response from bytes error: {}", e)))?;
         if rke_response_tlv.tag().to_bytes() != RKE_RESPONSE_TAG.to_be_bytes() {
-            return Err(ErrorKind::RkeError(format!("deserialized rke response tag is not corrected")).into());
+            return Err(ErrorKind::RkeError("deserialized rke response tag is not corrected".to_string()).into());
         }
         if !rke_response_tlv.value().is_constructed() {
-            return Err(ErrorKind::RkeError(format!("deserialized rke response value is not constructed")).into());
+            return Err(ErrorKind::RkeError("deserialized rke response value is not constructed".to_string()).into());
         }
 
         let function_tag = ber::Tag::try_from(RKE_FUNCTION_TAG)
@@ -667,9 +667,9 @@ impl RkeVerificationResponse {
         let tlv = ber::Tlv::from_bytes(data)
             .map_err(|e| ErrorKind::RkeError(format!("deserialize rke verification response from bytes error: {}", e)))?;
         if tlv.tag().to_bytes() != RKE_VERIFICATION_RESPONSE_TAG.to_be_bytes() {
-            return Err(ErrorKind::RkeError(format!("deserialized rke request tag is not corrected")).into());
+            return Err(ErrorKind::RkeError("deserialized rke request tag is not corrected".to_string()).into());
         }
-        let value = get_tlv_primitive_value(&tlv, &tlv.tag())
+        let value = get_tlv_primitive_value(&tlv, tlv.tag())
             .map_err(|e| ErrorKind::RkeError(format!("deserialize rke verification response value error: {}", e)))?;
         Ok(RkeVerificationResponse::new(value))
     }
@@ -706,7 +706,7 @@ impl Rke {
                 RKE_CONTINUED_REQUEST_TAG => Ok(Rke::ContinuedRequest(RkeContinuedRequest::deserialize(data)?)),
                 RKE_RESPONSE_TAG => Ok(Rke::Response(RkeResponse::deserialize(data)?)),
                 _ => {
-                    Err(ErrorKind::RkeError(format!("deserialize rke tag is invalid")).into())
+                    Err(ErrorKind::RkeError("deserialize rke tag is invalid".to_string()).into())
                 },
             }
         }

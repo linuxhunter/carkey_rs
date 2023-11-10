@@ -1,4 +1,4 @@
-use crate::iccoa::{objects::{ICCOA, create_iccoa_header, Mark, create_iccoa_body_message_data, create_iccoa_body, MessageType, create_iccoa}, objects, status::StatusBuilder};
+use crate::iccoa::{objects::{Iccoa, create_iccoa_header, Mark, create_iccoa_body_message_data, create_iccoa_body, MessageType, create_iccoa}, objects, status::StatusBuilder};
 
 use super::{super::errors::*, CarDoorWindowStatus, CarDoorStatus, CarDoorLockStatus};
 
@@ -102,7 +102,7 @@ impl VehicleUnsafeEventBuilder {
     }
 }
 
-pub fn create_iccoa_vehicle_unsafe_event_notification(transaction_id: u16, event: &VehicleUnsafeEvent) -> Result<ICCOA> {
+pub fn create_iccoa_vehicle_unsafe_event_notification(transaction_id: u16, event: &VehicleUnsafeEvent) -> Result<Iccoa> {
     let mut mark = Mark::new();
     mark.set_encrypt_type(objects::EncryptType::NO_ENCRYPT);
     mark.set_more_fragment(false);
@@ -120,20 +120,20 @@ pub fn create_iccoa_vehicle_unsafe_event_notification(transaction_id: u16, event
         &event.serialize()
     );
     let body = create_iccoa_body(
-        MessageType::NOTIFICATION,
+        MessageType::Notification,
         message_data
     );
 
     Ok(create_iccoa(header, body))
 }
 
-pub fn create_iccoa_vehicle_unsafe_power_state_notification() -> Result<ICCOA> {
+pub fn create_iccoa_vehicle_unsafe_power_state_notification() -> Result<Iccoa> {
     let transaction_id = 0x0000;
     let event = VehicleUnsafeEventBuilder::new().power_state(0x5A).build();
     create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
 }
 
-pub fn create_iccoa_vehicle_unsafe_door_lock_state_notification() -> Result<ICCOA> {
+pub fn create_iccoa_vehicle_unsafe_door_lock_state_notification() -> Result<Iccoa> {
     let transaction_id = 0x0000;
     let event = VehicleUnsafeEventBuilder::new().door_lock_status(
         CarDoorLockStatus::FRONT_LEFT_UNLOCK |
@@ -144,7 +144,7 @@ pub fn create_iccoa_vehicle_unsafe_door_lock_state_notification() -> Result<ICCO
     create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
 }
 
-pub fn create_iccoa_vehicle_unsafe_door_open_state_notification() -> Result<ICCOA> {
+pub fn create_iccoa_vehicle_unsafe_door_open_state_notification() -> Result<Iccoa> {
     let transaction_id = 0x0000;
     let event = VehicleUnsafeEventBuilder::new().door_status(
         CarDoorStatus::FRONT_LEFT_OPEN |
@@ -155,7 +155,7 @@ pub fn create_iccoa_vehicle_unsafe_door_open_state_notification() -> Result<ICCO
     create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
 }
 
-pub fn create_iccoa_vehicle_unsafe_door_window_state_notification() -> Result<ICCOA> {
+pub fn create_iccoa_vehicle_unsafe_door_window_state_notification() -> Result<Iccoa> {
     let transaction_id = 0x0000;
     let event = VehicleUnsafeEventBuilder::new().door_window_status(
         CarDoorWindowStatus::FRONT_LEFT_OPEN |
@@ -166,25 +166,25 @@ pub fn create_iccoa_vehicle_unsafe_door_window_state_notification() -> Result<IC
     create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
 }
 
-pub fn create_iccoa_vehicle_unsafe_front_hatch_state_notification() -> Result<ICCOA> {
+pub fn create_iccoa_vehicle_unsafe_front_hatch_state_notification() -> Result<Iccoa> {
     let transaction_id = 0x0000;
     let event = VehicleUnsafeEventBuilder::new().front_hatch_status(0x01).build();
     create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
 }
 
-pub fn create_iccoa_vehicle_unsafe_back_trunk_state_notification() -> Result<ICCOA> {
+pub fn create_iccoa_vehicle_unsafe_back_trunk_state_notification() -> Result<Iccoa> {
     let transaction_id = 0x0000;
     let event = VehicleUnsafeEventBuilder::new().back_trunk_status(0x01).build();
     create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
 }
 
-pub fn create_iccoa_vehicle_unsafe_sunroof_state_notification() -> Result<ICCOA> {
+pub fn create_iccoa_vehicle_unsafe_sunroof_state_notification() -> Result<Iccoa> {
     let transaction_id = 0x0000;
     let event = VehicleUnsafeEventBuilder::new().sunroof_status(0x01).build();
     create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
 }
 
-pub fn create_iccoa_vehicle_unsafe_headlight_state_notification() -> Result<ICCOA> {
+pub fn create_iccoa_vehicle_unsafe_headlight_state_notification() -> Result<Iccoa> {
     let transaction_id = 0x0000;
     let event = VehicleUnsafeEventBuilder::new().headlights_status(0x01).build();
     create_iccoa_vehicle_unsafe_event_notification(transaction_id, &event)
@@ -221,7 +221,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::NOTIFICATION,
+            MessageType::Notification,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -257,7 +257,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::NOTIFICATION,
+            MessageType::Notification,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -293,7 +293,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::NOTIFICATION,
+            MessageType::Notification,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -329,7 +329,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::NOTIFICATION,
+            MessageType::Notification,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -360,7 +360,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::NOTIFICATION,
+            MessageType::Notification,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -391,7 +391,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::NOTIFICATION,
+            MessageType::Notification,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -422,7 +422,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::NOTIFICATION,
+            MessageType::Notification,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);
@@ -453,7 +453,7 @@ mod tests {
             ].as_slice()
         );
         let body = objects::create_iccoa_body(
-            MessageType::NOTIFICATION,
+            MessageType::Notification,
             message_data
         );
         let standard_iccoa = objects::create_iccoa(header, body);

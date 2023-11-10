@@ -27,7 +27,7 @@ impl AuthRequestRandom {
         AuthRequestRandom()
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        let tlv = create_tlv_with_primitive_value(AUTH_REQUEST_RANDOM_TAG, &vec![])
+        let tlv = create_tlv_with_primitive_value(AUTH_REQUEST_RANDOM_TAG, &[])
             .map_err(|e| ErrorKind::AuthError(format!("create auth request random tlv error: {}", e)))?;
         Ok(tlv.to_vec())
     }
@@ -51,10 +51,10 @@ pub struct AuthRequest {
 impl AuthRequest {
     pub fn new(random: &[u8]) -> Result<Self> {
         if random.len() != AUTH_RANDOM_NUMBER_LENGTH {
-            return Err(ErrorKind::AuthError(format!("random number length is invalid")).into());
+            return Err(ErrorKind::AuthError("random number length is invalid".to_string()).into());
         }
         Ok(AuthRequest {
-            random: (&random[..])
+            random: random
                 .try_into()
                 .map_err(|e| ErrorKind::AuthError(format!("create auth request error: {}", e)))?
         })
@@ -64,9 +64,9 @@ impl AuthRequest {
     }
     pub fn set_random(&mut self, random: &[u8]) -> Result<()> {
         if random.len() != AUTH_RANDOM_NUMBER_LENGTH {
-            return Err(ErrorKind::AuthError(format!("random number length is invalid")).into());
+            return Err(ErrorKind::AuthError("random number length is invalid".to_string()).into());
         }
-        self.random = (&random[..])
+        self.random = random
             .try_into()
             .map_err(|e| ErrorKind::AuthError(format!("set auth request random number error: {}", e)))?;
         Ok(())
@@ -80,9 +80,9 @@ impl AuthRequest {
         let tlv = ber::Tlv::from_bytes(data)
             .map_err(|e| ErrorKind::AuthError(format!("deserialize origin data bytes error: {}", e)))?;
         if tlv.tag().to_bytes() != AUTH_REQUEST_TAG.to_be_bytes() {
-            return Err(ErrorKind::AuthError(format!("deserialize tag content error")).into());
+            return Err(ErrorKind::AuthError("deserialize tag content error".to_string()).into());
         }
-        let random = get_tlv_primitive_value(&tlv, &tlv.tag())
+        let random = get_tlv_primitive_value(&tlv, tlv.tag())
             .map_err(|e| ErrorKind::AuthError(format!("deserialize random content error: {}", e)))?;
         AuthRequest::new(random)
     }
@@ -202,7 +202,7 @@ impl AuthEntries {
                 }
             }
         }
-        if tlv_buffer.len() > 0 {
+        if !tlv_buffer.is_empty() {
             Some(tlv_buffer)
         } else {
             None
@@ -248,7 +248,7 @@ impl AuthResponse {
         Ok(AuthResponse {
             key_id,
             auth_entries,
-            signature: (&signature[..])
+            signature: signature
                 .try_into()
                 .map_err(|e| ErrorKind::AuthError(format!("create auth response signature error: {}", e)))?
         })
@@ -273,7 +273,7 @@ impl AuthResponse {
         &self.signature
     }
     pub fn set_signature(&mut self, signature: &[u8]) -> Result<()> {
-        self.signature = (&signature[..])
+        self.signature = signature
             .try_into()
             .map_err(|e| ErrorKind::AuthError(format!("set signature error: {}", e)))?;
         Ok(())
@@ -318,9 +318,7 @@ impl AuthResponse {
             .map_err(|e| ErrorKind::AuthError(format!("create signature tag error: {}", e)))?;
         let signature_value = get_tlv_primitive_value(&tlv, &signature_tag)
             .map_err(|e| ErrorKind::AuthError(format!("deserialize signature value error: {}", e)))?;
-        let signature = (&signature_value[..])
-            .try_into()
-            .map_err(|e| ErrorKind::AuthError(format!("deserialize signature error: {}", e)))?;
+        let signature = signature_value;
 
         let mut auth_entries = AuthEntries::new(None, None, None, None);
         let values = tlv.value();
@@ -386,15 +384,15 @@ impl Auth {
     }
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         if data[0] == AUTH_REQUEST_RANDOM_TAG {
-            return Ok(Auth::RequestRandom(AuthRequestRandom::deserialize(data)?));
+            Ok(Auth::RequestRandom(AuthRequestRandom::deserialize(data)?))
         } else if data[0] ==AUTH_REQUEST_TAG {
-            return Ok(Auth::Request(AuthRequest::deserialize(data)?));
+            Ok(Auth::Request(AuthRequest::deserialize(data)?))
         } else {
             let tag = u16::from_be_bytes((&data[0..2])
                 .try_into()
                 .map_err(|e| ErrorKind::AuthError(format!("deserialize response tag error: {}", e)))?);
             if tag != AUTH_RESPONSE_TAG {
-                return Err(ErrorKind::AuthError(format!("deserialize response tag content is invalid")).into());
+                return Err(ErrorKind::AuthError("deserialize response tag content is invalid".to_string()).into());
             }
             return Ok(Auth::Response(AuthResponse::deserialize(data)?));
         }
