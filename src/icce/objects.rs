@@ -304,6 +304,7 @@ pub struct ICCE {
     pub checksum: u16,
 }
 
+#[allow(dead_code)]
 impl ICCE {
     pub fn new() -> Self {
         Default::default()

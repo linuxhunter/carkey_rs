@@ -18,6 +18,7 @@ pub fn create_icce_measure_request(mesaure_type: u8) -> objects::ICCE {
     icce
 }
 
+#[allow(dead_code)]
 pub fn create_icce_measure_response(status: u8, timeout: &[u8]) -> objects::ICCE {
     let mut icce = objects::ICCE::new();
 
@@ -50,6 +51,7 @@ pub fn create_icce_anti_relay_request(measure_type: u8, vehicle_info: &[u8]) -> 
     icce
 }
 
+#[allow(dead_code)]
 pub fn create_icce_anti_relay_response(status: u8, check_result: u8, device_info: &[u8]) -> objects::ICCE {
     let mut icce = objects::ICCE::new();
 
@@ -67,6 +69,7 @@ pub fn create_icce_anti_relay_response(status: u8, check_result: u8, device_info
     icce
 }
 
+#[allow(dead_code)]
 pub fn create_icce_rke_control_request(rke_type: u8, rke_cmd: &[u8]) -> objects::ICCE {
     let mut icce = objects::ICCE::new();
 
@@ -98,6 +101,7 @@ pub fn create_icce_rke_control_response(status: u8, rke_result: &[u8]) -> object
     icce
 }
 
+#[allow(dead_code)]
 pub fn create_icce_rke_challege_request(rke_type: u8) -> objects::ICCE {
     let mut icce = objects::ICCE::new();
 
@@ -129,6 +133,7 @@ pub fn create_icce_rke_challege_response(status: u8, random_value: &[u8]) -> obj
     icce
 }
 
+#[allow(dead_code)]
 pub fn create_icce_get_vehicle_info_request(request_type: &[u8]) -> objects::ICCE {
     let mut icce = objects::ICCE::new();
 
@@ -175,6 +180,7 @@ pub fn create_icce_get_mobile_info_request(request_type: u8) -> objects::ICCE {
     icce
 }
 
+#[allow(dead_code)]
 pub fn create_icce_get_mobile_info_response(status: u8, mobile_info: &[u8]) -> objects::ICCE {
     let mut icce = objects::ICCE::new();
 
@@ -205,6 +211,7 @@ pub fn create_icce_calibrate_clock_request() -> objects::ICCE {
     icce
 }
 
+#[allow(dead_code)]
 pub fn create_icce_calibrate_clock_response(status: u8, clock: &[u8]) -> objects::ICCE {
     let mut icce = objects::ICCE::new();
 
@@ -236,6 +243,7 @@ pub fn create_icce_get_protocol_request(protocol: &[u8]) -> objects::ICCE {
     icce
 }
 
+#[allow(dead_code)]
 pub fn create_icce_get_protocol_response(status: u8, protocol: &[u8]) -> objects::ICCE {
     let mut icce = objects::ICCE::new();
 

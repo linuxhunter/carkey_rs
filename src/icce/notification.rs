@@ -2,6 +2,7 @@ use super::objects;
 
 type Result<T> = std::result::Result<T, String>;
 
+#[allow(dead_code)]
 pub fn create_icce_mobile_state_event_request(mobile_event: u8) -> objects::ICCE {
     let mut icce = objects::ICCE::new();
 
@@ -49,6 +50,7 @@ pub fn create_icce_vehicle_state_event_request(vehicle_event: u8, async_result: 
     icce
 }
 
+#[allow(dead_code)]
 pub fn create_icce_vehicle_state_event_response(status: u8) -> objects::ICCE {
     let mut icce = objects::ICCE::new();
 
@@ -79,6 +81,7 @@ pub fn create_icce_vehicle_to_app_event_request(data: &[u8]) -> objects::ICCE {
     icce
 }
 
+#[allow(dead_code)]
 pub fn create_icce_vehicle_to_app_event_response(status: u8) -> objects::ICCE {
     let mut icce = objects::ICCE::new();
 
@@ -109,6 +112,7 @@ pub fn create_icce_vehicle_to_server_event_request(data: &[u8]) -> objects::ICCE
     icce
 }
 
+#[allow(dead_code)]
 pub fn create_icce_vehicle_to_server_event_response(status: u8) -> objects::ICCE {
     let mut icce = objects::ICCE::new();
 
@@ -124,6 +128,7 @@ pub fn create_icce_vehicle_to_server_event_response(status: u8) -> objects::ICCE
     icce
 }
 
+#[allow(dead_code)]
 pub fn create_icce_mobile_to_vehicle_event_request(data: &[u8]) -> objects::ICCE {
     let mut icce = objects::ICCE::new();
 

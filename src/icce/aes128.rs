@@ -2,31 +2,37 @@ use openssl::symm::{encrypt, decrypt, Cipher};
 
 type Result<T> = std::result::Result<T, String>;
 
+#[allow(dead_code)]
 //CardSEID rule is 车钥匙应用卡片唯一标识，根据CardSEID查找到响应的认证根密钥，长度8字节
 pub fn get_card_seid() -> Vec<u8> {
     vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]
 }
 
+#[allow(dead_code)]
 //CardID rule is 车钥匙应用数字Key ID唯一标识，用CardID分散因子计算认证密钥DKey，长度16字节
 pub fn get_card_id() -> Vec<u8> {
     vec![0x0f, 0x0e, 0x0d, 0x0c, 0x0b, 0x0a, 0x09, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00]
 }
 
+#[allow(dead_code)]
 //CardRnd rule is 车钥匙应用卡片随机数，长度8字节
 pub fn get_card_rnd() -> Vec<u8> {
     vec![0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01]
 }
 
+#[allow(dead_code)]
 //CardInfo1 rule is 车钥匙应用自定义数据，车钥匙非敏感的明文数据
 pub fn get_card_info1() -> Vec<u8> {
     vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06]
 }
 
+#[allow(dead_code)]
 //CardATC rule is 车钥匙应用卡片计数器，长度4字节
 pub fn get_card_atc() -> Vec<u8> {
     vec![0x01, 0x02, 0x03, 0x04]
 }
 
+#[allow(dead_code)]
 //CardAuthParameter rule is 车钥匙自定义认证数据
 pub fn get_card_auth_parameter() -> Vec<u8> {
     vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]

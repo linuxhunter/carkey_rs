@@ -215,6 +215,7 @@ pub fn create_icce_auth_get_process_data_request() -> objects::ICCE {
     create_icce_auth_request(&get_process_data_apdu)
 }
 
+#[allow(dead_code)]
 pub fn create_icce_auth_response(status: u8, apdu: &[u8]) -> objects::ICCE {
     let mut icce = objects::ICCE::new();
 
