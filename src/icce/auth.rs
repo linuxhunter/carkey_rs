@@ -30,7 +30,38 @@ pub fn create_auth_get_process_data_payload(reader_type: &[u8], reader_id: &[u8]
     payload
 }
 
-pub fn handle_auth_get_process_data_response_payload(payload: &[u8], reader_rnd: &[u8], reader_key_parameter: &[u8]) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>)> {
+#[derive(Debug, PartialOrd, PartialEq)]
+pub struct IcceAuthResponseInfo {
+    session_key: Vec<u8>,
+    session_iv: Vec<u8>,
+    card_atc: Vec<u8>,
+    card_rnd: Vec<u8>,
+}
+
+impl IcceAuthResponseInfo {
+    pub fn new(session_key: &[u8], session_iv: &[u8], card_atc: &[u8], card_rnd: &[u8]) -> Self {
+        IcceAuthResponseInfo {
+            session_key: session_key.to_vec(),
+            session_iv: session_iv.to_vec(),
+            card_atc: card_atc.to_vec(),
+            card_rnd: card_rnd.to_vec(),
+        }
+    }
+    pub fn get_session_key(&self) -> &[u8] {
+        self.session_key.as_ref()
+    }
+    pub fn get_session_iv(&self) -> &[u8] {
+        self.session_iv.as_ref()
+    }
+    pub fn get_card_atc(&self) -> &[u8] {
+        self.card_atc.as_ref()
+    }
+    pub fn get_card_rnd(&self) -> &[u8] {
+        self.card_rnd.as_ref()
+    }
+}
+
+pub fn handle_auth_get_process_data_response_payload(payload: &[u8], reader_rnd: &[u8], reader_key_parameter: &[u8]) -> Result<IcceAuthResponseInfo> {
     let sw1 = payload[payload.len()-2];
     let sw2 = payload[payload.len()-1];
     let mut card_seid = Vec::with_capacity(8);
@@ -106,7 +137,7 @@ pub fn handle_auth_get_process_data_response_payload(payload: &[u8], reader_rnd:
                     index += length;
                 }
             }
-            Ok((session_key, session_iv, card_atc, card_rnd))
+            Ok(IcceAuthResponseInfo::new(session_key.as_ref(), session_iv.as_ref(), card_atc.as_ref(), card_rnd.as_ref()))
         } else {
             Err("Invalid Payload Label".to_string())
         }
@@ -237,11 +268,17 @@ pub fn handle_icce_auth_response(body: &Body) -> Result<Vec<u8>> {
             let value = payload.get_payload_value();
             if value[0] == 0x77 && value[1] == 0x5A && value[2] == 0x08 {
                 //sending auth get process data response
-                if let Ok((session_key, session_iv, card_atc, card_rnd)) = handle_auth_get_process_data_response_payload(value, &reader_rnd, &reader_key_parameter) {
-                    objects::update_session_key(&session_key);
-                    objects::update_session_iv(&session_iv);
-                    objects::update_card_atc(&card_atc);
-                    let auth_request_payload = create_auth_auth_payload(&card_atc, &reader_auth_parameter, &card_rnd, &session_key, &session_iv)?;
+                if let Ok(icce_auth_response) = handle_auth_get_process_data_response_payload(value, &reader_rnd, &reader_key_parameter) {
+                    objects::update_session_key(icce_auth_response.get_session_key());
+                    objects::update_session_iv(icce_auth_response.get_session_iv());
+                    objects::update_card_atc(icce_auth_response.get_card_atc());
+                    let auth_request_payload = create_auth_auth_payload(
+                        icce_auth_response.get_card_atc(),
+                        &reader_auth_parameter,
+                        icce_auth_response.get_card_rnd(),
+                        icce_auth_response.get_session_key(),
+                        icce_auth_response.get_session_iv(),
+                    )?;
                     dbg!("Sending Auth Request......");
                     response.append(&mut create_icce_auth_request(&auth_request_payload).serialize());
                     return Ok(response)
@@ -388,11 +425,11 @@ mod tests {
         payload.push(0x00);
 
         match handle_auth_get_process_data_response_payload(&payload, &reader_rnd, &reader_key_parameter) {
-            Ok((sess_key, sess_iv, atc, card_rnd1)) => {
-                assert_eq!(sess_key, sess_key);
-                assert_eq!(sess_iv, sess_iv);
-                assert_eq!(atc, card_atc);
-                assert_eq!(card_rnd1, card_rnd);
+            Ok(icce_auth_response) => {
+                assert_eq!(icce_auth_response.get_session_key(), icce_auth_response.get_session_key());
+                assert_eq!(icce_auth_response.get_session_iv(), icce_auth_response.get_session_iv());
+                assert_eq!(icce_auth_response.get_card_atc().to_vec(), card_atc);
+                assert_eq!(icce_auth_response.get_card_rnd().to_vec(), card_rnd);
             },
             Err(err) => {
                 println!("Error is {}", err);
