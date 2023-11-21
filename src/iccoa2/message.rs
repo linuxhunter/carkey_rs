@@ -5,7 +5,7 @@ use crate::iccoa2::custom::CustomMessage;
 use crate::iccoa2::measure::Measure;
 use crate::iccoa2::rke::Rke;
 use crate::iccoa2::{measure, Serde};
-use crate::iccoa2::vehicle_status::VehicleStatus;
+use crate::iccoa2::vehicle_status::{handle_query_request, handle_subscribe_request, handle_unsubscribe_request, VehicleStatus, VehicleStatusOperations};
 use super::errors::*;
 
 #[allow(dead_code)]
@@ -303,7 +303,30 @@ pub fn handle_request_from_mobile(message: &Message) -> Result<Message> {
             todo!()
         }
         MessageType::VehicleStatus => {
-            todo!()
+            if let MessageData::VehicleStatus(VehicleStatus::Request(request)) = message.get_message_data() {
+                match request.get_operation() {
+                    VehicleStatusOperations::Subscribe => {
+                        handle_subscribe_request(request)
+                    },
+                    VehicleStatusOperations::Query => {
+                        let response = handle_query_request(request)?;
+                        return Ok(
+                            Message::new(
+                                MessageType::VehicleStatus,
+                                MessageStatus::Success,
+                                response.serialize()?.len() as u16,
+                                MessageData::VehicleStatus(VehicleStatus::Response(response))
+                            )
+                        )
+                    },
+                    VehicleStatusOperations::Unsubscribe => {
+                        handle_unsubscribe_request(request)
+                    },
+                }
+                todo!()
+            } else {
+                todo!()
+            }
         }
         MessageType::VehicleAppCustomMessage => {
             todo!()

@@ -1,5 +1,6 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
+use log::info;
 use crate::iccoa2::{create_tlv_with_constructed_value, create_tlv_with_primitive_value, get_tlv_primitive_value, Serde};
 use super::errors::*;
 
@@ -445,6 +446,24 @@ impl Display for VehicleStatus {
             VehicleStatus::SubscribeVerificationResponse(response) => write!(f, "Subscribe Verification Response: {}", response),
         }
     }
+}
+
+pub fn handle_subscribe_request(_request: &VehicleStatusRequest) {
+
+}
+
+pub fn handle_query_request(request: &VehicleStatusRequest) -> Result<VehicleStatusResponse> {
+    info!("[Query Vehicle Status]");
+    info!("\tEntity: {}", request.entity_id);
+    Ok(VehicleStatusResponse::new(
+        request.entity_id,
+        0x0000,
+        None,
+    ))
+}
+
+pub fn handle_unsubscribe_request(_request: &VehicleStatusRequest) {
+
 }
 
 #[cfg(test)]
