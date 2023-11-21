@@ -4,7 +4,7 @@ use crate::iccoa2::auth::Auth;
 use crate::iccoa2::custom::CustomMessage;
 use crate::iccoa2::measure::Measure;
 use crate::iccoa2::rke::Rke;
-use crate::iccoa2::Serde;
+use crate::iccoa2::{measure, Serde};
 use crate::iccoa2::vehicle_status::VehicleStatus;
 use super::errors::*;
 
@@ -153,7 +153,7 @@ impl Display for MessageStatus {
             MessageStatus::SeInaccessible => write!(f, "SE unit inaccessible"),
             MessageStatus::TlvParseError => write!(f, "TLV parse error"),
             MessageStatus::VehicleNotSupported => write!(f, "Vehicle not supported"),
-            MessageStatus::InstructionVerificationFailed => write!(f, "Instruction verfication failed"),
+            MessageStatus::InstructionVerificationFailed => write!(f, "Instruction verification failed"),
             MessageStatus::UnknownError => write!(f, "Unknown error"),
             MessageStatus::Custom => write!(f, "Custom message status"),
             MessageStatus::Reserved => write!(f, "Reserved message status"),
@@ -217,7 +217,12 @@ impl Message {
     pub fn get_message_data(&self) -> &MessageData {
         &self.message_data
     }
-    fn serialize(&self) -> crate::iccoa2::errors::Result<Vec<u8>> {
+}
+
+impl Serde for Message {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let mut buffer = Vec::new();
         buffer.push(self.message_version);
         buffer.push(u8::from(self.message_type));
@@ -237,7 +242,7 @@ impl Message {
         Ok(buffer)
     }
 
-    fn deserialize(data: &[u8]) -> crate::iccoa2::errors::Result<Self> {
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         if data.len() < MESSAGE_LENGTH_MINIMUM {
             return Err(Error::from(ErrorKind::BleMessageError(format!("message length less than {}", MESSAGE_LENGTH_MINIMUM))));
         }
@@ -266,5 +271,119 @@ impl Message {
             MessageType::Custom => MessageData::Custom(CustomMessage::deserialize(&data[MESSAGE_DATA_OFFSET..])?),
         };
         Ok(Message::new(message_type, message_status, message_data_length, message_data))
+    }
+}
+
+pub fn create_measure_request_message() -> Result<Message> {
+    let measure_request = measure::create_measure_request(
+        measure::MeasureType::BtRssi,
+        measure::MeasureAction::Start,
+        measure::MeasureDuration::new(0x20),
+    );
+    Ok(
+        Message::new(
+            MessageType::MeasureBroadcastRequest,
+            MessageStatus::NoApplicable,
+            measure_request.serialize()?.len() as u16,
+            MessageData::Measure(Measure::Request(measure_request))
+        )
+    )
+}
+
+#[allow(dead_code)]
+pub fn handle_request_from_mobile(message: &Message) -> Result<Message> {
+    match message.get_message_type() {
+        MessageType::Apdu => {
+            todo!()
+        }
+        MessageType::MeasureBroadcastRequest => {
+            todo!()
+        }
+        MessageType::Rke => {
+            todo!()
+        }
+        MessageType::VehicleStatus => {
+            todo!()
+        }
+        MessageType::VehicleAppCustomMessage => {
+            todo!()
+        }
+        MessageType::VehicleServerCustomMessage => {
+            todo!()
+        }
+        MessageType::Auth => {
+            todo!()
+        }
+        MessageType::Custom => {
+            todo!()
+        }
+    }
+}
+
+#[allow(dead_code)]
+pub fn handle_response_from_mobile(message: &Message) -> Result<Message> {
+    match message.get_message_type() {
+        MessageType::Apdu => {
+            todo!()
+        }
+        MessageType::MeasureBroadcastRequest => {
+            if let MessageData::Measure(Measure::Response(response)) = message.get_message_data() {
+                measure::handle_measure_response_from_mobile(response)?;
+            }
+            Err("No response to mobile".to_string().into())
+        }
+        MessageType::Rke => {
+            todo!()
+        }
+        MessageType::VehicleStatus => {
+            todo!()
+        }
+        MessageType::VehicleAppCustomMessage => {
+            todo!()
+        }
+        MessageType::VehicleServerCustomMessage => {
+            todo!()
+        }
+        MessageType::Auth => {
+            todo!()
+        }
+        MessageType::Custom => {
+            todo!()
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::iccoa2::measure::{MeasureActionResult, MeasureDuration};
+    use super::*;
+
+    #[test]
+    fn test_measure_from_mobile() {
+        let buffer = vec![
+            0x01, 0x01, 0x20, 0x00,
+            0x00, 0x09,
+            0x7F, 0x30, 0x06, 0x51, 0x01, 0x00, 0x52, 0x01, 0x20
+        ];
+        let message = Message::deserialize(buffer.as_ref());
+        assert!(message.is_ok());
+        let message = message.unwrap();
+        match message.get_message_type() {
+            MessageType::Apdu => {todo!()}
+            MessageType::MeasureBroadcastRequest => {
+                if message.get_message_status() == MessageStatus::Success {
+                    if let MessageData::Measure(Measure::Response(response)) = message.get_message_data() {
+                        assert_eq!(response.get_response_action(), MeasureActionResult::MeasureRequestSuccess);
+                        assert_eq!(response.get_response_duration(), MeasureDuration::new(0x20));
+                    }
+                }
+            }
+            MessageType::Rke => {todo!()}
+            MessageType::VehicleStatus => {todo!()}
+            MessageType::VehicleAppCustomMessage => {todo!()}
+            MessageType::VehicleServerCustomMessage => {todo!()}
+            MessageType::Auth => {todo!()}
+            MessageType::Custom => { todo!() }
+        }
     }
 }

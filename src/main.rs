@@ -7,6 +7,7 @@ mod icce;
 mod iccoa;
 mod iccoa2;
 
+use std::collections::BTreeMap;
 use std::env;
 use bluer::{adv::Advertisement, UuidExt, AdapterEvent, DeviceEvent, DeviceProperty};
 use bluer::gatt::local::{Application, Service, Characteristic, CharacteristicNotify, CharacteristicRead, CharacteristicWrite, CharacteristicWriteMethod};
@@ -19,6 +20,7 @@ use crate::bluetooth::agent;
 use crate::bluetooth::ranging;
 use crate::iccoa::objects::Iccoa;
 use crate::iccoa::{bluetooth_io, objects, command, pairing};
+use crate::iccoa2::Serde;
 use crate::iccoa::notification::senseless_control;
 use crate::iccoa::notification::vehicle_status;
 use crate::iccoa::notification::vehicle_unsafe;
@@ -34,6 +36,7 @@ static BLUETOOTH_EVENTS_MAX: usize = 10;
 #[derive(Debug, Default, Copy, Clone)]
 enum CarkeyProtocol {
     #[default]
+    Iccoa2,
     Iccoa,
     Icce,
 }
@@ -43,7 +46,8 @@ impl From<&str> for CarkeyProtocol {
         match value.to_ascii_lowercase().as_ref() {
             "icce" => CarkeyProtocol::Icce,
             "iccoa" => CarkeyProtocol::Iccoa,
-            _ => CarkeyProtocol::Iccoa,
+            "iccoa2" => CarkeyProtocol::Iccoa2,
+            _ => CarkeyProtocol::Iccoa2,
         }
     }
 }
@@ -69,12 +73,37 @@ async fn main() -> bluer::Result<()> {
 
     let agent_handle = agent::register_agent(&session, true, true).await?;
 
-    let le_advertisement = Advertisement {
-        advertisement_type: bluer::adv::Type::Peripheral,
-        service_uuids: vec![*SERVICE_UUID].into_iter().collect(),
-        discoverable: Some(true),
-        local_name: Some("Neusoft".to_string()),
-        ..Default::default()
+    let le_advertisement = match protocol {
+        CarkeyProtocol::Iccoa2 => {
+            Advertisement {
+                advertisement_type: bluer::adv::Type::Peripheral,
+                service_uuids: vec![*SERVICE_UUID].into_iter().collect(),
+                discoverable: Some(true),
+                local_name: Some("Neusoft".to_string()),
+                advertisting_data: BTreeMap::from([
+                    (0x7F, vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]),
+                ]),
+                ..Default::default()
+            }
+        }
+        CarkeyProtocol::Iccoa => {
+            Advertisement {
+                advertisement_type: bluer::adv::Type::Peripheral,
+                service_uuids: vec![*SERVICE_UUID].into_iter().collect(),
+                discoverable: Some(true),
+                local_name: Some("Neusoft".to_string()),
+                ..Default::default()
+            }
+        }
+        CarkeyProtocol::Icce => {
+            Advertisement {
+                advertisement_type: bluer::adv::Type::Peripheral,
+                service_uuids: vec![*SERVICE_UUID].into_iter().collect(),
+                discoverable: Some(true),
+                local_name: Some("Neusoft".to_string()),
+                ..Default::default()
+            }
+        }
     };
     let adv_handle = adapter.advertise(le_advertisement).await?;
     
@@ -134,6 +163,13 @@ async fn main() -> bluer::Result<()> {
                                         CarkeyProtocol::Iccoa => {
                                             if let Ok(iccoa) = pairing::create_iccoa_pairing_data_request_init() {
                                                 if let Err(err) = notifier.notify(iccoa.serialize()).await {
+                                                    error!("Notification error when setting get process data request: {}", err);
+                                                }
+                                            }
+                                        }
+                                        CarkeyProtocol::Iccoa2 => {
+                                            if let Ok(message) = iccoa2::message::create_measure_request_message() {
+                                                if let Err(err) = notifier.notify(message.serialize().unwrap()).await {
                                                     error!("Notification error when setting get process data request: {}", err);
                                                 }
                                             }
@@ -312,6 +348,16 @@ async fn main() -> bluer::Result<()> {
                 }
             });
         },
+        CarkeyProtocol::Iccoa2 => {
+            //test code for sending message from vehicle to mobile by notification
+            tokio::spawn(async move {
+                loop {
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    let request = iccoa2::message::create_measure_request_message().unwrap();
+                    let _ = bt_send_package_tx.send(request.serialize().unwrap()).await;
+                }
+            });
+        }
     }
 
     println!("Server ready. Press ctrl-c to quit");
@@ -358,6 +404,11 @@ async fn main() -> bluer::Result<()> {
                             }
                         }
                     },
+                    CarkeyProtocol::Iccoa2 => {
+                        if let Ok(response) = iccoa2::bluetooth_io::handle_data_package_from_mobile(&data_package) {
+                            let _ = bt_notify_tx2.send(response.serialize().unwrap());
+                        }
+                    }
                 }
             },
             Some(sending_package) = bt_send_package_rx.recv() => {

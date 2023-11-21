@@ -1,14 +1,15 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
+use log::info;
 use crate::iccoa2::{create_tlv_with_constructed_value, create_tlv_with_primitive_value, get_tlv_primitive_value, Serde};
 use super::errors::*;
 
 #[allow(dead_code)]
-const MEASURE_TYPE_TAG: u8 = 0x19;
+const MEASURE_TYPE_TAG: u8 = 0x50;
 #[allow(dead_code)]
-const MEASURE_ACTION_TAG: u8 = 0x1A;
+const MEASURE_ACTION_TAG: u8 = 0x51;
 #[allow(dead_code)]
-const MEASURE_DURATION_TAG: u8 = 0x1B;
+const MEASURE_DURATION_TAG: u8 = 0x52;
 #[allow(dead_code)]
 const MEASURE_REQUEST_TAG: u16 = 0x7F2E;
 #[allow(dead_code)]
@@ -87,6 +88,46 @@ impl Display for MeasureAction {
         match self {
             MeasureAction::Start => write!(f, "Start"),
             MeasureAction::Stop => write!(f, "Stop"),
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
+pub enum MeasureActionResult {
+    MeasureRequestSuccess = 0x00,
+    MeasureStop = 0x01,
+    Unsupported = 0xFF,
+}
+
+impl TryFrom<u8> for MeasureActionResult {
+    type Error = String;
+
+    fn try_from(value: u8) -> std::result::Result<Self, Self::Error> {
+        match value {
+            0x00 => Ok(MeasureActionResult::MeasureRequestSuccess),
+            0x01 => Ok(MeasureActionResult::MeasureStop),
+            0xFF => Ok(MeasureActionResult::Unsupported),
+            _ => Err(format!("Invalid Measure action result value: {}", value)),
+        }
+    }
+}
+
+impl From<MeasureActionResult> for u8 {
+    fn from(value: MeasureActionResult) -> Self {
+        match value {
+            MeasureActionResult::MeasureRequestSuccess => 0x00,
+            MeasureActionResult::MeasureStop => 0x01,
+            MeasureActionResult::Unsupported => 0xFF,
+        }
+    }
+}
+
+impl Display for MeasureActionResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MeasureActionResult::MeasureRequestSuccess => write!(f, "Measure Request Success"),
+            MeasureActionResult::MeasureStop => write!(f, "Measure Stopped"),
+            MeasureActionResult::Unsupported => write!(f, "Unsupported"),
         }
     }
 }
@@ -219,22 +260,22 @@ impl Display for MeasureRequest {
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct MeasureResponse {
-    response_action: MeasureAction,
+    response_action: MeasureActionResult,
     response_duration: MeasureDuration,
 }
 
 #[allow(dead_code)]
 impl MeasureResponse {
-    pub fn new(response_action: MeasureAction, response_duration: MeasureDuration) -> Self {
+    pub fn new(response_action: MeasureActionResult, response_duration: MeasureDuration) -> Self {
         MeasureResponse {
             response_action,
             response_duration
         }
     }
-    pub fn get_response_action(&self) -> MeasureAction {
+    pub fn get_response_action(&self) -> MeasureActionResult {
         self.response_action
     }
-    pub fn set_response_action(&mut self, response_action: MeasureAction) {
+    pub fn set_response_action(&mut self, response_action: MeasureActionResult) {
         self.response_action = response_action;
     }
     pub fn get_response_duration(&self) -> MeasureDuration {
@@ -271,7 +312,7 @@ impl Serde for MeasureResponse {
             .map_err(|e| ErrorKind::MeasureError(format!("create measure response action tag error: {:?}", e)))?;
         let response_action = get_tlv_primitive_value(&tlv_data, &action_tag)
             .map_err(|e| ErrorKind::MeasureError(format!("deserialize measure action error: {:?}", e)))?;
-        let response_action = MeasureAction::try_from(response_action[0])
+        let response_action = MeasureActionResult::try_from(response_action[0])
             .map_err(|e| ErrorKind::MeasureError(format!("deserialize message action invalid: {:?}", e)))?;
         let duration_tag = ber::Tag::try_from(MEASURE_DURATION_TAG)
             .map_err(|e| ErrorKind::MeasureError(format!("create measure response duration tag error: {:?}", e)))?;
@@ -337,6 +378,21 @@ impl Display for Measure {
     }
 }
 
+pub fn create_measure_request(measure_type: MeasureType, measure_action: MeasureAction, measure_duration: MeasureDuration) -> MeasureRequest {
+    MeasureRequest::new(
+        measure_type,
+        measure_action,
+        measure_duration,
+    )
+}
+
+pub fn handle_measure_response_from_mobile(response: &MeasureResponse) -> Result<()> {
+    info!("[Measure]:");
+    info!("\tResult: {}", response.get_response_action());
+    info!("\tDuration: {}", response.get_response_duration());
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -359,14 +415,14 @@ mod tests {
     }
     #[test]
     fn test_create_measure_response_tlv() {
-        let response_action = MeasureAction::Start;
+        let response_action = MeasureActionResult::MeasureRequestSuccess;
         let response_duration = MeasureDuration::new(0x20);
 
         let mut response_tlv = MeasureResponse::new(response_action, response_duration);
-        response_tlv.set_response_action(MeasureAction::Stop);
+        response_tlv.set_response_action(MeasureActionResult::MeasureRequestSuccess);
         response_tlv.set_response_duration(MeasureDuration::new(0x30));
         assert_eq!(response_tlv, MeasureResponse::new(
-            MeasureAction::Stop,
+            MeasureActionResult::MeasureRequestSuccess,
             MeasureDuration::new(0x30)
         ));
     }
@@ -380,18 +436,18 @@ mod tests {
         let serialized_request_tlv = request_tlv.serialize();
         assert!(serialized_request_tlv.is_ok());
         let serialized_request_tlv = serialized_request_tlv.unwrap();
-        assert_eq!(serialized_request_tlv, vec![0x7F, 0x2E, 0x09, 0x19, 0x01, 0x00, 0x1A, 0x01, 0x01, 0x1B, 0x01, 0x20]);
+        assert_eq!(serialized_request_tlv, vec![0x7F, 0x2E, 0x09, 0x50, 0x01, 0x00, 0x51, 0x01, 0x01, 0x52, 0x01, 0x20]);
     }
     #[test]
     fn test_measure_response_tlv_serialize() {
-        let response_action = MeasureAction::Stop;
+        let response_action = MeasureActionResult::MeasureStop;
         let response_duration = MeasureDuration::new(0x30);
 
         let response_tlv = MeasureResponse::new(response_action, response_duration);
         let serialized_response_tlv = response_tlv.serialize();
         assert!(serialized_response_tlv.is_ok());
         let serialized_response_tlv = serialized_response_tlv.unwrap();
-        assert_eq!(serialized_response_tlv, vec![0x7F, 0x30, 0x06, 0x1A, 0x01, 0x02, 0x1B, 0x01, 0x30]);
+        assert_eq!(serialized_response_tlv, vec![0x7F, 0x30, 0x06, 0x51, 0x01, 0x01, 0x52, 0x01, 0x30]);
     }
     #[test]
     fn test_measure_tlv_serialize() {
@@ -403,11 +459,11 @@ mod tests {
         let serialized_measure_tlv = measure_tlv.serialize();
         assert!(serialized_measure_tlv.is_ok());
         let serialized_measure_tlv =serialized_measure_tlv.unwrap();
-        assert_eq!(serialized_measure_tlv, vec![0x7F, 0x2E, 0x09, 0x19, 0x01, 0x00, 0x1A, 0x01, 0x01, 0x1B, 0x01, 0x20]);
+        assert_eq!(serialized_measure_tlv, vec![0x7F, 0x2E, 0x09, 0x50, 0x01, 0x00, 0x51, 0x01, 0x01, 0x52, 0x01, 0x20]);
     }
     #[test]
     fn test_measure_request_tlv_deserialize() {
-        let serialized_request_tlv = vec![0x7F, 0x2E, 0x09, 0x19, 0x01, 0x00, 0x1A, 0x01, 0x01, 0x1B, 0x01, 0x20];
+        let serialized_request_tlv = vec![0x7F, 0x2E, 0x09, 0x50, 0x01, 0x00, 0x51, 0x01, 0x01, 0x52, 0x01, 0x20];
         let request_tlv = MeasureRequest::deserialize(serialized_request_tlv.as_ref());
         assert!(request_tlv.is_ok());
         let request_tlv = request_tlv.unwrap();
@@ -419,18 +475,18 @@ mod tests {
     }
     #[test]
     fn test_measure_response_tlv_deserialize() {
-        let serialized_response_tlv = vec![0x7F, 0x30, 0x06, 0x1A, 0x01, 0x02, 0x1B, 0x01, 0x30];
+        let serialized_response_tlv = vec![0x7F, 0x30, 0x06, 0x51, 0x01, 0x01, 0x52, 0x01, 0x30];
         let response_tlv = MeasureResponse::deserialize(serialized_response_tlv.as_ref());
         assert!(response_tlv.is_ok());
         let response_tlv = response_tlv.unwrap();
         assert_eq!(response_tlv, MeasureResponse::new(
-            MeasureAction::Stop,
+            MeasureActionResult::MeasureStop,
             MeasureDuration::new(0x30)
         ));
     }
     #[test]
     fn test_measure_tlv_deserialize() {
-        let serialized_request_tlv = vec![0x7F, 0x2E, 0x09, 0x19, 0x01, 0x00, 0x1A, 0x01, 0x01, 0x1B, 0x01, 0x20];
+        let serialized_request_tlv = vec![0x7F, 0x2E, 0x09, 0x50, 0x01, 0x00, 0x51, 0x01, 0x01, 0x52, 0x01, 0x20];
         let measure_tlv = Measure::deserialize(serialized_request_tlv.as_ref());
         assert!(measure_tlv.is_ok());
         let measure_tlv = measure_tlv.unwrap();
@@ -441,12 +497,12 @@ mod tests {
         )));
 
 
-        let serialized_response_tlv = vec![0x7F, 0x30, 0x06, 0x1A, 0x01, 0x02, 0x1B, 0x01, 0x30];
+        let serialized_response_tlv = vec![0x7F, 0x30, 0x06, 0x51, 0x01, 0x01, 0x52, 0x01, 0x30];
         let measure_tlv = Measure::deserialize(serialized_response_tlv.as_ref());
         assert!(measure_tlv.is_ok());
         let measure_tlv = measure_tlv.unwrap();
         assert_eq!(measure_tlv, Measure::Response(MeasureResponse::new(
-            MeasureAction::Stop,
+            MeasureActionResult::MeasureStop,
             MeasureDuration::new(0x30)
         )));
     }
@@ -472,12 +528,12 @@ mod tests {
         request_tlv.set_request_action(MeasureAction::Stop);
         assert_eq!(request_tlv.get_request_action(), MeasureAction::Stop);
 
-        let response_action = MeasureAction::Start;
+        let response_action = MeasureActionResult::MeasureRequestSuccess;
         let response_duration = MeasureDuration::new(0x30);
         let mut response_tlv = MeasureResponse::new(response_action, response_duration);
-        assert_eq!(response_tlv.get_response_action(), MeasureAction::Start);
-        response_tlv.set_response_action(MeasureAction::Stop);
-        assert_eq!(response_tlv.get_response_action(), MeasureAction::Stop);
+        assert_eq!(response_tlv.get_response_action(), MeasureActionResult::MeasureRequestSuccess);
+        response_tlv.set_response_action(MeasureActionResult::MeasureStop);
+        assert_eq!(response_tlv.get_response_action(), MeasureActionResult::MeasureStop);
     }
     #[test]
     fn test_get_measure_tlv_duration() {
@@ -489,7 +545,7 @@ mod tests {
         request_tlv.set_request_duration(MeasureDuration::new(0x30));
         assert_eq!(request_tlv.get_request_duration(), MeasureDuration::new(0x30));
 
-        let response_action = MeasureAction::Start;
+        let response_action = MeasureActionResult::MeasureRequestSuccess;
         let response_duration = MeasureDuration::new(0x20);
         let mut response_tlv = MeasureResponse::new(response_action, response_duration);
         assert_eq!(response_tlv.get_response_duration(), MeasureDuration::new(0x20));

@@ -11,6 +11,7 @@ pub mod auth;
 pub mod custom;
 pub mod identifier;
 pub mod instructions;
+pub mod bluetooth_io;
 
 mod errors {
     use super::*;
