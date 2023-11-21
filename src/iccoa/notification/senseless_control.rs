@@ -239,7 +239,7 @@ pub fn create_iccoa_senseless_control_welcome_notification() -> Result<Iccoa> {
 
 #[cfg(test)]
 mod tests {
-    use crate::iccoa::objects::{Header, Body, PacketType, MessageData};
+    use crate::iccoa::objects::PacketType;
 
     use super::*;
 

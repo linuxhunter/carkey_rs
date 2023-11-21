@@ -551,7 +551,7 @@ mod tests {
         payload.push(0x90);
         payload.push(0x00);
 
-        let icce = create_icce_auth_response(0x00, &payload);
+        let _icce = create_icce_auth_response(0x00, &payload);
     }
     #[test]
     fn test_create_auth_auth_response_payload() {
@@ -590,7 +590,7 @@ mod tests {
         payload.push(0x90);
         payload.push(0x00);
 
-        let icce = create_icce_auth_response(0x00, &payload);
+        let _icce = create_icce_auth_response(0x00, &payload);
     }
 
 }

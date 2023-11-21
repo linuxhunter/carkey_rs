@@ -509,7 +509,7 @@ pub fn handle_iccoa_pairing_response_from_mobile(iccoa: &Iccoa) -> Result<Iccoa>
 
 #[cfg(test)]
 mod tests {
-    use crate::iccoa::{objects::{Header, Body, MessageData}, objects, TLVPayloadBuilder};
+    use crate::iccoa::{objects, TLVPayloadBuilder};
     use crate::iccoa::objects::{MessageType, PacketType};
 
     use super::*;

@@ -283,7 +283,7 @@ pub fn handle_iccoa_rke_command_request_from_mobile(iccoa: &Iccoa) -> Result<Icc
 
 #[cfg(test)]
 mod tests {
-    use crate::iccoa::objects::{Header, Body, PacketType, MessageData};
+    use crate::iccoa::objects::PacketType;
 
     use super::*;
 

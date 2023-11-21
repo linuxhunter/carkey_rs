@@ -94,7 +94,7 @@ pub fn handle_iccoa_ranging_command_response_from_mobile(iccoa: &Iccoa) -> Resul
 
 #[cfg(test)]
 mod tests {
-    use crate::iccoa::{TLVPayloadBuilder, objects::{Header, PacketType, Body, MessageType, MessageData}};
+    use crate::iccoa::{TLVPayloadBuilder, objects::{PacketType, MessageType}};
 
     use super::*;
 

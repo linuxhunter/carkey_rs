@@ -192,7 +192,7 @@ pub fn create_iccoa_vehicle_unsafe_headlight_state_notification() -> Result<Icco
 
 #[cfg(test)]
 mod tests {
-    use crate::iccoa::objects::{Header, Body, PacketType, MessageData};
+    use crate::iccoa::objects::PacketType;
 
     use super::*;
 

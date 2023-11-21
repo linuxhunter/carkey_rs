@@ -408,7 +408,7 @@ mod tests {
         let rke_cmd = vec![0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa];
 
         let icce = create_icce_rke_control_request(rke_type, &rke_cmd);
-        let origin_icce = objects::Icce::deserialize(&icce.serialize()).unwrap();
+        let _origin_icce = objects::Icce::deserialize(&icce.serialize()).unwrap();
     }
     #[test]
     fn test_create_get_vehicle_info_request() {
@@ -421,7 +421,7 @@ mod tests {
         let status = 0x00;
         let rke_response= vec![0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa];
 
-        let icce = create_icce_rke_control_response(status, &rke_response);
+        let _icce = create_icce_rke_control_response(status, &rke_response);
     }
     #[test]
     fn test_create_rke_challege_request() {

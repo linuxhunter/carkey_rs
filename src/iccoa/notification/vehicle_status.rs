@@ -229,8 +229,7 @@ pub fn create_iccoa_headlight_status_notification() -> Result<Iccoa> {
 
 #[cfg(test)]
 mod tests {
-    use crate::iccoa::notification::senseless_control::create_iccoa_senseless_control_event_notification;
-    use crate::iccoa::objects::{Header, Body, MessageData, PacketType};
+    use crate::iccoa::objects::PacketType;
 
     use super::*;
 

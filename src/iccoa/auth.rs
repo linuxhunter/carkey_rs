@@ -383,7 +383,7 @@ pub fn handle_iccoa_auth_response_from_mobile(iccoa: &Iccoa) -> Result<Iccoa> {
 
 #[cfg(test)]
 mod tests {
-    use crate::iccoa::{objects::{Header, Body, MessageData, PacketType, EncryptType, MessageType}, TLVPayloadBuilder};
+    use crate::iccoa::{objects::{PacketType, MessageType}, TLVPayloadBuilder};
     use super::*;
 
     #[test]
@@ -701,7 +701,6 @@ mod tests {
     #[test]
     fn test_read_request() {
         let transaction_id = 0x0005;
-        let read_list = vec![0x01, 0x02, 0x03];
         let payload1 = TLVPayloadBuilder::new().set_tag(0x01).build();
         let payload2 = TLVPayloadBuilder::new().set_tag(0x02).build();
         let payload3 = TLVPayloadBuilder::new().set_tag(0x03).build();
