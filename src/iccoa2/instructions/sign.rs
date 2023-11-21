@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
 use crate::iccoa2::errors::*;
-use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, identifier};
+use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, identifier, Serde};
 use super::{common, KEY_ID_TAG, SIGN_DATA_TAG, SIGNATURE_TAG};
 
 #[allow(dead_code)]
@@ -47,7 +47,12 @@ impl CommandApduSign {
     pub fn set_data(&mut self, data: &[u8]) {
         self.data = data.to_vec();
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for CommandApduSign {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let header = common::CommandApduHeader::new(
             self.cla,
             SIGN_INS,
@@ -65,7 +70,8 @@ impl CommandApduSign {
         );
         common::CommandApdu::new(header, Some(trailer)).serialize()
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let apdu_request = common::CommandApdu::deserialize(data)?;
         let header = apdu_request.get_header();
         let trailer = apdu_request.get_trailer().ok_or("deserialize trailer is NULL".to_string())?;
@@ -134,7 +140,12 @@ impl ResponseApduSign {
     pub fn set_status(&mut self, status: common::ResponseApduTrailer) {
         self.status = status;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for ResponseApduSign {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let key_id_tlv = create_tlv_with_primitive_value(KEY_ID_TAG, &self.get_key_id().serialize()?)?;
         let signature_tlv = create_tlv_with_primitive_value(SIGNATURE_TAG, self.get_signature())?;
         let mut body = Vec::new();
@@ -146,7 +157,8 @@ impl ResponseApduSign {
         );
         response.serialize()
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let apdu_response = common::ResponseApdu::deserialize(data)?;
         let body = apdu_response.get_body().ok_or("deserialize response body is NULL".to_string())?;
         let trailer = apdu_response.get_trailer();
@@ -368,7 +380,7 @@ mod tests {
         assert_eq!(response.get_status(), &common::ResponseApduTrailer::new(0x61, 0x10));
     }
     #[test]
-    fn test_sign_response_serailize() {
+    fn test_sign_response_serialize() {
         let device_oem_id = 0x0102;
         let vehicle_oem_id = 0x0304;
         let key_serial_id = [0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10];

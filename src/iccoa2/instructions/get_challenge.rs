@@ -1,5 +1,6 @@
 use std::fmt::{Display, Formatter};
 use crate::iccoa2::errors::*;
+use crate::iccoa2::Serde;
 use super::common;
 
 #[allow(dead_code)]
@@ -21,7 +22,12 @@ impl CommandApduGetChallenge {
     pub fn new() -> Self {
         CommandApduGetChallenge()
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for CommandApduGetChallenge {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let header = common::CommandApduHeader::new(
             GET_CHALLENGE_CLA,
             GET_CHALLENGE_INS,
@@ -34,7 +40,8 @@ impl CommandApduGetChallenge {
         );
         common::CommandApdu::new(header, Some(trailer)).serialize()
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let apdu_request = common::CommandApdu::deserialize(data)?;
         let header = apdu_request.get_header();
         let trailer = apdu_request.get_trailer()
@@ -85,14 +92,20 @@ impl ResponseApduGetChallenge {
     pub fn set_status(&mut self, status: common::ResponseApduTrailer) {
         self.status = status;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for ResponseApduGetChallenge {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let response = common::ResponseApdu::new(
             Some(self.get_random().to_vec()),
             *self.get_status(),
         );
         response.serialize()
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let response = common::ResponseApdu::deserialize(data)?;
         let body = response.get_body().ok_or("deserialize body is NULL".to_string())?;
         let trailer = response.get_trailer();

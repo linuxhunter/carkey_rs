@@ -1,4 +1,4 @@
-use crate::iccoa2::instructions;
+use crate::iccoa2::{instructions, Serde};
 use super::errors::*;
 
 #[derive(Debug, PartialOrd, PartialEq)]
@@ -19,7 +19,12 @@ impl Apdu {
     pub fn add_apdu_instruction(&mut self, apdu: instructions::ApduInstructions) {
         self.inner.push(apdu);
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for Apdu {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let mut buffer = Vec::new();
         for apdu in self.inner.iter() {
             let mut serialized_apdu = apdu.serialize()?;
@@ -28,7 +33,8 @@ impl Apdu {
         }
         Ok(buffer)
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let total_length = data.len();
         let mut index = 0x00;
         let mut apdu = Apdu::new();

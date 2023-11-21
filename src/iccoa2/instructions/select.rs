@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
-use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value};
+use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, Serde};
 use crate::iccoa2::errors::*;
 use super::{common, VERSION_TAG};
 
@@ -33,7 +33,12 @@ impl CommandApduSelect {
     pub fn set_aid(&mut self, aid: &[u8]) {
         self.aid = aid.to_vec();
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for CommandApduSelect {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let header = common::CommandApduHeader::new(
             SELECT_CLA,
             SELECT_INS,
@@ -46,7 +51,8 @@ impl CommandApduSelect {
         );
         common::CommandApdu::new(header, Some(trailer)).serialize()
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let command_apdu = common::CommandApdu::deserialize(data)?;
         let header = command_apdu.get_header();
         let trailer = command_apdu.get_trailer().ok_or("deserialize trailer is NULL".to_string())?;
@@ -94,11 +100,17 @@ impl ResponseApduSelect {
     pub fn set_status(&mut self, status: common::ResponseApduTrailer) {
         self.status = status;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for ResponseApduSelect {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let version_tlv = create_tlv_with_primitive_value(VERSION_TAG, self.get_version().to_be_bytes().as_ref())?;
         common::ResponseApdu::new(Some(version_tlv.to_vec()), self.status).serialize()
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let response = common::ResponseApdu::deserialize(data)?;
         let status = response.get_trailer();
         let body = response.get_body().ok_or("deserialize SELECT response version is NULL".to_string())?;

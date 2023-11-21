@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
 use crate::iccoa2::errors::*;
-use crate::iccoa2::{create_tlv_with_constructed_value, create_tlv_with_primitive_value, get_tlv_primitive_value};
+use crate::iccoa2::{create_tlv_with_constructed_value, create_tlv_with_primitive_value, get_tlv_primitive_value, Serde};
 use super::common;
 
 #[allow(dead_code)]
@@ -95,7 +95,12 @@ impl CommandApduGetDkCert {
     pub fn set_dk_cert_type(&mut self, dk_cert_type: DkCertType) {
         self.dk_cert_type = dk_cert_type;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for CommandApduGetDkCert {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let header = common::CommandApduHeader::new(
             self.cla,
             GET_DK_CERT_INS,
@@ -112,7 +117,8 @@ impl CommandApduGetDkCert {
         );
         apdu_request.serialize()
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let apdu_request = common::CommandApdu::deserialize(data)?;
         let header = apdu_request.get_header();
         let trailer = apdu_request
@@ -177,7 +183,12 @@ impl ResponseApduGetDkCert {
     pub fn set_status(&mut self, status: common::ResponseApduTrailer) {
         self.status = status;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for ResponseApduGetDkCert {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let cert_tlv = create_tlv_with_primitive_value(CERT_TAG, self.get_dk_cert())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create inner cert tlv error: {}", e)))?;
         let response_tag = match self.dk_cert_type {
@@ -203,7 +214,8 @@ impl ResponseApduGetDkCert {
         );
         response_apdu.serialize()
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let response_apdu = common::ResponseApdu::deserialize(data)?;
         let body = response_apdu
             .get_body()

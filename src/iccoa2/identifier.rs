@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter};
+use crate::iccoa2::Serde;
 use super::errors::*;
 
 #[allow(dead_code)]
@@ -49,14 +50,20 @@ impl KeyId {
             .map_err(|e| ErrorKind::IdentifierError(format!("key serial id error: {}", e)))?;
         Ok(())
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for KeyId {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let mut buffer = Vec::with_capacity(KEY_SERIAL_ID_LENGTH);
         buffer.append(&mut self.device_oem_id.to_be_bytes().to_vec());
         buffer.append(&mut self.vehicle_oem_id.to_be_bytes().to_vec());
         buffer.append(&mut self.key_serial_id.to_vec());
         Ok(buffer)
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         if data.len() != KEY_ID_LENGTH {
             return Err(ErrorKind::IdentifierError("key id length wrong".to_string()).into());
         }
@@ -72,7 +79,7 @@ impl KeyId {
         );
         let key_serial_id = (&data[4..])
             .try_into()
-            .map_err(|e| ErrorKind::IdentifierError(format!("deserailize key serial id error: {}", e)))?;
+            .map_err(|e| ErrorKind::IdentifierError(format!("deserialize key serial id error: {}", e)))?;
         Ok(KeyId {
             device_oem_id,
             vehicle_oem_id,
@@ -118,13 +125,19 @@ impl VehicleId {
             .map_err(|e| ErrorKind::IdentifierError(format!("vehicle serial id error: {}", e)))?;
         Ok(())
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for VehicleId {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let mut buffer = Vec::with_capacity(VEHICLE_ID_LENGTH);
         buffer.append(&mut self.vehicle_oem_id.to_be_bytes().to_vec());
         buffer.append(&mut self.vehicle_serial_id.to_vec());
         Ok(buffer)
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         if data.len() != VEHICLE_ID_LENGTH {
             return Err(ErrorKind::IdentifierError("vehicle id length wrong".to_string()).into());
         }

@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
 use crate::iccoa2::errors::*;
-use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, identifier};
+use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, identifier, Serde};
 use super::{common, DEVICE_TEMP_PUB_KEY_TAG, RANDOM_TAG, SIGNATURE_TAG, VEHICLE_ID_TAG, VEHICLE_TEMP_PUB_KEY_TAG};
 
 #[allow(dead_code)]
@@ -91,7 +91,12 @@ impl Auth1Data {
     pub fn set_random(&mut self, random: &[u8]) {
         self.random = random.to_vec();
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for Auth1Data {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let vehicle_id_tlv = create_tlv_with_primitive_value(VEHICLE_ID_TAG, &self.get_vehicle_id().serialize()?)
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create vehicle id tlv error: {}", e)))?;
         let device_temp_pub_key_x_tlv = create_tlv_with_primitive_value(DEVICE_TEMP_PUB_KEY_TAG, self.get_device_temp_pub_key_x())
@@ -108,7 +113,8 @@ impl Auth1Data {
         buffer.append(&mut random_tlv.to_vec());
         Ok(buffer)
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let mut auth_data = Auth1Data::default();
         let tlv_collections = ber::Tlv::parse_all(data);
         for tlv in tlv_collections {
@@ -173,7 +179,19 @@ impl CommandApduAuth1 {
     pub fn set_auth_data(&mut self, auth_data: Auth1Data) {
         self.auth_data = auth_data;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+    pub fn signature(&self) -> Result<[u8; AUTH_1_SIGNATURE_LENGTH]> {
+        Ok(vehicle_signature(self.auth_data.serialize()?.as_ref()))
+    }
+    pub fn verify(data: &[u8]) -> Result<bool> {
+        Ok(vehicle_verify(&CommandApduAuth1::deserialize(data)?))
+    }
+
+}
+
+impl Serde for CommandApduAuth1 {
+    type Output = Vec<u8>;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let signature_tlv = create_tlv_with_primitive_value(SIGNATURE_TAG, &self.signature()?)
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("crate auth1 signature tlv error: {}", e)))?;
 
@@ -189,7 +207,8 @@ impl CommandApduAuth1 {
         );
         common::CommandApdu::new(header, Some(trailer)).serialize()
     }
-    pub fn deserialize(data: &[u8]) -> Result<Vec<u8>> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let command_apdu = common::CommandApdu::deserialize(data)?;
         let _header = command_apdu.get_header();
         let trailer = command_apdu
@@ -208,13 +227,6 @@ impl CommandApduAuth1 {
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize signature value error: {}", e)))?;
         Ok(signature_value.to_owned())
     }
-    pub fn signature(&self) -> Result<[u8; AUTH_1_SIGNATURE_LENGTH]> {
-        Ok(vehicle_signature(self.auth_data.serialize()?.as_ref()))
-    }
-    pub fn verify(data: &[u8]) -> Result<bool> {
-        Ok(vehicle_verify(&CommandApduAuth1::deserialize(data)?))
-    }
-
 }
 
 impl Display for CommandApduAuth1 {
@@ -249,23 +261,29 @@ impl ResponseApduAuth1 {
     pub fn set_status(&mut self, status: common::ResponseApduTrailer) {
         self.status = status;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+    pub fn signature(&self) -> Result<[u8; AUTH_1_SIGNATURE_LENGTH]> {
+        Ok(device_signature(self.auth_data.serialize()?.as_ref()))
+    }
+    pub fn verify(data: &[u8]) -> Result<bool> {
+        Ok(device_verify(&ResponseApduAuth1::deserialize(data)?))
+    }
+}
+
+impl Serde for ResponseApduAuth1 {
+    type Output = Vec<u8>;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let response = common::ResponseApdu::new(
             Some(self.signature()?.to_vec()),
             self.status,
         );
         response.serialize()
     }
-    pub fn deserialize(data: &[u8]) -> Result<Vec<u8>> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let response_apdu = common::ResponseApdu::deserialize(data)?;
         let body = response_apdu.get_body().ok_or("deserialize auth1 response body is NULL".to_string())?;
         Ok(body.to_vec())
-    }
-    pub fn signature(&self) -> Result<[u8; AUTH_1_SIGNATURE_LENGTH]> {
-        Ok(device_signature(self.auth_data.serialize()?.as_ref()))
-    }
-    pub fn verify(data: &[u8]) -> Result<bool> {
-        Ok(device_verify(&ResponseApduAuth1::deserialize(data)?))
     }
 }
 

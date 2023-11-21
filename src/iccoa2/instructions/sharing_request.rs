@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
 use crate::iccoa2::errors::*;
-use crate::iccoa2::{create_tlv_with_constructed_value, create_tlv_with_primitive_value, get_tlv_primitive_value, identifier};
+use crate::iccoa2::{create_tlv_with_constructed_value, create_tlv_with_primitive_value, get_tlv_primitive_value, identifier, Serde};
 use super::{common, KEY_ID_TAG};
 
 #[allow(dead_code)]
@@ -98,7 +98,12 @@ impl CommandApduSharingRequest {
     pub fn set_temp_csr(&mut self, temp_csr: &[u8]) {
         self.temp_csr = temp_csr.to_vec();
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for CommandApduSharingRequest {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let header = common::CommandApduHeader::new(
             self.get_cla(),
             SHARING_REQUEST_INS,
@@ -120,7 +125,8 @@ impl CommandApduSharingRequest {
         );
         common::CommandApdu::new(header, Some(trailer)).serialize()
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let request = common::CommandApdu::deserialize(data)?;
         let header = request.get_header();
         let trailer = request.get_trailer().ok_or("deserialize trailer is NULL".to_string())?;
@@ -181,7 +187,12 @@ impl ResponseApduSharingRequest {
     pub fn set_status(&mut self, status: common::ResponseApduTrailer) {
         self.status = status;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for ResponseApduSharingRequest {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let inner_cert_tlv = create_tlv_with_primitive_value(INNER_CERT_TAG, self.get_temp_cert())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create inner cert tlv error: {}", e)))?;
         let cert_tlv = create_tlv_with_constructed_value(TEMP_CERT_TAG, &[inner_cert_tlv])
@@ -192,7 +203,8 @@ impl ResponseApduSharingRequest {
         );
         response.serialize()
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let response = common::ResponseApdu::deserialize(data)?;
         let body = response
             .get_body()

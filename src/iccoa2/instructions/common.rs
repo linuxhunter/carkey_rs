@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use crate::iccoa2::errors::*;
+use crate::iccoa2::Serde;
 
 #[allow(dead_code)]
 const COMMAND_APDU_HEADER_LENGTH: usize = 0x04;
@@ -110,7 +111,12 @@ impl CommandApduTrailer {
     pub fn set_le(&mut self, le: Option<u8>) {
         self.le = le;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for CommandApduTrailer {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         if self.get_data().is_none() && self.get_le().is_none() {
             return Err(ErrorKind::ApduInstructionErr("Command Apdu Trailer Data and Le are all None".to_string()).into());
         }
@@ -124,7 +130,8 @@ impl CommandApduTrailer {
         }
         Ok(buffer)
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         if data.is_empty() {
             return Err(ErrorKind::ApduInstructionErr("deserialize origin data length is zero".to_string()).into());
         }
@@ -196,7 +203,12 @@ impl CommandApdu {
     pub fn set_trailer(&mut self, trailer: Option<CommandApduTrailer>) {
         self.trailer = trailer;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for CommandApdu {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let mut buffer = Vec::new();
         buffer.append(&mut self.get_header().serialize()?);
         if let Some(trailer) = self.get_trailer() {
@@ -204,7 +216,8 @@ impl CommandApdu {
         }
         Ok(buffer)
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let data_len = data.len();
         match data_len.cmp(&COMMAND_APDU_HEADER_LENGTH) {
             Ordering::Less => Err(ErrorKind::ApduInstructionErr(format!("deserialize data length less than {}", COMMAND_APDU_HEADER_LENGTH)).into()),
@@ -299,13 +312,19 @@ impl ResponseApduTrailer {
             format!("Unsupported Status word: {}/{}", sw1, sw2)
         }
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for ResponseApduTrailer {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         Ok(vec![
             self.get_sw1(),
             self.get_sw2(),
         ])
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         if data.len() != RESPONSE_APDU_TRAILER_LENGTH {
             return Err(ErrorKind::ApduInstructionErr(format!("deserialize data length not equal {}", RESPONSE_APDU_TRAILER_LENGTH)).into());
         }
@@ -355,7 +374,12 @@ impl ResponseApdu {
     pub fn set_trailer(&mut self, trailer: ResponseApduTrailer) {
         self.trailer = trailer;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for ResponseApdu {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let mut buffer = Vec::new();
         if let Some(body) = self.get_body() {
             buffer.append(&mut body.to_vec());
@@ -363,7 +387,8 @@ impl ResponseApdu {
         buffer.append(&mut self.trailer.serialize()?);
         Ok(buffer)
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let data_len = data.len();
         match data_len.cmp(&2) {
             Ordering::Less => Err(ErrorKind::ApduInstructionErr("deserialize origin data length is zero".to_string()).into()),
@@ -548,7 +573,6 @@ mod tests {
         let p1 = 0x02;
         let p2 = 0x03;
         let le = 0x09;
-        let data = vec![0x05, 0x06, 0x07, 0x08];
         let header = CommandApduHeader::new(cla, ins, p1, p2);
         let trailer = CommandApduTrailer::new(None, Some(le));
         let command_apdu = CommandApdu::new(header, Some(trailer));

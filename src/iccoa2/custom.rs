@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
-use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value};
+use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, Serde};
 use super::errors::*;
 
 #[allow(dead_code)]
@@ -30,12 +30,18 @@ impl VehicleAppCustomRequest {
     pub fn set_custom_data(&mut self, custom_data: &[u8]) {
         self.inner = custom_data.to_vec();
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for VehicleAppCustomRequest {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let tlv = create_tlv_with_primitive_value(VEHICLE_APP_CUSTOM_REQUEST_TAG, self.get_custom_data())
             .map_err(|e| ErrorKind::CustomError(format!("crate vehicle app custom request tlv error: {}", e)))?;
         Ok(tlv.to_vec())
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let tlv = ber::Tlv::from_bytes(data)
             .map_err(|e| ErrorKind::CustomError(format!("deserialize from bytes error: {}", e)))?;
         if tlv.tag().to_bytes() != VEHICLE_APP_CUSTOM_REQUEST_TAG.to_be_bytes() {
@@ -71,12 +77,18 @@ impl VehicleAppCustomResponse {
     pub fn set_custom_data(&mut self, custom_data: &[u8]) {
         self.inner = custom_data.to_vec();
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for VehicleAppCustomResponse {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let tlv = create_tlv_with_primitive_value(VEHICLE_APP_CUSTOM_RESPONSE_TAG, self.get_custom_data())
             .map_err(|e| ErrorKind::CustomError(format!("crate vehicle app custom response tlv error: {}", e)))?;
         Ok(tlv.to_vec())
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let tlv = ber::Tlv::from_bytes(data)
             .map_err(|e| ErrorKind::CustomError(format!("deserialize from bytes error: {}", e)))?;
         if tlv.tag().to_bytes() != VEHICLE_APP_CUSTOM_RESPONSE_TAG.to_be_bytes() {
@@ -120,7 +132,12 @@ impl VehicleServerCustomRequest {
     pub fn set_length(&mut self, length: u8) {
         self.length = length;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for VehicleServerCustomRequest {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let mut data_buffer = Vec::with_capacity(3);
         data_buffer.append(&mut self.offset.to_be_bytes().to_vec());
         data_buffer.push(self.length);
@@ -128,7 +145,8 @@ impl VehicleServerCustomRequest {
             .map_err(|e| ErrorKind::CustomError(format!("create vehicle server request tlv error: {}", e)))?;
         Ok(tlv.to_vec())
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let tlv = ber::Tlv::from_bytes(data)
             .map_err(|e| ErrorKind::CustomError(format!("deserialize from bytes error: {}", e)))?;
         if tlv.tag().to_bytes() != VEHICLE_SERVER_CUSTOM_REQUEST_TAG.to_be_bytes() {
@@ -173,12 +191,18 @@ impl VehicleServerCustomResponse {
     pub fn set_custom_data(&mut self, custom_data: &[u8]) {
         self.inner = custom_data.to_vec();
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for VehicleServerCustomResponse {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let tlv = create_tlv_with_primitive_value(VEHICLE_SERVER_CUSTOM_RESPONSE_TAG, self.get_custom_data())
             .map_err(|e| ErrorKind::CustomError(format!("crate vehicle server custom response tlv error: {}", e)))?;
         Ok(tlv.to_vec())
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let tlv = ber::Tlv::from_bytes(data)
             .map_err(|e| ErrorKind::CustomError(format!("deserialize from bytes error: {}", e)))?;
         if tlv.tag().to_bytes() != VEHICLE_SERVER_CUSTOM_RESPONSE_TAG.to_be_bytes() {
@@ -204,9 +228,10 @@ pub enum CustomMessage {
     ServerCustomResponse(VehicleServerCustomResponse),
 }
 
-#[allow(dead_code)]
-impl CustomMessage {
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+impl Serde for CustomMessage {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         match self {
             CustomMessage::AppCustomRequest(request) => request.serialize(),
             CustomMessage::AppCustomResponse(response) => response.serialize(),
@@ -214,7 +239,8 @@ impl CustomMessage {
             CustomMessage::ServerCustomResponse(response) => response.serialize(),
         }
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         match data[0] {
             0x80 => Ok(CustomMessage::AppCustomRequest(VehicleAppCustomRequest::deserialize(data)?)),
             0x81 => Ok(CustomMessage::AppCustomResponse(VehicleAppCustomResponse::deserialize(data)?)),

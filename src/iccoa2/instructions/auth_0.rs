@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
 use crate::iccoa2::errors::*;
-use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, identifier};
+use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, identifier, Serde};
 use super::{common, CRYPTO_GRAM_TAG, DEVICE_TEMP_PUB_KEY_TAG, RANDOM_TAG, VEHICLE_ID_TAG, VEHICLE_TEMP_PUB_KEY_TAG, VERSION_TAG};
 
 #[allow(dead_code)]
@@ -106,7 +106,12 @@ impl CommandApduAuth0 {
     pub fn set_random(&mut self, random: &[u8]) {
         self.random = random.to_vec();
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for CommandApduAuth0 {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let header = common::CommandApduHeader::new(
             self.cla,
             AUTH_0_INS,
@@ -132,7 +137,8 @@ impl CommandApduAuth0 {
         );
         common::CommandApdu::new(header, Some(trailer)).serialize()
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let command_apdu = common::CommandApdu::deserialize(data)?;
         let header = command_apdu.get_header();
         let trailer = command_apdu
@@ -227,7 +233,12 @@ impl ResponseApduAuth0 {
     pub fn set_status(&mut self, status: common::ResponseApduTrailer) {
         self.status = status;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for ResponseApduAuth0 {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let mut data = Vec::new();
         let device_temp_pub_key_tlv = create_tlv_with_primitive_value(DEVICE_TEMP_PUB_KEY_TAG, self.get_device_temp_pub_key())
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create device temp pub key tlv error: {}", e)))?;
@@ -243,7 +254,8 @@ impl ResponseApduAuth0 {
         );
         response_apdu.serialize()
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let response_apdu = common::ResponseApdu::deserialize(data)?;
         let body = response_apdu.get_body().ok_or("deserialize response auth 0 body is NULL".to_string())?;
         let status = response_apdu.get_trailer();

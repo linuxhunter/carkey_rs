@@ -1,5 +1,6 @@
 use std::fmt::{Display, Formatter};
 use crate::iccoa2::errors::*;
+use crate::iccoa2::Serde;
 use super::common;
 
 #[allow(dead_code)]
@@ -21,7 +22,12 @@ impl CommandApduGetResponse {
     pub fn new() -> Self {
         CommandApduGetResponse()
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for CommandApduGetResponse {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let header = common::CommandApduHeader::new(
             GET_RESPONSE_CLA,
             GET_RESPONSE_INS,
@@ -34,7 +40,8 @@ impl CommandApduGetResponse {
         );
         common::CommandApdu::new(header, Some(trailer)).serialize()
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let apdu_request = common::CommandApdu::deserialize(data)?;
         let header = apdu_request.get_header();
         let trailer = apdu_request.get_trailer().ok_or("deserialize trailer is NULL".to_string())?;
@@ -82,14 +89,20 @@ impl ResponseApduGetResponse {
     pub fn set_status(&mut self, status: common::ResponseApduTrailer) {
         self.status = status;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for ResponseApduGetResponse {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let response = common::ResponseApdu::new(
             Some(self.get_data().to_vec()),
             *self.get_status(),
         );
         response.serialize()
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let apdu_response = common::ResponseApdu::deserialize(data)?;
         let body = apdu_response.get_body().ok_or("deserialize body is NULL".to_string())?;
         let trailer = apdu_response.get_trailer();

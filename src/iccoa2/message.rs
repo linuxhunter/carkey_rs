@@ -4,6 +4,7 @@ use crate::iccoa2::auth::Auth;
 use crate::iccoa2::custom::CustomMessage;
 use crate::iccoa2::measure::Measure;
 use crate::iccoa2::rke::Rke;
+use crate::iccoa2::Serde;
 use crate::iccoa2::vehicle_status::VehicleStatus;
 use super::errors::*;
 

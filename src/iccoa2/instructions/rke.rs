@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
 use crate::iccoa2::errors::*;
-use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, identifier};
+use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, identifier, Serde};
 use super::{common, KEY_ID_TAG, RANDOM_TAG, RKE_CMD_TAG, SIGNATURE_TAG};
 
 #[allow(dead_code)]
@@ -55,7 +55,12 @@ impl CommandApduRke {
     pub fn set_command(&mut self, command: &[u8]) {
         self.command = command.to_vec();
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for CommandApduRke {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let header = common::CommandApduHeader::new(
             self.cla,
             RKE_INS,
@@ -78,7 +83,8 @@ impl CommandApduRke {
         );
         common::CommandApdu::new(header, Some(trailer)).serialize()
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let request = common::CommandApdu::deserialize(data)?;
         let header = request.get_header();
         let trailer = request.get_trailer().ok_or("deserialize trailer is NULL".to_string())?;
@@ -145,7 +151,12 @@ impl ResponseApduRke {
     pub fn set_status(&mut self, status: common::ResponseApduTrailer) {
         self.status = status;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for ResponseApduRke {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let key_id_tlv = create_tlv_with_primitive_value(KEY_ID_TAG, &self.get_key_id().serialize()?)
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create key id tlv error: {}", e)))?;
         let signature_tlv = create_tlv_with_primitive_value(SIGNATURE_TAG, self.get_signature())
@@ -159,7 +170,8 @@ impl ResponseApduRke {
         );
         response.serialize()
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let response = common::ResponseApdu::deserialize(data)?;
         let body = response.get_body().ok_or("deserialize response body is NULL".to_string())?;
         let status = response.get_trailer();

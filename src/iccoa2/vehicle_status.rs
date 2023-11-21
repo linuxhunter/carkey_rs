@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
-use crate::iccoa2::{create_tlv_with_constructed_value, create_tlv_with_primitive_value, get_tlv_primitive_value};
+use crate::iccoa2::{create_tlv_with_constructed_value, create_tlv_with_primitive_value, get_tlv_primitive_value, Serde};
 use super::errors::*;
 
 #[allow(dead_code)]
@@ -147,7 +147,12 @@ impl VehicleStatusRequest {
     pub fn set_entity_id(&mut self, entity_id: VehicleStatusEntityId) {
         self.entity_id = entity_id;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for VehicleStatusRequest {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let tlv = if self.get_entity_id() == VehicleStatusEntityId::All {
             create_tlv_with_primitive_value(ALL_ENTITIES_REQUEST_TAG, &[])
                 .map_err(|e| ErrorKind::VehicleStatusError(format!("create vehicle status entity all tlv error: {}", e)))?
@@ -176,7 +181,8 @@ impl VehicleStatusRequest {
             .map_err(|e| ErrorKind::VehicleStatusError(format!("create vehicle status tlv error: {}", e)))?;
         Ok(vehicle_status_tlv.to_vec())
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let tlv = ber::Tlv::from_bytes(data)
             .map_err(|e| ErrorKind::VehicleStatusError(format!("deserialize original tlv data error: {}", e)))?;
         if !tlv.tag().is_constructed() {
@@ -244,12 +250,18 @@ impl SubscribeVerificationResponse {
     pub fn set_verification_response(&mut self, random: &[u8]) {
         self.inner = random.to_vec();
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for SubscribeVerificationResponse {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let tlv = create_tlv_with_primitive_value(RANDOM_NUMBER_TAG, self.get_verification_response())
             .map_err(|e| ErrorKind::RkeError(format!("create subscribe verification response tlv error: {}", e)))?;
         Ok(tlv.to_vec())
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let tlv = ber::Tlv::from_bytes(data)
             .map_err(|e| ErrorKind::RkeError(format!("deserialize subscribe verification response from bytes error: {}", e)))?;
         if tlv.tag().to_bytes() != RANDOM_NUMBER_TAG.to_be_bytes() {
@@ -305,7 +317,12 @@ impl VehicleStatusResponse {
     pub fn set_random(&mut self, random: Option<SubscribeVerificationResponse>) {
         self.random = random;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for VehicleStatusResponse {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let entity_id_tlv = create_tlv_with_primitive_value(ENTITY_RESPONSE_TAG, &u16::from(self.get_entity_id()).to_be_bytes())
             .map_err(|e| ErrorKind::VehicleStatusError(format!("create entity id tlv error: {}", e)))?;
         let status_tlv = create_tlv_with_primitive_value(ENTITY_STATUS_RESPONSE_TAG, &self.get_status().to_be_bytes())
@@ -325,7 +342,8 @@ impl VehicleStatusResponse {
             Ok(response)
         }
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let tlv_all = ber::Tlv::parse_all(data);
         if tlv_all.is_empty() {
             return Err(ErrorKind::VehicleStatusError("deserialize response tlv error".to_string()).into());
@@ -388,16 +406,18 @@ pub enum VehicleStatus {
     SubscribeVerificationResponse(SubscribeVerificationResponse),
 }
 
-#[allow(dead_code)]
-impl VehicleStatus {
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+impl Serde for VehicleStatus {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         match self {
             VehicleStatus::Request(request) => request.serialize(),
             VehicleStatus::Response(response) => response.serialize(),
             VehicleStatus::SubscribeVerificationResponse(response) => response.serialize(),
         }
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         if data[0] == RANDOM_NUMBER_TAG {
             Ok(VehicleStatus::SubscribeVerificationResponse(SubscribeVerificationResponse::deserialize(data)?))
         } else {
@@ -712,7 +732,7 @@ mod tests {
         assert_eq!(serialized_response, vec![0x8A, 0x08, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
     }
     #[test]
-    fn test_reponse_tlv_serialize() {
+    fn test_response_tlv_serialize() {
         let entity_id = VehicleStatusEntityId::DoorLock;
         let status = 0x0000;
         let response = VehicleStatus::Response(VehicleStatusResponse::new(entity_id, status, None));

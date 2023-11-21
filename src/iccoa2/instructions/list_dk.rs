@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
 use crate::iccoa2::errors::*;
-use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, identifier};
+use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, identifier, Serde};
 use super::{common, KEY_ID_STATUS_TAG, KEY_ID_TAG};
 
 #[allow(dead_code)]
@@ -45,7 +45,12 @@ impl CommandApduListDk {
     pub fn set_key_id(&mut self, key_id: Option<identifier::KeyId>) {
         self.key_id = key_id;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for CommandApduListDk {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         match self.key_id {
             Some(ref key_id) => {
                 let header = common::CommandApduHeader::new(
@@ -77,7 +82,8 @@ impl CommandApduListDk {
             }
         }
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let command_apdu = common::CommandApdu::deserialize(data)?;
         let header = command_apdu.get_header();
         let trailer = command_apdu
@@ -195,7 +201,12 @@ impl ResponseApduListDk {
     pub fn set_status(&mut self, status: common::ResponseApduTrailer) {
         self.status = status;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for ResponseApduListDk {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let key_id_tlv = create_tlv_with_primitive_value(KEY_ID_TAG, &self.get_key_id().serialize()?)
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("create list dk key id tlv error: {}", e)))?;
         let key_id_status_tlv = create_tlv_with_primitive_value(KEY_ID_STATUS_TAG, &[u8::from(*self.get_key_id_status())])
@@ -209,7 +220,8 @@ impl ResponseApduListDk {
         );
         response.serialize()
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let response_apdu = common::ResponseApdu::deserialize(data)?;
         let status = response_apdu.get_trailer();
         let body = response_apdu.get_body().ok_or("deserialize list dk response is NULL".to_string())?;

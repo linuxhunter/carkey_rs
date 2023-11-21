@@ -30,6 +30,12 @@ mod errors {
     }
 }
 
+pub trait Serde {
+    type Output;
+    fn serialize(&self) -> errors::Result<Vec<u8>>;
+    fn deserialize(data: &[u8]) -> errors::Result<Self::Output>;
+}
+
 pub fn get_tlv_primitive_value<'a>(data: &'a ber::Tlv, tag: & ber::Tag) -> errors::Result<&'a Vec<u8>> {
     match data.find(tag) {
         Some(tlv) => {

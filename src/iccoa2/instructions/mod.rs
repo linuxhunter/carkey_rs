@@ -1,5 +1,5 @@
 use std::fmt::{Display, Formatter};
-use crate::iccoa2::errors;
+use crate::iccoa2::{errors, Serde};
 use crate::iccoa2::instructions::auth_0::{CommandApduAuth0, ResponseApduAuth0};
 use crate::iccoa2::instructions::auth_1::{CommandApduAuth1, ResponseApduAuth1};
 use crate::iccoa2::instructions::enable_disable::{CommandApduEnableDisable, ResponseApduEnableDisable};
@@ -189,9 +189,10 @@ pub enum ApduInstructions {
     ResponseGetResponse(ResponseApduGetResponse),
 }
 
-#[allow(dead_code)]
-impl ApduInstructions {
-    pub fn serialize(&self) -> errors::Result<Vec<u8>> {
+impl Serde for ApduInstructions {
+    type Output = Self;
+
+    fn serialize(&self) -> errors::Result<Vec<u8>> {
         match self {
             ApduInstructions::CommandSelect(request) => {
                 let mut buffer = vec![u8::from(ApduInstructionType::CommandSelect)];
@@ -311,7 +312,8 @@ impl ApduInstructions {
             },
         }
     }
-    pub fn deserialize(data: &[u8]) -> errors::Result<Self> {
+
+    fn deserialize(data: &[u8]) -> errors::Result<Self::Output> {
         let apdu_type = ApduInstructionType::try_from(data[0])?;
         let apdu_buffer = &data[1..];
         match apdu_type {

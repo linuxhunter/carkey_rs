@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
 use crate::iccoa2::errors::*;
-use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, identifier};
+use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, identifier, Serde};
 use super::{common, KEY_ID_TAG};
 
 #[allow(dead_code)]
@@ -88,7 +88,12 @@ impl CommandApduEnableDisable {
     pub fn set_key_id(&mut self, key_id: identifier::KeyId) {
         self.key_id = key_id;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for CommandApduEnableDisable {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let (ins, p1, p2, le) = if self.get_status_dk() == StatusDk::DisableDk {
             (u8::from(self.get_status_dk()), DISABLE_DK_P1, DISABLE_DK_P2, DISABLE_DK_LE)
         } else {
@@ -107,7 +112,8 @@ impl CommandApduEnableDisable {
         );
         common::CommandApdu::new(header, Some(trailer)).serialize()
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let apdu_request = common::CommandApdu::deserialize(data)?;
         let header = apdu_request.get_header();
         let trailer = apdu_request.get_trailer()
@@ -153,14 +159,20 @@ impl ResponseApduEnableDisable {
     pub fn set_status(&mut self, status: common::ResponseApduTrailer) {
         self.status = status;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for ResponseApduEnableDisable {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let response = common::ResponseApdu::new(
             None,
             *self.get_status(),
         );
         response.serialize()
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let response = common::ResponseApdu::deserialize(data)?;
         let trailer = response.get_trailer();
         Ok(ResponseApduEnableDisable::new(*trailer))

@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
-use crate::iccoa2::{create_tlv_with_constructed_value, create_tlv_with_primitive_value, get_tlv_primitive_value};
+use crate::iccoa2::{create_tlv_with_constructed_value, create_tlv_with_primitive_value, get_tlv_primitive_value, Serde};
 use super::errors::*;
 
 #[allow(dead_code)]
@@ -162,7 +162,12 @@ impl MeasureRequest {
     pub fn set_request_duration(&mut self, request_duration: MeasureDuration) {
         self.request_duration = request_duration;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for MeasureRequest {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let type_tlv = create_tlv_with_primitive_value(MEASURE_TYPE_TAG, &[self.get_request_type().into()])
             .map_err(|e| ErrorKind::MeasureError(format!("create measure request type tlv error: {:?}", e)))?;
         let action_tlv = create_tlv_with_primitive_value(MEASURE_ACTION_TAG, &[self.get_request_action().into()])
@@ -174,7 +179,7 @@ impl MeasureRequest {
         Ok(measure_tlv.to_vec())
     }
 
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let tlv_data = ber::Tlv::from_bytes(data)
             .map_err(|e| ErrorKind::MeasureError(format!("deserialize measure tlv error: {:?}", e)))?;
         if tlv_data.tag().to_bytes() != MEASURE_REQUEST_TAG.to_be_bytes() {
@@ -238,7 +243,12 @@ impl MeasureResponse {
     pub fn set_response_duration(&mut self, response_duration: MeasureDuration) {
         self.response_duration = response_duration;
     }
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+}
+
+impl Serde for MeasureResponse {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         let action_tlv = create_tlv_with_primitive_value(MEASURE_ACTION_TAG, &[self.get_response_action().into()])
             .map_err(|e| ErrorKind::MeasureError(format!("create measure response action tlv error: {:?}", e)))?;
         let duration_tlv = create_tlv_with_primitive_value(MEASURE_DURATION_TAG, &[self.get_response_duration().into()])
@@ -247,7 +257,8 @@ impl MeasureResponse {
             .map_err(|e| ErrorKind::MeasureError(format!("create measure tlv error: {:?}", e)))?;
         Ok(measure_tlv.to_vec())
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let tlv_data = ber::Tlv::from_bytes(data)
             .map_err(|e| ErrorKind::MeasureError(format!("deserialize measure tlv error: {:?}", e)))?;
         if tlv_data.tag().to_bytes() != MEASURE_RESPONSE_TAG.to_be_bytes() {
@@ -285,9 +296,10 @@ pub enum Measure {
     Response(MeasureResponse),
 }
 
-#[allow(dead_code)]
-impl Measure {
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+impl Serde for Measure {
+    type Output = Self;
+
+    fn serialize(&self) -> Result<Vec<u8>> {
         match self {
             Measure::Request(request) => {
                 request.serialize()
@@ -297,7 +309,8 @@ impl Measure {
             }
         }
     }
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
+
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         let tag = u16::from_be_bytes(
             (&data[0..2])
                 .try_into()
@@ -461,7 +474,7 @@ mod tests {
 
         let response_action = MeasureAction::Start;
         let response_duration = MeasureDuration::new(0x30);
-        let mut response_tlv = MeasureResponse::new(response_action, request_duration);
+        let mut response_tlv = MeasureResponse::new(response_action, response_duration);
         assert_eq!(response_tlv.get_response_action(), MeasureAction::Start);
         response_tlv.set_response_action(MeasureAction::Stop);
         assert_eq!(response_tlv.get_response_action(), MeasureAction::Stop);
@@ -478,7 +491,7 @@ mod tests {
 
         let response_action = MeasureAction::Start;
         let response_duration = MeasureDuration::new(0x20);
-        let mut response_tlv = MeasureResponse::new(response_action, request_duration);
+        let mut response_tlv = MeasureResponse::new(response_action, response_duration);
         assert_eq!(response_tlv.get_response_duration(), MeasureDuration::new(0x20));
         response_tlv.set_response_duration(MeasureDuration::new(0x30));
         assert_eq!(response_tlv.get_response_duration(), MeasureDuration::new(0x30));
