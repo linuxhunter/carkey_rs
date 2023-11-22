@@ -1,6 +1,6 @@
-use crate::iccoa2::message::{Message, MessageStatus};
-use crate::iccoa2::{message, Serde};
-use super::errors::*;
+use crate::iccoa2::ble::message::{Message, MessageStatus};
+use crate::iccoa2::{ble::message, Serde};
+use crate::iccoa2::errors::*;
 
 #[allow(dead_code)]
 pub fn handle_data_package_from_mobile(data_package: &[u8]) -> Result<Message> {

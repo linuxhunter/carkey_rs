@@ -1,5 +1,5 @@
 use crate::iccoa2::{instructions, Serde};
-use super::errors::*;
+use crate::iccoa2::errors::*;
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct Apdu {
@@ -56,7 +56,7 @@ impl Serde for Apdu {
 
 #[cfg(test)]
 mod tests {
-    use crate::iccoa2::identifier;
+    use crate::iccoa2::ble::identifier;
     use super::*;
 
     #[test]

@@ -1,12 +1,12 @@
 use std::fmt::{Display, Formatter};
-use crate::iccoa2::apdu::Apdu;
-use crate::iccoa2::auth::Auth;
-use crate::iccoa2::custom::CustomMessage;
-use crate::iccoa2::measure::Measure;
-use crate::iccoa2::rke::Rke;
-use crate::iccoa2::{measure, Serde};
-use crate::iccoa2::vehicle_status::{handle_query_request, handle_subscribe_request, handle_unsubscribe_request, VehicleStatus, VehicleStatusOperations};
-use super::errors::*;
+use crate::iccoa2::ble::apdu::Apdu;
+use crate::iccoa2::ble::auth::Auth;
+use crate::iccoa2::ble::custom::CustomMessage;
+use crate::iccoa2::ble::measure::Measure;
+use crate::iccoa2::ble::rke::Rke;
+use crate::iccoa2::{ble::measure, Serde};
+use crate::iccoa2::ble::vehicle_status::{handle_query_request, handle_subscribe_request, handle_unsubscribe_request, VehicleStatus, VehicleStatusOperations};
+use crate::iccoa2::errors::*;
 
 #[allow(dead_code)]
 const MESSAGE_VERSION: u8 = 0x01;
@@ -378,7 +378,7 @@ pub fn handle_response_from_mobile(message: &Message) -> Result<Message> {
 
 #[cfg(test)]
 mod tests {
-    use crate::iccoa2::measure::{MeasureActionResult, MeasureDuration};
+    use crate::iccoa2::ble::measure::{MeasureActionResult, MeasureDuration};
     use super::*;
 
     #[test]

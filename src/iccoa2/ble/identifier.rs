@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 use crate::iccoa2::Serde;
-use super::errors::*;
+use crate::iccoa2::errors::*;
 
 #[allow(dead_code)]
 const KEY_SERIAL_ID_LENGTH: usize = 12;

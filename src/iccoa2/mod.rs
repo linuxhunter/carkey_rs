@@ -2,16 +2,8 @@ use error_chain::error_chain;
 use iso7816_tlv::ber;
 use crate::iccoa2::errors::ErrorKind;
 
-pub mod message;
-pub mod apdu;
-pub mod measure;
-pub mod rke;
-pub mod vehicle_status;
-pub mod auth;
-pub mod custom;
-pub mod identifier;
+pub mod ble;
 pub mod instructions;
-pub mod bluetooth_io;
 
 mod errors {
     use super::*;

@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
 use log::info;
 use crate::iccoa2::{create_tlv_with_constructed_value, create_tlv_with_primitive_value, get_tlv_primitive_value, Serde};
-use super::errors::*;
+use crate::iccoa2::errors::*;
 
 #[allow(dead_code)]
 const ENTITY_MIDDLE_TAG: u8 = 0x30;
