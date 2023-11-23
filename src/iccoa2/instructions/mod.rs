@@ -25,6 +25,7 @@ pub mod enable_disable;
 pub mod get_challenge;
 pub mod get_response;
 
+const CLA: u8 = 0x80;
 const VERSION_TAG: u8 = 0x5A;
 const RANDOM_TAG: u8 = 0x55;
 const RKE_CMD_TAG: u8 = 0x57;

@@ -56,7 +56,7 @@ impl Serde for Apdu {
 
 #[cfg(test)]
 mod tests {
-    use crate::iccoa2::ble::identifier;
+    use crate::iccoa2::identifier;
     use super::*;
 
     #[test]

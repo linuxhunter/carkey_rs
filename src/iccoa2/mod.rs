@@ -4,6 +4,8 @@ use crate::iccoa2::errors::ErrorKind;
 
 pub mod ble;
 pub mod instructions;
+pub mod transaction;
+pub mod identifier;
 
 mod errors {
     use super::*;

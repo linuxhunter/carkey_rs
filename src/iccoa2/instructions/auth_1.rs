@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
 use crate::iccoa2::errors::*;
-use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, ble::identifier, Serde};
+use crate::iccoa2::{create_tlv_with_primitive_value, get_tlv_primitive_value, identifier, Serde};
 use super::{common, DEVICE_TEMP_PUB_KEY_TAG, RANDOM_TAG, SIGNATURE_TAG, VEHICLE_ID_TAG, VEHICLE_TEMP_PUB_KEY_TAG};
 
 #[allow(dead_code)]
