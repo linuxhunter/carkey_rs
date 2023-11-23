@@ -7,6 +7,8 @@ pub mod instructions;
 pub mod transaction;
 pub mod identifier;
 
+const RANDOM_LENGTH: usize = 0x08;
+
 mod errors {
     use super::*;
 
@@ -21,6 +23,7 @@ mod errors {
             CustomError(t: String)
             AuthError(t: String)
             IdentifierError(t: String)
+            TransactionError(t: String)
         }
     }
 }

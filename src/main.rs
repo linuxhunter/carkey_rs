@@ -168,7 +168,7 @@ async fn main() -> bluer::Result<()> {
                                             }
                                         }
                                         CarkeyProtocol::Iccoa2 => {
-                                            if let Ok(message) = iccoa2::ble::message::create_measure_request_message() {
+                                            if let Ok(message) = iccoa2::ble::bluetooth_io::create_select_request_message() {
                                                 if let Err(err) = notifier.notify(message.serialize().unwrap()).await {
                                                     error!("Notification error when setting get process data request: {}", err);
                                                 }
@@ -350,13 +350,15 @@ async fn main() -> bluer::Result<()> {
         },
         CarkeyProtocol::Iccoa2 => {
             //test code for sending message from vehicle to mobile by notification
+            /*
             tokio::spawn(async move {
                 loop {
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                    let request = iccoa2::ble::message::create_measure_request_message().unwrap();
+                    let request = iccoa2::ble::bluetooth_io::create_measure_request_message().unwrap();
                     let _ = bt_send_package_tx.send(request.serialize().unwrap()).await;
                 }
             });
+             */
         }
     }
 

@@ -4,8 +4,8 @@ use crate::iccoa2::ble::auth::Auth;
 use crate::iccoa2::ble::custom::CustomMessage;
 use crate::iccoa2::ble::measure::Measure;
 use crate::iccoa2::ble::rke::Rke;
-use crate::iccoa2::{ble::measure, Serde};
-use crate::iccoa2::ble::vehicle_status::{handle_query_request, handle_subscribe_request, handle_unsubscribe_request, VehicleStatus, VehicleStatusOperations};
+use crate::iccoa2::Serde;
+use crate::iccoa2::ble::vehicle_status::VehicleStatus;
 use crate::iccoa2::errors::*;
 
 #[allow(dead_code)]
@@ -271,108 +271,6 @@ impl Serde for Message {
             MessageType::Custom => MessageData::Custom(CustomMessage::deserialize(&data[MESSAGE_DATA_OFFSET..])?),
         };
         Ok(Message::new(message_type, message_status, message_data_length, message_data))
-    }
-}
-
-pub fn create_measure_request_message() -> Result<Message> {
-    let measure_request = measure::create_measure_request(
-        measure::MeasureType::BtRssi,
-        measure::MeasureAction::Start,
-        measure::MeasureDuration::new(0x20),
-    );
-    Ok(
-        Message::new(
-            MessageType::MeasureBroadcastRequest,
-            MessageStatus::NoApplicable,
-            measure_request.serialize()?.len() as u16,
-            MessageData::Measure(Measure::Request(measure_request))
-        )
-    )
-}
-
-#[allow(dead_code)]
-pub fn handle_request_from_mobile(message: &Message) -> Result<Message> {
-    match message.get_message_type() {
-        MessageType::Apdu => {
-            todo!()
-        }
-        MessageType::MeasureBroadcastRequest => {
-            todo!()
-        }
-        MessageType::Rke => {
-            todo!()
-        }
-        MessageType::VehicleStatus => {
-            if let MessageData::VehicleStatus(VehicleStatus::Request(request)) = message.get_message_data() {
-                match request.get_operation() {
-                    VehicleStatusOperations::Subscribe => {
-                        handle_subscribe_request(request)
-                    },
-                    VehicleStatusOperations::Query => {
-                        let response = handle_query_request(request)?;
-                        return Ok(
-                            Message::new(
-                                MessageType::VehicleStatus,
-                                MessageStatus::Success,
-                                response.serialize()?.len() as u16,
-                                MessageData::VehicleStatus(VehicleStatus::Response(response))
-                            )
-                        )
-                    },
-                    VehicleStatusOperations::Unsubscribe => {
-                        handle_unsubscribe_request(request)
-                    },
-                }
-                todo!()
-            } else {
-                todo!()
-            }
-        }
-        MessageType::VehicleAppCustomMessage => {
-            todo!()
-        }
-        MessageType::VehicleServerCustomMessage => {
-            todo!()
-        }
-        MessageType::Auth => {
-            todo!()
-        }
-        MessageType::Custom => {
-            todo!()
-        }
-    }
-}
-
-#[allow(dead_code)]
-pub fn handle_response_from_mobile(message: &Message) -> Result<Message> {
-    match message.get_message_type() {
-        MessageType::Apdu => {
-            todo!()
-        }
-        MessageType::MeasureBroadcastRequest => {
-            if let MessageData::Measure(Measure::Response(response)) = message.get_message_data() {
-                measure::handle_measure_response_from_mobile(response)?;
-            }
-            Err("No response to mobile".to_string().into())
-        }
-        MessageType::Rke => {
-            todo!()
-        }
-        MessageType::VehicleStatus => {
-            todo!()
-        }
-        MessageType::VehicleAppCustomMessage => {
-            todo!()
-        }
-        MessageType::VehicleServerCustomMessage => {
-            todo!()
-        }
-        MessageType::Auth => {
-            todo!()
-        }
-        MessageType::Custom => {
-            todo!()
-        }
     }
 }
 
