@@ -223,10 +223,31 @@ impl Serde for ResponseApduGetDkCert {
 
         let response_tlv = ber::Tlv::from_bytes(body)
             .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize origin bytes error: {}", e)))?;
-        let response_tag_bytes = response_tlv.tag().to_bytes();
-        let cert_type = DkCertType::try_from(response_tag_bytes[0])
-            .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize get dk certificate tag error: {}", e)))?;
-        let cert = get_tlv_primitive_value(&response_tlv, response_tlv.tag())?;
+        let response_tag = u16::from_be_bytes(
+            response_tlv.tag().to_bytes()
+                .try_into()
+                .map_err(|e| ErrorKind::ApduInstructionErr(format!("get response tag error: {}", e)))?
+        );
+        let cert_type = match response_tag {
+            0x7F40 => {
+                DkCertType::VehicleCA
+            },
+            0x7F42 => {
+                DkCertType::VehicleMasterKey
+            },
+            0x7F44 => {
+                DkCertType::TempSharedCert
+            },
+            0x7F46 => {
+                DkCertType::FriendKey
+            },
+            _ => {
+                return Err(ErrorKind::ApduInstructionErr("unsupported get dk certificate response tag".to_string()).into());
+            }
+        };
+        let cert_tag = ber::Tag::try_from(CERT_TAG)
+            .map_err(|e| ErrorKind::ApduInstructionErr(format!("create cert tag error: {}", e)))?;
+        let cert = get_tlv_primitive_value(&response_tlv, &cert_tag)?;
         Ok(ResponseApduGetDkCert::new(
             cert_type,
             cert,

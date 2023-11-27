@@ -378,6 +378,7 @@ impl Display for Measure {
     }
 }
 
+#[allow(dead_code)]
 pub fn create_measure_request(measure_type: MeasureType, measure_action: MeasureAction, measure_duration: MeasureDuration) -> MeasureRequest {
     MeasureRequest::new(
         measure_type,

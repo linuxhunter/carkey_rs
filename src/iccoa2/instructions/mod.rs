@@ -2,6 +2,7 @@ use std::fmt::{Display, Formatter};
 use crate::iccoa2::{errors, Serde};
 use crate::iccoa2::instructions::auth_0::{CommandApduAuth0, ResponseApduAuth0};
 use crate::iccoa2::instructions::auth_1::{CommandApduAuth1, ResponseApduAuth1};
+use crate::iccoa2::instructions::control_flow::{CommandApduControlFlow, ResponseApduControlFlow};
 use crate::iccoa2::instructions::enable_disable::{CommandApduEnableDisable, ResponseApduEnableDisable};
 use crate::iccoa2::instructions::get_challenge::{CommandApduGetChallenge, ResponseApduGetChallenge};
 use crate::iccoa2::instructions::get_dk_certificate::{CommandApduGetDkCert, ResponseApduGetDkCert};
@@ -24,6 +25,7 @@ pub mod sign;
 pub mod enable_disable;
 pub mod get_challenge;
 pub mod get_response;
+pub mod control_flow;
 
 pub const CLA: u8 = 0x80;
 const VERSION_TAG: u8 = 0x5A;
@@ -64,6 +66,8 @@ pub enum ApduInstructionType {
     ResponseGetChallenge= 0x16,
     CommandGetResponse= 0x17,
     ResponseGetResponse= 0x18,
+    CommandControlFlow = 0x19,
+    ResponseControlFlow = 0x1A,
 }
 
 impl TryFrom<u8> for ApduInstructionType {
@@ -95,6 +99,8 @@ impl TryFrom<u8> for ApduInstructionType {
             0x16 => Ok(ApduInstructionType::ResponseGetChallenge),
             0x17 => Ok(ApduInstructionType::CommandGetResponse),
             0x18 => Ok(ApduInstructionType::ResponseGetResponse),
+            0x19 => Ok(ApduInstructionType::CommandControlFlow),
+            0x1A => Ok(ApduInstructionType::ResponseControlFlow),
             _ => Err(format!("Unsupported Apdu Instruction type: {}", value)),
         }
     }
@@ -127,6 +133,8 @@ impl From<ApduInstructionType> for u8 {
             ApduInstructionType::ResponseGetChallenge => 0x16,
             ApduInstructionType::CommandGetResponse => 0x17,
             ApduInstructionType::ResponseGetResponse => 0x18,
+            ApduInstructionType::CommandControlFlow => 0x19,
+            ApduInstructionType::ResponseControlFlow => 0x1A,
         }
     }
 }
@@ -158,6 +166,8 @@ impl Display for ApduInstructionType {
             ApduInstructionType::ResponseGetChallenge => write!(f, "Response Get Challenge"),
             ApduInstructionType::CommandGetResponse => write!(f, "Command Get Response"),
             ApduInstructionType::ResponseGetResponse => write!(f, "Response Get Response"),
+            ApduInstructionType::CommandControlFlow => write!(f, "Command Control Flow"),
+            ApduInstructionType::ResponseControlFlow => write!(f, "Response Control Flow"),
         }
     }
 }
@@ -188,6 +198,8 @@ pub enum ApduInstructions {
     ResponseGetChallenge(ResponseApduGetChallenge),
     CommandGetResponse(CommandApduGetResponse),
     ResponseGetResponse(ResponseApduGetResponse),
+    CommandControlFlow(CommandApduControlFlow),
+    ResponseControlFlow(ResponseApduControlFlow),
 }
 
 impl Serde for ApduInstructions {
@@ -226,10 +238,14 @@ impl Serde for ApduInstructions {
                 Ok(buffer)
             },
             ApduInstructions::CommandAuth1(request) => {
-                Ok(request.to_vec())
+                let mut buffer = vec![u8::from(ApduInstructionType::CommandAuth1)];
+                buffer.append(&mut request.clone());
+                Ok(buffer)
             },
             ApduInstructions::ResponseAuth1(response) => {
-                Ok(response.to_vec())
+                let mut buffer = vec![u8::from(ApduInstructionType::ResponseAuth1)];
+                buffer.append(&mut response.clone());
+                Ok(buffer)
             },
             ApduInstructions::CommandGetDkCert(request) => {
                 let mut buffer = vec![u8::from(ApduInstructionType::CommandGetDkCert)];
@@ -311,6 +327,16 @@ impl Serde for ApduInstructions {
                 buffer.append(&mut response.serialize()?);
                 Ok(buffer)
             },
+            ApduInstructions::CommandControlFlow(request) => {
+                let mut buffer = vec![u8::from(ApduInstructionType::CommandControlFlow)];
+                buffer.append(&mut request.serialize()?);
+                Ok(buffer)
+            },
+            ApduInstructions::ResponseControlFlow(response) => {
+                let mut buffer = vec![u8::from(ApduInstructionType::ResponseControlFlow)];
+                buffer.append(&mut response.serialize()?);
+                Ok(buffer)
+            },
         }
     }
 
@@ -342,6 +368,8 @@ impl Serde for ApduInstructions {
             ApduInstructionType::ResponseGetChallenge => Ok(ApduInstructions::ResponseGetChallenge(ResponseApduGetChallenge::deserialize(apdu_buffer)?)),
             ApduInstructionType::CommandGetResponse => Ok(ApduInstructions::CommandGetResponse(CommandApduGetResponse::deserialize(apdu_buffer)?)),
             ApduInstructionType::ResponseGetResponse => Ok(ApduInstructions::ResponseGetResponse(ResponseApduGetResponse::deserialize(apdu_buffer)?)),
+            ApduInstructionType::CommandControlFlow => Ok(ApduInstructions::CommandControlFlow(CommandApduControlFlow::deserialize(apdu_buffer)?)),
+            ApduInstructionType::ResponseControlFlow => Ok(ApduInstructions::ResponseControlFlow(ResponseApduControlFlow::deserialize(apdu_buffer)?)),
         }
     }
 }
@@ -373,6 +401,8 @@ impl Display for ApduInstructions {
             ApduInstructions::ResponseGetChallenge(response) => write!(f, "{}", response),
             ApduInstructions::CommandGetResponse(command) => write!(f, "{}", command),
             ApduInstructions::ResponseGetResponse(response) => write!(f, "{}", response),
+            ApduInstructions::CommandControlFlow(command) => write!(f, "{}", command),
+            ApduInstructions::ResponseControlFlow(response) => write!(f, "{}", response),
         }
     }
 }

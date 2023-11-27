@@ -3,6 +3,7 @@ use crate::iccoa2::ble::message::{Message, MessageData, MessageStatus, MessageTy
 use crate::iccoa2::{instructions, Serde};
 use crate::iccoa2::ble::{measure, vehicle_status};
 use crate::iccoa2::errors::*;
+use crate::iccoa2::instructions::get_dk_certificate::DkCertType;
 use crate::iccoa2::transaction::StandardTransaction;
 
 const AID: u8 = 0x00;
@@ -23,6 +24,7 @@ pub fn create_select_request_message() -> Result<Message> {
     standard_transaction.create_select_request()
 }
 
+#[allow(dead_code)]
 pub fn create_measure_request_message() -> Result<Message> {
     let measure_request = measure::create_measure_request(
         measure::MeasureType::BtRssi,
@@ -102,13 +104,29 @@ pub fn handle_response_from_mobile(message: &Message) -> Result<Message> {
                         instructions::ApduInstructions::ResponseSelect(response) => {
                             let mut standard_transaction = STANDARD_TRANSACTION.lock().unwrap();
                             standard_transaction.handle_select_response(response)?;
-                            return Err("error".to_string().into());
+                            return standard_transaction.create_auth0_request();
+                        }
+                        instructions::ApduInstructions::ResponseAuth0(response) => {
+                            let mut standard_transaction = STANDARD_TRANSACTION.lock().unwrap();
+                            standard_transaction.handle_auth0_response(response)?;
+                            return standard_transaction.create_auth1_request();
+                        }
+                        instructions::ApduInstructions::ResponseAuth1(response) => {
+                            let mut standard_transaction = STANDARD_TRANSACTION.lock().unwrap();
+                            standard_transaction.handle_auth1_response(response)?;
+                            return standard_transaction.create_get_dk_certificate_request(DkCertType::VehicleMasterKey);
+                        }
+                        instructions::ApduInstructions::ResponseGetDkCert(response) => {
+                            let standard_transaction = STANDARD_TRANSACTION.lock().unwrap();
+                            return standard_transaction.handle_get_dk_certificate_response(response);
+                        }
+                        instructions::ApduInstructions::ResponseControlFlow(response) => {
+                            println!("[Control Flow Response]: ");
+                            println!("\tstatus: {}", response.get_status());
+                            return Err(ErrorKind::TransactionError("no reply".to_string()).into());
                         }
                         /*
-                        ApduInstructions::ResponseAuth0(response) => {}
                         ApduInstructions::ResponseListDk(_) => {} }
-                        ApduInstructions::ResponseAuth1(_) => {}
-                        ApduInstructions::ResponseGetDkCert(_) => {}
                         ApduInstructions::ResponseSharingRequest(_) => {}
                         ApduInstructions::ResponseRke(_) => {}
                         ApduInstructions::ResponseSign(_) => {}
