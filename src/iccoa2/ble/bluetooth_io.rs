@@ -1,7 +1,8 @@
 use std::sync::Mutex;
 use crate::iccoa2::ble::message::{Message, MessageData, MessageStatus, MessageType};
-use crate::iccoa2::{instructions, Serde};
-use crate::iccoa2::ble::{measure, vehicle_status};
+use crate::iccoa2::{ble, instructions, Serde};
+use crate::iccoa2::ble::vehicle_status;
+use crate::iccoa2::ble_measure::BleMeasure;
 use crate::iccoa2::errors::*;
 use crate::iccoa2::instructions::get_dk_certificate::DkCertType;
 use crate::iccoa2::transaction::StandardTransaction;
@@ -12,33 +13,26 @@ const VEHICLE_SERIAL_ID: [u8; 14] = [
     0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09,
     0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
 ];
+const DEFAULT_BLE_MEASURE_REQUEST_DURATION: u8 = 0x10;
 
 lazy_static! {
     static ref STANDARD_TRANSACTION: Mutex<StandardTransaction> = Mutex::new(
         StandardTransaction::new(AID, VEHICLE_OEM_ID, VEHICLE_SERIAL_ID.as_ref()).unwrap()
+    );
+    static ref BLE_MEASURE: Mutex<BleMeasure> = Mutex::new(
+        BleMeasure::new(
+            ble::measure::MeasureRequest::new(
+                ble::measure::MeasureType::BtRssi,
+                ble::measure::MeasureAction::Start,
+                ble::measure::MeasureDuration::new(DEFAULT_BLE_MEASURE_REQUEST_DURATION),
+            )
+        )
     );
 }
 
 pub fn create_select_request_message() -> Result<Message> {
     let standard_transaction = STANDARD_TRANSACTION.lock().unwrap();
     standard_transaction.create_select_request()
-}
-
-#[allow(dead_code)]
-pub fn create_measure_request_message() -> Result<Message> {
-    let measure_request = measure::create_measure_request(
-        measure::MeasureType::BtRssi,
-        measure::MeasureAction::Start,
-        measure::MeasureDuration::new(0x20),
-    );
-    Ok(
-        Message::new(
-            MessageType::MeasureBroadcastRequest,
-            MessageStatus::NoApplicable,
-            measure_request.serialize()?.len() as u16,
-            MessageData::Measure(measure::Measure::Request(measure_request))
-        )
-    )
 }
 
 #[allow(dead_code)]
@@ -123,7 +117,15 @@ pub fn handle_response_from_mobile(message: &Message) -> Result<Message> {
                         instructions::ApduInstructions::ResponseControlFlow(response) => {
                             let standard_transaction = STANDARD_TRANSACTION.lock().unwrap();
                             standard_transaction.handle_control_flow_response(response)?;
-                            return Err(ErrorKind::TransactionError("no reply".to_string()).into());
+                            let mut ble_measure = BLE_MEASURE.lock().unwrap();
+                            ble_measure.set_request(
+                                ble::measure::MeasureRequest::new(
+                                    ble::measure::MeasureType::BtRssi,
+                                    ble::measure::MeasureAction::Start,
+                                    ble::measure::MeasureDuration::new(0x20),
+                                )
+                            );
+                            return ble_measure.create_ble_measure_request();
                         }
                         /*
                         ApduInstructions::ResponseListDk(_) => {} }
@@ -136,7 +138,7 @@ pub fn handle_response_from_mobile(message: &Message) -> Result<Message> {
                         ApduInstructions::ResponseGetResponse(_) => {}
                         */
                         _ => {
-                            todo!()
+                            return Err(ErrorKind::TransactionError("no reply".to_string()).into());
                         }
                     }
                 }
@@ -144,8 +146,9 @@ pub fn handle_response_from_mobile(message: &Message) -> Result<Message> {
             todo!()
         }
         MessageType::MeasureBroadcastRequest => {
-            if let MessageData::Measure(measure::Measure::Response(response)) = message.get_message_data() {
-                measure::handle_measure_response_from_mobile(response)?;
+            if let MessageData::Measure(ble::measure::Measure::Response(response)) = message.get_message_data() {
+                let mut ble_measure = BLE_MEASURE.lock().unwrap();
+                ble_measure.handle_ble_measure_response(response)?;
             }
             Err("No response to mobile".to_string().into())
         }

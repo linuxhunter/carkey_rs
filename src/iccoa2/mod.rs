@@ -6,6 +6,7 @@ pub mod ble;
 pub mod instructions;
 pub mod transaction;
 pub mod identifier;
+mod ble_measure;
 
 const RANDOM_LENGTH: usize = 0x08;
 

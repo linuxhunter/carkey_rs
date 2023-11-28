@@ -1,6 +1,5 @@
 use std::fmt::{Display, Formatter};
 use iso7816_tlv::ber;
-use log::info;
 use crate::iccoa2::{create_tlv_with_constructed_value, create_tlv_with_primitive_value, get_tlv_primitive_value, Serde};
 use crate::iccoa2::errors::*;
 
@@ -169,7 +168,7 @@ impl Display for MeasureDuration {
     }
 }
 
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct MeasureRequest {
     request_type: MeasureType,
     request_action: MeasureAction,
@@ -258,7 +257,7 @@ impl Display for MeasureRequest {
     }
 }
 
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct MeasureResponse {
     response_action: MeasureActionResult,
     response_duration: MeasureDuration,
@@ -376,22 +375,6 @@ impl Display for Measure {
             }
         }
     }
-}
-
-#[allow(dead_code)]
-pub fn create_measure_request(measure_type: MeasureType, measure_action: MeasureAction, measure_duration: MeasureDuration) -> MeasureRequest {
-    MeasureRequest::new(
-        measure_type,
-        measure_action,
-        measure_duration,
-    )
-}
-
-pub fn handle_measure_response_from_mobile(response: &MeasureResponse) -> Result<()> {
-    info!("[Measure]:");
-    info!("\tResult: {}", response.get_response_action());
-    info!("\tDuration: {}", response.get_response_duration());
-    Ok(())
 }
 
 #[cfg(test)]
