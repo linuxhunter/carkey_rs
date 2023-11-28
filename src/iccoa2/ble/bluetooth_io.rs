@@ -121,8 +121,8 @@ pub fn handle_response_from_mobile(message: &Message) -> Result<Message> {
                             return standard_transaction.handle_get_dk_certificate_response(response);
                         }
                         instructions::ApduInstructions::ResponseControlFlow(response) => {
-                            println!("[Control Flow Response]: ");
-                            println!("\tstatus: {}", response.get_status());
+                            let standard_transaction = STANDARD_TRANSACTION.lock().unwrap();
+                            standard_transaction.handle_control_flow_response(response)?;
                             return Err(ErrorKind::TransactionError("no reply".to_string()).into());
                         }
                         /*

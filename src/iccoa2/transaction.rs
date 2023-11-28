@@ -123,7 +123,7 @@ impl StandardTransaction {
             .to_bytes(&group, PointConversionForm::UNCOMPRESSED, &mut ctx)
             .map_err(|e| ErrorKind::TransactionError(format!("export vehicle temp public key error: {}", e)))?;
         let auth0_request = instructions::auth_0::CommandApduAuth0::new(
-            instructions::CLA,
+            CLA,
             instructions::auth_0::Auth0P1::Standard,
             self.version.unwrap(),
             vehicle_id,
@@ -216,8 +216,8 @@ impl StandardTransaction {
         info!("[Auth1 Response]:");
         info!("\tresponse = {:02X?}", response);
 
-        if let Some(ref pubkey) = self.device_temp_public_key {
-            let mut verifier = Verifier::new(MessageDigest::sha256(), pubkey).unwrap();
+        if let Some(ref public_key) = self.device_temp_public_key {
+            let mut verifier = Verifier::new(MessageDigest::sha256(), public_key).unwrap();
             let data = self.create_auth1_authentication_data()?.serialize()?;
             verifier.update(data.as_ref()).unwrap();
             if verifier.verify(response).unwrap() {
@@ -270,7 +270,7 @@ impl StandardTransaction {
                     .open(OWNER_CERT_PATH)
                     .map_err(|e| ErrorKind::TransactionError(format!("create owner certificate file error: {}", e)))?;
                 file.write_all(response.get_dk_cert())
-                    .map_err(|e| ErrorKind::TransactionError(format!("write owner cerificate error: {}", e)))?;
+                    .map_err(|e| ErrorKind::TransactionError(format!("write owner certificate error: {}", e)))?;
                 if response.get_status().has_remain() {
                     let request = instructions::get_response::CommandApduGetResponse::new();
                     let mut apdu = ble::apdu::Apdu::new();
@@ -289,47 +289,14 @@ impl StandardTransaction {
                     if let Ok(result) = vehicle_ca_certificate.verify(&owner_certificate) {
                         if result {
                             println!("Owner Certificate Verification OK!!!");
-                            let request = instructions::control_flow::CommandApduControlFlow::new(
-                                CLA,
-                                instructions::control_flow::ControlFlowP1P2::StandardAuthSuccess,
-                            );
-                            let mut apdu = ble::apdu::Apdu::new();
-                            apdu.add_apdu_instruction(ApduInstructions::CommandControlFlow(request));
-                            Ok(Message::new(
-                                MessageType::Apdu,
-                                MessageStatus::NoApplicable,
-                                apdu.serialize()?.len() as u16,
-                                MessageData::Apdu(apdu),
-                            ))
+                            self.create_control_flow_request(CLA, instructions::control_flow::ControlFlowP1P2::StandardAuthSuccess)
                         } else {
                             println!("Owner Certificate Verification Failed!!!");
-                            let request = instructions::control_flow::CommandApduControlFlow::new(
-                                CLA,
-                                instructions::control_flow::ControlFlowP1P2::StandardAuthFailedWithUnknownVehicle,
-                            );
-                            let mut apdu = ble::apdu::Apdu::new();
-                            apdu.add_apdu_instruction(ApduInstructions::CommandControlFlow(request));
-                            Ok(Message::new(
-                                MessageType::Apdu,
-                                MessageStatus::NoApplicable,
-                                apdu.serialize()?.len() as u16,
-                                MessageData::Apdu(apdu),
-                            ))
+                            self.create_control_flow_request(CLA, instructions::control_flow::ControlFlowP1P2::StandardAuthFailedWithUnknownVehicle)
                         }
                     } else {
                         println!("Owner Certificate Verification Failed!!!");
-                        let request = instructions::control_flow::CommandApduControlFlow::new(
-                            CLA,
-                            instructions::control_flow::ControlFlowP1P2::StandardAuthFailedWithInvalidAuthInfo,
-                        );
-                        let mut apdu = ble::apdu::Apdu::new();
-                        apdu.add_apdu_instruction(ApduInstructions::CommandControlFlow(request));
-                        Ok(Message::new(
-                            MessageType::Apdu,
-                            MessageStatus::NoApplicable,
-                            apdu.serialize()?.len() as u16,
-                            MessageData::Apdu(apdu),
-                        ))
+                        self.create_control_flow_request(CLA, instructions::control_flow::ControlFlowP1P2::StandardAuthFailedWithInvalidAuthInfo)
                     }
                 }
             }
@@ -341,15 +308,23 @@ impl StandardTransaction {
             }
         }
     }
-    /*
-    pub fn create_control_flow_request(&self) -> Result<Message> {
-
+    pub fn create_control_flow_request(&self, cla: u8, p1p2: instructions::control_flow::ControlFlowP1P2) -> Result<Message> {
+        let request = instructions::control_flow::CommandApduControlFlow::new(
+            cla,
+            p1p2,
+        );
+        let mut apdu = ble::apdu::Apdu::new();
+        apdu.add_apdu_instruction(ApduInstructions::CommandControlFlow(request));
+        Ok(Message::new(
+            MessageType::Apdu,
+            MessageStatus::NoApplicable,
+            apdu.serialize()?.len() as u16,
+            MessageData::Apdu(apdu),
+        ))
     }
-    */
+    pub fn handle_control_flow_response(&self, response: &instructions::control_flow::ResponseApduControlFlow) -> Result<()> {
+        info!("[Control Flow Response]: ");
+        info!("\tstatus: {}", response.get_status());
+        Ok(())
+    }
 }
-
-/*
-pub struct FastTransaction {
-
-}
-*/
