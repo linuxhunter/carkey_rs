@@ -6,14 +6,14 @@ use crate::iccoa2::{ble, instructions, Serde};
 use crate::iccoa2::ble::auth::Auth;
 use crate::iccoa2::ble::rke::RkeResponse;
 use crate::iccoa2::ble::vehicle_status;
-use crate::iccoa2::ble::vehicle_status::VehicleStatusResponse;
+use crate::iccoa2::ble::vehicle_status::{SubscribeVerificationResponse, VehicleStatusResponse};
 use crate::iccoa2::ble_measure::BleMeasure;
 use crate::iccoa2::errors::*;
 use crate::iccoa2::instructions::get_dk_certificate::DkCertType;
 use crate::iccoa2::transaction::StandardTransaction;
 use crate::iccoa2::ble_auth::BleAuth;
 use crate::iccoa2::ble_rke::BleRke;
-use crate::iccoa2::ble_vehicle_status::BleSubscribeVehicleStatus;
+use crate::iccoa2::ble_vehicle_status::BleVehicleStatus;
 
 const AID: u8 = 0x00;
 const VEHICLE_OEM_ID: u16 = 0x0102;
@@ -38,7 +38,7 @@ lazy_static! {
     );
     static ref BLE_AUTH: Mutex<BleAuth> = Mutex::new(BleAuth::new());
     static ref BLE_RKE: Mutex<BleRke> = Mutex::new(BleRke::new());
-    static ref BLE_SUBSCRIBE: Mutex<BleSubscribeVehicleStatus> = Mutex::new(BleSubscribeVehicleStatus::new());
+    static ref BLE_VEHICLE_STATUS: Mutex<BleVehicleStatus> = Mutex::new(BleVehicleStatus::new());
 }
 
 pub fn create_select_request_message() -> Result<Message> {
@@ -203,7 +203,7 @@ pub fn handle_response_from_mobile(message: &Message, bt_sender: Sender<Vec<u8>>
                     return ble_rke.create_rke_verification_response();
                 }
                 if let Some(subscribe) = ble_auth.get_subscribe() {
-                    let mut ble_subscribe = BLE_SUBSCRIBE.lock().unwrap();
+                    let mut ble_subscribe = BLE_VEHICLE_STATUS.lock().unwrap();
                     ble_subscribe.set_random(ble_auth.get_random());
                     ble_subscribe.set_request(*subscribe);
                     ble_subscribe.set_response(VehicleStatusResponse::new(
@@ -211,13 +211,24 @@ pub fn handle_response_from_mobile(message: &Message, bt_sender: Sender<Vec<u8>>
                         0x0102,
                         None,
                     ));
-                    let subscribe_response = ble_subscribe.create_ble_subscribe_response()?.serialize()?;
+                    let subscribe_response = ble_subscribe.create_vehicle_status_response()?.serialize()?;
                     //create thread to simulate sending rke response to mobile
                     std::thread::spawn(move || {
                         std::thread::sleep(Duration::from_secs(1));
                         bt_sender.blocking_send(subscribe_response).unwrap();
                     });
                     return ble_subscribe.create_subscribe_verification_response();
+                }
+                if let Some(query) = ble_auth.get_query() {
+                    let mut ble_query = BLE_VEHICLE_STATUS.lock().unwrap();
+                    ble_query.set_random(ble_auth.get_random());
+                    ble_query.set_request(*query);
+                    ble_query.set_response(VehicleStatusResponse::new(
+                        query.get_entity_id(),
+                        0x0304,
+                        Some(SubscribeVerificationResponse::new(ble_auth.get_random())),
+                    ));
+                    return ble_query.create_vehicle_status_response();
                 }
             }
             Err("No response to mobile".to_string().into())

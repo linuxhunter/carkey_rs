@@ -4,16 +4,16 @@ use crate::iccoa2::ble::vehicle_status::VehicleStatus;
 use crate::iccoa2::errors::*;
 
 #[derive(Debug, Default)]
-pub struct BleSubscribeVehicleStatus {
+pub struct BleVehicleStatus {
     random: Option<Vec<u8>>,
     request: Option<ble::vehicle_status::VehicleStatusRequest>,
     response: Option<ble::vehicle_status::VehicleStatusResponse>,
 }
 
 #[allow(dead_code)]
-impl BleSubscribeVehicleStatus {
+impl BleVehicleStatus {
     pub fn new() -> Self {
-        BleSubscribeVehicleStatus {
+        BleVehicleStatus {
             random: None,
             request: None,
             response: None,
@@ -62,7 +62,7 @@ impl BleSubscribeVehicleStatus {
             Err(ErrorKind::BleVehicleStatusError("random number is NULL".to_string()).into())
         }
     }
-    pub fn create_ble_subscribe_response(&self) -> Result<Message> {
+    pub fn create_vehicle_status_response(&self) -> Result<Message> {
         if let Some(response) = self.get_response() {
             Ok(Message::new(
                 MessageType::VehicleStatus,
