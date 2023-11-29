@@ -11,7 +11,7 @@ const KEY_ID_LENGTH: usize = 16;
 #[allow(dead_code)]
 const VEHICLE_ID_LENGTH: usize = 16;
 
-#[derive(Debug, Default, PartialOrd, PartialEq)]
+#[derive(Debug, Default, Clone, PartialOrd, PartialEq)]
 pub struct KeyId {
     device_oem_id: u16,
     vehicle_oem_id: u16,

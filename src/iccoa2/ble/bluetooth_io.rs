@@ -1,11 +1,17 @@
 use std::sync::Mutex;
+use std::time::Duration;
+use tokio::sync::mpsc::Sender;
 use crate::iccoa2::ble::message::{Message, MessageData, MessageStatus, MessageType};
 use crate::iccoa2::{ble, instructions, Serde};
+use crate::iccoa2::ble::auth::Auth;
+use crate::iccoa2::ble::rke::RkeResponse;
 use crate::iccoa2::ble::vehicle_status;
 use crate::iccoa2::ble_measure::BleMeasure;
 use crate::iccoa2::errors::*;
 use crate::iccoa2::instructions::get_dk_certificate::DkCertType;
 use crate::iccoa2::transaction::StandardTransaction;
+use crate::iccoa2::ble_auth::BleAuth;
+use crate::iccoa2::ble_rke::BleRke;
 
 const AID: u8 = 0x00;
 const VEHICLE_OEM_ID: u16 = 0x0102;
@@ -28,6 +34,8 @@ lazy_static! {
             )
         )
     );
+    static ref BLE_AUTH: Mutex<BleAuth> = Mutex::new(BleAuth::new());
+    static ref BLE_RKE: Mutex<BleRke> = Mutex::new(BleRke::new());
 }
 
 pub fn create_select_request_message() -> Result<Message> {
@@ -80,6 +88,11 @@ pub fn handle_request_from_mobile(message: &Message) -> Result<Message> {
             todo!()
         }
         MessageType::Auth => {
+            if let MessageData::Auth(Auth::RequestRandom(request)) = message.get_message_data() {
+                let mut ble_auth = BLE_AUTH.lock().unwrap();
+                ble_auth.handle_random_request(request);
+                return ble_auth.create_auth_request();
+            }
             todo!()
         }
         MessageType::Custom => {
@@ -89,11 +102,11 @@ pub fn handle_request_from_mobile(message: &Message) -> Result<Message> {
 }
 
 #[allow(dead_code)]
-pub fn handle_response_from_mobile(message: &Message) -> Result<Message> {
+pub fn handle_response_from_mobile(message: &Message, bt_sender: Sender<Vec<u8>>) -> Result<Message> {
     match message.get_message_type() {
         MessageType::Apdu => {
             if let MessageData::Apdu(apdu) = message.get_message_data() {
-                for instruction in apdu.get_apdu_instructions() {
+                if let Some(instruction) = apdu.get_apdu_instructions().iter().next() {
                     match instruction {
                         instructions::ApduInstructions::ResponseSelect(response) => {
                             let mut standard_transaction = STANDARD_TRANSACTION.lock().unwrap();
@@ -165,7 +178,29 @@ pub fn handle_response_from_mobile(message: &Message) -> Result<Message> {
             todo!()
         }
         MessageType::Auth => {
-            todo!()
+            if let MessageData::Auth(Auth::Response(response)) = message.get_message_data() {
+                let mut ble_auth = BLE_AUTH.lock().unwrap();
+                ble_auth.handle_auth_response(response)?;
+                if let Some(rke) = ble_auth.get_rke() {
+                    let mut ble_rke = BLE_RKE.lock().unwrap();
+                    ble_rke.set_random(ble_auth.get_random());
+                    ble_rke.set_request(*rke);
+                    //create rke response
+                    ble_rke.set_response(RkeResponse::new(
+                        rke.get_rke_function(),
+                        rke.get_rke_action(),
+                        0xAABB,
+                    ).unwrap());
+                    let rke_response = ble_rke.create_ble_rke_response()?.serialize()?;
+                    //create thread to simulate sending rke response to mobile
+                    std::thread::spawn(move || {
+                        std::thread::sleep(Duration::from_secs(1));
+                        bt_sender.blocking_send(rke_response).unwrap();
+                    });
+                    return ble_rke.create_rke_verification_response();
+                }
+            }
+            Err("No response to mobile".to_string().into())
         }
         MessageType::Custom => {
             todo!()
@@ -174,11 +209,11 @@ pub fn handle_response_from_mobile(message: &Message) -> Result<Message> {
 }
 
 #[allow(dead_code)]
-pub fn handle_data_package_from_mobile(data_package: &[u8]) -> Result<Message> {
+pub fn handle_data_package_from_mobile(data_package: &[u8], bt_sender: Sender<Vec<u8>>) -> Result<Message> {
     let message = Message::deserialize(data_package)?;
     match message.get_message_status() {
         MessageStatus::NoApplicable => handle_request_from_mobile(&message),
-        MessageStatus::Success => handle_response_from_mobile(&message),
+        MessageStatus::Success => handle_response_from_mobile(&message, bt_sender),
         MessageStatus::BeyondMessageLength |
         MessageStatus::NoPermission |
         MessageStatus::SeInaccessible |

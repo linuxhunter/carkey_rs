@@ -240,7 +240,7 @@ impl Display for AuthEntries {
 pub struct AuthResponse {
     key_id: identifier::KeyId,
     auth_entries: Option<AuthEntries>,
-    signature: [u8; AUTH_SIGNATURE_LENGTH],
+    signature: Vec<u8>,
 }
 
 #[allow(dead_code)]
@@ -249,9 +249,7 @@ impl AuthResponse {
         Ok(AuthResponse {
             key_id,
             auth_entries,
-            signature: signature
-                .try_into()
-                .map_err(|e| ErrorKind::AuthError(format!("create auth response signature error: {}", e)))?
+            signature: signature.to_vec()
         })
     }
     pub fn get_key_id(&self) -> &identifier::KeyId {
@@ -274,9 +272,7 @@ impl AuthResponse {
         &self.signature
     }
     pub fn set_signature(&mut self, signature: &[u8]) -> Result<()> {
-        self.signature = signature
-            .try_into()
-            .map_err(|e| ErrorKind::AuthError(format!("set signature error: {}", e)))?;
+        self.signature = signature.to_vec();
         Ok(())
     }
     pub fn serialize(&self) -> Result<Vec<u8>> {

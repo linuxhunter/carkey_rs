@@ -66,6 +66,7 @@ async fn main() -> bluer::Result<()> {
     let (bt_notify_tx, _) = broadcast::channel::<Vec<u8>>(32);
     let bt_notify_tx2 = bt_notify_tx.clone();
     let (bt_send_package_tx, mut bt_send_package_rx) = mpsc::channel::<Vec<u8>>(32);
+    let bt_send_package_tx2 = bt_send_package_tx.clone();
 
     let session = bluer::Session::new().await?;
     let adapter = session.default_adapter().await?;
@@ -407,7 +408,7 @@ async fn main() -> bluer::Result<()> {
                         }
                     },
                     CarkeyProtocol::Iccoa2 => {
-                        if let Ok(response) = iccoa2::ble::bluetooth_io::handle_data_package_from_mobile(&data_package) {
+                        if let Ok(response) = iccoa2::ble::bluetooth_io::handle_data_package_from_mobile(&data_package, bt_send_package_tx2.clone()) {
                             let _ = bt_notify_tx2.send(response.serialize().unwrap());
                         }
                     }

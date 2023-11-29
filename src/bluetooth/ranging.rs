@@ -1,5 +1,5 @@
 use bluer::Address;
-use log::info;
+use log::debug;
 
 static mut TEMP_RSSI: i16 = 0;
 const MEASURED_BASE: f32 = 10.0;
@@ -19,7 +19,7 @@ pub fn update_rssi(addr: Address, rssi: i16) {
                 calculate_distance_by_rssi(rssi)
             };
             TEMP_RSSI = rssi;
-            info!("Device {}, distance: {}m, rssi: {}", addr, distance, rssi);
+            debug!("Device {}, distance: {}m, rssi: {}", addr, distance, rssi);
         }
     }
 }

@@ -6,7 +6,10 @@ pub mod ble;
 pub mod instructions;
 pub mod transaction;
 pub mod identifier;
-mod ble_measure;
+pub mod ble_measure;
+pub mod certificate;
+pub mod ble_auth;
+pub mod ble_rke;
 
 const RANDOM_LENGTH: usize = 0x08;
 
@@ -25,6 +28,8 @@ mod errors {
             AuthError(t: String)
             IdentifierError(t: String)
             TransactionError(t: String)
+            BleAuthError(t: String)
+            BleRkeError(t: String)
         }
     }
 }

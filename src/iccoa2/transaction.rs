@@ -1,57 +1,18 @@
 use std::fs;
 use std::io::Write;
-use std::path::Path;
 use log::info;
 use openssl::bn::{BigNum, BigNumContext};
 use openssl::ec::{EcGroup, EcKey, EcPoint, PointConversionForm};
 use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
-use openssl::pkey::{PKey, PKeyRef, Private, Public};
+use openssl::pkey::{PKey, Private, Public};
 use openssl::sign::{Signer, Verifier};
-use openssl::x509::{X509, X509Ref};
 use rand::Rng;
 use crate::iccoa2::ble::message::{Message, MessageData, MessageStatus, MessageType};
 use crate::iccoa2::errors::*;
 use crate::iccoa2::instructions::{ApduInstructions, CLA};
-use crate::iccoa2::{ble, create_tlv_with_primitive_value, identifier, instructions, RANDOM_LENGTH, Serde};
+use crate::iccoa2::{ble, certificate, create_tlv_with_primitive_value, identifier, instructions, RANDOM_LENGTH, Serde};
 use crate::iccoa2::instructions::get_dk_certificate::DkCertType;
-
-const VEHICLE_OEM_CA_CERT_PATH: &str = "/etc/certs/iccoa2/vehicle_oem_ca.pem";
-#[allow(dead_code)]
-const VEHICLE_CERT_PATH: &str = "/etc/certs/iccoa2/vehicle.pem";
-const OWNER_CERT_PATH: &str = "/etc/certs/iccoa2/owner.pem";
-
-#[derive(Debug)]
-pub struct Certificate {
-    certificate: X509,
-    pkey: PKey<Public>,
-}
-
-#[allow(dead_code)]
-impl Certificate {
-    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let raw_cert = fs::read_to_string(path.as_ref())
-            .map_err(|e| ErrorKind::TransactionError(format!("read certificate {:?} error: {}", path.as_ref(), e)))?;
-        let certificate = X509::from_pem(raw_cert.as_bytes())
-            .map_err(|e| ErrorKind::TransactionError(format!("create X509 certificate from raw pem error: {}", e)))?;
-        let pkey = certificate.public_key()
-            .map_err(|e| ErrorKind::TransactionError(format!("crate public key from X509 certificate error: {}", e)))?;
-        Ok(Certificate {
-            certificate,
-            pkey,
-        })
-    }
-    pub fn get_certificate(&self) -> &X509Ref {
-        self.certificate.as_ref()
-    }
-    pub fn get_pkey(&self) -> &PKeyRef<Public> {
-        self.pkey.as_ref()
-    }
-    pub fn verify(&self, certificate: &Certificate) -> Result<bool> {
-        certificate.get_certificate().verify(self.get_pkey())
-               .map_err(|e| ErrorKind::TransactionError(format!("verify error: {}", e)).into())
-    }
-}
 
 #[derive(Debug)]
 pub struct StandardTransaction {
@@ -234,7 +195,7 @@ impl StandardTransaction {
                 todo!()
             }
             DkCertType::VehicleMasterKey => {
-                fs::File::create(OWNER_CERT_PATH)
+                fs::File::create(certificate::OWNER_CERT_PATH)
                     .map_err(|e| ErrorKind::TransactionError(format!("create empty owner certificate file error: {}", e)))?;
             }
             DkCertType::TempSharedCert => {
@@ -267,7 +228,7 @@ impl StandardTransaction {
                     .create(true)
                     .write(true)
                     .append(true)
-                    .open(OWNER_CERT_PATH)
+                    .open(certificate::OWNER_CERT_PATH)
                     .map_err(|e| ErrorKind::TransactionError(format!("create owner certificate file error: {}", e)))?;
                 file.write_all(response.get_dk_cert())
                     .map_err(|e| ErrorKind::TransactionError(format!("write owner certificate error: {}", e)))?;
@@ -282,9 +243,9 @@ impl StandardTransaction {
                         MessageData::Apdu(apdu),
                     ))
                 } else {
-                    let vehicle_ca_certificate = Certificate::new(VEHICLE_OEM_CA_CERT_PATH)
+                    let vehicle_ca_certificate = certificate::Certificate::new(certificate::VEHICLE_OEM_CA_CERT_PATH)
                         .map_err(|e| ErrorKind::TransactionError(format!("load vehicle oem ca certificate error: {}", e)))?;
-                    let owner_certificate = Certificate::new(OWNER_CERT_PATH)
+                    let owner_certificate = certificate::Certificate::new(certificate::OWNER_CERT_PATH)
                         .map_err(|e| ErrorKind::TransactionError(format!("load owner certificate error: {}", e)))?;
                     if let Ok(result) = vehicle_ca_certificate.verify(&owner_certificate) {
                         if result {
