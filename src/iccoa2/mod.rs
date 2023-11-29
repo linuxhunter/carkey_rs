@@ -10,6 +10,7 @@ pub mod ble_measure;
 pub mod certificate;
 pub mod ble_auth;
 pub mod ble_rke;
+pub mod ble_vehicle_status;
 
 const RANDOM_LENGTH: usize = 0x08;
 
@@ -30,6 +31,7 @@ mod errors {
             TransactionError(t: String)
             BleAuthError(t: String)
             BleRkeError(t: String)
+            BleVehicleStatusError(t: String)
         }
     }
 }

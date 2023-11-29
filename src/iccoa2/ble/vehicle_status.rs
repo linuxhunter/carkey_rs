@@ -233,7 +233,7 @@ impl Display for VehicleStatusRequest {
     }
 }
 
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct SubscribeVerificationResponse {
     inner: Vec<u8>,
 }
@@ -280,7 +280,7 @@ impl Display for SubscribeVerificationResponse {
     }
 }
 
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct VehicleStatusResponse {
     entity_id: VehicleStatusEntityId,
     status: u16,
