@@ -449,10 +449,10 @@ impl Display for RkeRequest {
     }
 }
 
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct RkeContinuedRequest {
     rke_request: RkeRequest,
-    rke_custom: Vec<u8>,
+    rke_custom: Option<Vec<u8>>,
 }
 
 #[allow(dead_code)]
@@ -460,7 +460,7 @@ impl RkeContinuedRequest {
     pub fn new(rke_request: RkeRequest, rke_custom: &[u8]) -> Self {
         RkeContinuedRequest {
             rke_request,
-            rke_custom: rke_custom.to_vec(),
+            rke_custom: Some(rke_custom.to_vec()),
         }
     }
     pub fn get_rke_request(&self) -> RkeRequest {
@@ -469,11 +469,15 @@ impl RkeContinuedRequest {
     pub fn set_rke_request(&mut self, rke_request: RkeRequest) {
         self.rke_request = rke_request;
     }
-    pub fn get_rke_custom(&self) -> &[u8] {
-        &self.rke_custom
+    pub fn get_rke_custom(&self) -> Option<&[u8]> {
+        if let Some(ref custom) = self.rke_custom {
+            Some(custom)
+        } else {
+            None
+        }
     }
     pub fn set_rke_custom(&mut self, rke_custom: &[u8]) {
-        self.rke_custom = rke_custom.to_vec();
+        self.rke_custom = Some(rke_custom.to_vec());
     }
 }
 
@@ -485,11 +489,17 @@ impl Serde for RkeContinuedRequest {
             .map_err(|e| ErrorKind::RkeError(format!("create rke continued function tlv error: {}", e)))?;
         let action_tlv = create_tlv_with_primitive_value(RKE_ACTION_TAG, &[self.get_rke_request().get_rke_action().into()])
             .map_err(|e| ErrorKind::RkeError(format!("create rke continued action tlv error: {}", e)))?;
-        let custom_tlv = create_tlv_with_primitive_value(RKE_CONTINUED_CUSTOM_TAG, self.get_rke_custom())
-            .map_err(|e| ErrorKind::RkeError(format!("create rke continued custom tlv error: {}", e)))?;
-        let rke_request_tlv = create_tlv_with_constructed_value(RKE_CONTINUED_REQUEST_TAG, &[function_tlv, action_tlv, custom_tlv])
-            .map_err(|e| ErrorKind::RkeError(format!("create rke continued request tlv error: {}", e)))?;
-        Ok(rke_request_tlv.to_vec())
+        if let Some(rke_custom) = self.get_rke_custom() {
+            let custom_tlv = create_tlv_with_primitive_value(RKE_CONTINUED_CUSTOM_TAG, rke_custom)
+                .map_err(|e| ErrorKind::RkeError(format!("create rke continued custom tlv error: {}", e)))?;
+            let rke_request_tlv = create_tlv_with_constructed_value(RKE_CONTINUED_REQUEST_TAG, &[function_tlv, action_tlv, custom_tlv])
+                .map_err(|e| ErrorKind::RkeError(format!("create rke continued request tlv error: {}", e)))?;
+            Ok(rke_request_tlv.to_vec())
+        } else {
+            let rke_request_tlv = create_tlv_with_constructed_value(RKE_CONTINUED_REQUEST_TAG, &[function_tlv, action_tlv])
+                .map_err(|e| ErrorKind::RkeError(format!("create rke continued request tlv error: {}", e)))?;
+            Ok(rke_request_tlv.to_vec())
+        }
     }
 
     fn deserialize(data: &[u8]) -> Result<Self::Output> {
@@ -522,9 +532,13 @@ impl Serde for RkeContinuedRequest {
 
         let custom_tag = ber::Tag::try_from(RKE_CONTINUED_CUSTOM_TAG)
             .map_err(|e| ErrorKind::RkeError(format!("create rke continued custom tag error: {}", e)))?;
-        let request_custom = get_tlv_primitive_value(&rke_request_tlv, &custom_tag)
-            .map_err(|e| ErrorKind::RkeError(format!("deserialize rke continued request custom primitive value error: {}", e)))?;
-        let rke_custom = request_custom.to_vec();
+        let rke_custom = if rke_request_tlv.find(&custom_tag).is_some() {
+            let request_custom = get_tlv_primitive_value(&rke_request_tlv, &custom_tag)
+                .map_err(|e| ErrorKind::RkeError(format!("deserialize rke continued request custom primitive value error: {}", e)))?;
+            Some(request_custom.to_vec())
+        } else {
+            None
+        };
 
         Ok(RkeContinuedRequest {
             rke_request: RkeRequest {
@@ -824,7 +838,7 @@ mod tests {
         let continued_request = RkeContinuedRequest::new(request, custom.as_ref());
         assert_eq!(continued_request.get_rke_request().get_rke_function(), RkeFunctions::DoorLock);
         assert_eq!(continued_request.get_rke_request().get_rke_action(), RkeActions::DoorLockAction(DoorLockAction::Lock));
-        assert_eq!(*continued_request.get_rke_custom(), vec![0x00, 0x01, 0x02, 0x03]);
+        assert_eq!(continued_request.get_rke_custom(), Some(vec![0x00, 0x01, 0x02, 0x03].as_ref()));
     }
     #[test]
     fn test_update_rke_continued_request_tlv() {
@@ -835,7 +849,7 @@ mod tests {
         let mut continued_request = RkeContinuedRequest::new(request, custom.as_ref());
         assert_eq!(continued_request.get_rke_request().get_rke_function(), RkeFunctions::DoorLock);
         assert_eq!(continued_request.get_rke_request().get_rke_action(), RkeActions::DoorLockAction(DoorLockAction::Lock));
-        assert_eq!(*continued_request.get_rke_custom(), vec![0x00, 0x01, 0x02, 0x03]);
+        assert_eq!(continued_request.get_rke_custom(), Some(vec![0x00, 0x01, 0x02, 0x03].as_ref()));
 
         let function = RkeFunctions::FindVehicle;
         let action = RkeActions::FindVehicleAction(FindVehicleAction::Whistling);
@@ -844,7 +858,7 @@ mod tests {
         continued_request.set_rke_custom(vec![0x03, 0x02, 0x01, 0x00].as_ref());
         assert_eq!(continued_request.get_rke_request().get_rke_function(), RkeFunctions::FindVehicle);
         assert_eq!(continued_request.get_rke_request().get_rke_action(), RkeActions::FindVehicleAction(FindVehicleAction::Whistling));
-        assert_eq!(*continued_request.get_rke_custom(), vec![0x03, 0x02, 0x01, 0x00]);
+        assert_eq!(continued_request.get_rke_custom(), Some(vec![0x03, 0x02, 0x01, 0x00].as_ref()));
     }
     #[test]
     fn test_create_rke_response_tlv() {
@@ -957,7 +971,7 @@ mod tests {
                         rke_function: RkeFunctions::DoorLock,
                         rke_action: RkeActions::DoorLockAction(DoorLockAction::Lock),
                     },
-                    rke_custom: vec![0x00, 0x01, 0x02, 0x03],
+                    rke_custom: Some(vec![0x00, 0x01, 0x02, 0x03]),
                 });
             },
             _ => panic!("Wrong!!!"),

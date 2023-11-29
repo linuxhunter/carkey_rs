@@ -4,7 +4,7 @@ use tokio::sync::mpsc::Sender;
 use crate::iccoa2::ble::message::{Message, MessageData, MessageStatus, MessageType};
 use crate::iccoa2::{ble, instructions, Serde};
 use crate::iccoa2::ble::auth::Auth;
-use crate::iccoa2::ble::rke::RkeResponse;
+use crate::iccoa2::ble::rke::{Rke, RkeResponse};
 use crate::iccoa2::ble::vehicle_status;
 use crate::iccoa2::ble::vehicle_status::{SubscribeVerificationResponse, VehicleStatusResponse};
 use crate::iccoa2::ble_measure::BleMeasure;
@@ -56,6 +56,16 @@ pub fn handle_request_from_mobile(message: &Message) -> Result<Message> {
             todo!()
         }
         MessageType::Rke => {
+            if let MessageData::Rke(Rke::ContinuedRequest(request)) = message.get_message_data() {
+                let mut ble_continued_rke = BLE_RKE.lock().unwrap();
+                ble_continued_rke.handle_rke_continued_request(request);
+                ble_continued_rke.set_response(ble::rke::RkeResponse::new(
+                    request.get_rke_request().get_rke_function(),
+                    request.get_rke_request().get_rke_action(),
+                    0xAABB,
+                ).unwrap());
+                return ble_continued_rke.create_ble_rke_response();
+            }
             todo!()
         }
         MessageType::VehicleStatus => {

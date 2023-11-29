@@ -1,3 +1,4 @@
+use log::info;
 use crate::iccoa2::{ble, Serde};
 use crate::iccoa2::ble::message::{Message, MessageData, MessageStatus, MessageType};
 use crate::iccoa2::ble::rke::Rke;
@@ -7,6 +8,7 @@ use crate::iccoa2::errors::*;
 pub struct BleRke {
     random: Option<Vec<u8>>,
     request: Option<ble::rke::RkeRequest>,
+    continued_request: Option<ble::rke::RkeContinuedRequest>,
     response: Option<ble::rke::RkeResponse>,
 }
 
@@ -16,6 +18,7 @@ impl BleRke {
         BleRke {
             random: None,
             request: None,
+            continued_request: None,
             response: None,
         }
     }
@@ -39,6 +42,16 @@ impl BleRke {
     pub fn set_request(&mut self, request: ble::rke::RkeRequest) {
         self.request = Some(request);
     }
+    pub fn get_continued_request(&self) -> Option<&ble::rke::RkeContinuedRequest> {
+        if let Some(ref request) = self.continued_request {
+            Some(request)
+        } else {
+            None
+        }
+    }
+    pub fn set_continued_request(&mut self, request: ble::rke::RkeContinuedRequest) {
+        self.continued_request = Some(request);
+    }
     pub fn get_response(&self) -> Option<&ble::rke::RkeResponse> {
         if let Some(ref response) = self.response {
             Some(response)
@@ -48,6 +61,12 @@ impl BleRke {
     }
     pub fn set_response(&mut self, response: ble::rke::RkeResponse) {
         self.response = Some(response);
+    }
+    pub fn handle_rke_continued_request(&mut self, request: &ble::rke::RkeContinuedRequest) {
+        info!("[Rke Continued Request]: ");
+        info!("\tRequest = {}", request.get_rke_request());
+        info!("\tCustom = {:02X?}", request.get_rke_custom());
+        self.set_continued_request(request.clone());
     }
     pub fn create_rke_verification_response(&self) -> Result<Message> {
         if let Some(random) = self.get_random() {
