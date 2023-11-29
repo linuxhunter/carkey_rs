@@ -4,6 +4,7 @@ use tokio::sync::mpsc::Sender;
 use crate::iccoa2::ble::message::{Message, MessageData, MessageStatus, MessageType};
 use crate::iccoa2::{ble, instructions, Serde};
 use crate::iccoa2::ble::auth::Auth;
+use crate::iccoa2::ble::custom::{CustomMessage, VehicleAppCustomResponse, VehicleServerCustomRequest};
 use crate::iccoa2::ble::rke::{Rke, RkeResponse};
 use crate::iccoa2::ble::vehicle_status;
 use crate::iccoa2::ble::vehicle_status::{SubscribeVerificationResponse, VehicleStatusResponse};
@@ -12,6 +13,7 @@ use crate::iccoa2::errors::*;
 use crate::iccoa2::instructions::get_dk_certificate::DkCertType;
 use crate::iccoa2::transaction::StandardTransaction;
 use crate::iccoa2::ble_auth::BleAuth;
+use crate::iccoa2::ble_custom::BleCustom;
 use crate::iccoa2::ble_rke::BleRke;
 use crate::iccoa2::ble_vehicle_status::BleVehicleStatus;
 
@@ -39,11 +41,20 @@ lazy_static! {
     static ref BLE_AUTH: Mutex<BleAuth> = Mutex::new(BleAuth::new());
     static ref BLE_RKE: Mutex<BleRke> = Mutex::new(BleRke::new());
     static ref BLE_VEHICLE_STATUS: Mutex<BleVehicleStatus> = Mutex::new(BleVehicleStatus::new());
+    static ref BLE_CUSTOM: Mutex<BleCustom> = Mutex::new(BleCustom::new());
 }
 
 pub fn create_select_request_message() -> Result<Message> {
     let standard_transaction = STANDARD_TRANSACTION.lock().unwrap();
     standard_transaction.create_select_request()
+}
+
+pub fn create_vehicle_server_custom_request() -> Result<Message> {
+    let ble_custom = BLE_CUSTOM.lock().unwrap();
+    ble_custom.create_server_custom_request(&VehicleServerCustomRequest::new(
+        0x0102,
+        0x03,
+    ))
 }
 
 #[allow(dead_code)]
@@ -95,6 +106,13 @@ pub fn handle_request_from_mobile(message: &Message) -> Result<Message> {
             }
         }
         MessageType::VehicleAppCustomMessage => {
+            if let MessageData::VehicleAppCustomMessage(CustomMessage::AppCustomRequest(request)) = message.get_message_data() {
+                let ble_custom = BLE_CUSTOM.lock().unwrap();
+                ble_custom.handle_app_custom_request(request);
+                return ble_custom.create_app_custom_response(&VehicleAppCustomResponse::new(
+                    vec![0x03, 0x02, 0x01, 0x00].as_ref()
+                ));
+            }
             todo!()
         }
         MessageType::VehicleServerCustomMessage => {
@@ -188,7 +206,11 @@ pub fn handle_response_from_mobile(message: &Message, bt_sender: Sender<Vec<u8>>
             todo!()
         }
         MessageType::VehicleServerCustomMessage => {
-            todo!()
+            if let MessageData::VehicleServerCustomMessage(CustomMessage::ServerCustomResponse(response)) = message.get_message_data() {
+                let ble_custom = BLE_CUSTOM.lock().unwrap();
+                ble_custom.handle_server_custom_response(response);
+            }
+            Err("No response to mobile".to_string().into())
         }
         MessageType::Auth => {
             if let MessageData::Auth(Auth::Response(response)) = message.get_message_data() {

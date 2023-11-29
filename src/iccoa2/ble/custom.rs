@@ -59,7 +59,7 @@ impl Display for VehicleAppCustomRequest {
     }
 }
 
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct VehicleAppCustomResponse {
     inner: Vec<u8>,
 }

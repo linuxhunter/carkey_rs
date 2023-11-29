@@ -20,6 +20,7 @@ use crate::bluetooth::agent;
 use crate::bluetooth::ranging;
 use crate::iccoa::objects::Iccoa;
 use crate::iccoa::{bluetooth_io, objects, command, pairing};
+use crate::iccoa2::ble::bluetooth_io::create_vehicle_server_custom_request;
 use crate::iccoa2::Serde;
 use crate::iccoa::notification::senseless_control;
 use crate::iccoa::notification::vehicle_status;
@@ -351,15 +352,13 @@ async fn main() -> bluer::Result<()> {
         },
         CarkeyProtocol::Iccoa2 => {
             //test code for sending message from vehicle to mobile by notification
-            /*
             tokio::spawn(async move {
                 loop {
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                    let request = iccoa2::ble::bluetooth_io::create_measure_request_message().unwrap();
+                    let request = create_vehicle_server_custom_request().unwrap();
                     let _ = bt_send_package_tx.send(request.serialize().unwrap()).await;
                 }
             });
-             */
         }
     }
 
