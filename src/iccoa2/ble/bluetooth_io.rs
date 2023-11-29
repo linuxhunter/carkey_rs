@@ -5,7 +5,6 @@ use crate::iccoa2::ble::message::{Message, MessageData, MessageStatus, MessageTy
 use crate::iccoa2::{ble, instructions, Serde};
 use crate::iccoa2::ble::auth::Auth;
 use crate::iccoa2::ble::custom::{CustomMessage, VehicleAppCustomResponse, VehicleServerCustomRequest};
-use crate::iccoa2::ble::rke::{Rke, RkeResponse};
 use crate::iccoa2::ble::vehicle_status;
 use crate::iccoa2::ble::vehicle_status::{SubscribeVerificationResponse, VehicleStatusResponse};
 use crate::iccoa2::ble_measure::BleMeasure;
@@ -67,7 +66,7 @@ pub fn handle_request_from_mobile(message: &Message) -> Result<Message> {
             todo!()
         }
         MessageType::Rke => {
-            if let MessageData::Rke(Rke::ContinuedRequest(request)) = message.get_message_data() {
+            if let MessageData::Rke(ble::rke::Rke::ContinuedRequest(request)) = message.get_message_data() {
                 let mut ble_continued_rke = BLE_RKE.lock().unwrap();
                 ble_continued_rke.handle_rke_continued_request(request);
                 ble_continued_rke.set_response(ble::rke::RkeResponse::new(
@@ -138,25 +137,25 @@ pub fn handle_response_from_mobile(message: &Message, bt_sender: Sender<Vec<u8>>
         MessageType::Apdu => {
             if let MessageData::Apdu(apdu) = message.get_message_data() {
                 if let Some(instruction) = apdu.get_apdu_instructions().iter().next() {
-                    match instruction {
+                    return match instruction {
                         instructions::ApduInstructions::ResponseSelect(response) => {
                             let mut standard_transaction = STANDARD_TRANSACTION.lock().unwrap();
                             standard_transaction.handle_select_response(response)?;
-                            return standard_transaction.create_auth0_request();
+                            standard_transaction.create_auth0_request()
                         }
                         instructions::ApduInstructions::ResponseAuth0(response) => {
                             let mut standard_transaction = STANDARD_TRANSACTION.lock().unwrap();
                             standard_transaction.handle_auth0_response(response)?;
-                            return standard_transaction.create_auth1_request();
+                            standard_transaction.create_auth1_request()
                         }
                         instructions::ApduInstructions::ResponseAuth1(response) => {
                             let mut standard_transaction = STANDARD_TRANSACTION.lock().unwrap();
                             standard_transaction.handle_auth1_response(response)?;
-                            return standard_transaction.create_get_dk_certificate_request(DkCertType::VehicleMasterKey);
+                            standard_transaction.create_get_dk_certificate_request(DkCertType::VehicleMasterKey)
                         }
                         instructions::ApduInstructions::ResponseGetDkCert(response) => {
                             let standard_transaction = STANDARD_TRANSACTION.lock().unwrap();
-                            return standard_transaction.handle_get_dk_certificate_response(response);
+                            standard_transaction.handle_get_dk_certificate_response(response)
                         }
                         instructions::ApduInstructions::ResponseControlFlow(response) => {
                             let standard_transaction = STANDARD_TRANSACTION.lock().unwrap();
@@ -169,7 +168,7 @@ pub fn handle_response_from_mobile(message: &Message, bt_sender: Sender<Vec<u8>>
                                     ble::measure::MeasureDuration::new(0x20),
                                 )
                             );
-                            return ble_measure.create_ble_measure_request();
+                            ble_measure.create_ble_measure_request()
                         }
                         /*
                         ApduInstructions::ResponseListDk(_) => {} }
@@ -182,7 +181,7 @@ pub fn handle_response_from_mobile(message: &Message, bt_sender: Sender<Vec<u8>>
                         ApduInstructions::ResponseGetResponse(_) => {}
                         */
                         _ => {
-                            return Err(ErrorKind::TransactionError("no reply".to_string()).into());
+                            Err(ErrorKind::TransactionError("no reply".to_string()).into())
                         }
                     }
                 }
@@ -221,7 +220,7 @@ pub fn handle_response_from_mobile(message: &Message, bt_sender: Sender<Vec<u8>>
                     ble_rke.set_random(ble_auth.get_random());
                     ble_rke.set_request(*rke);
                     //create rke response
-                    ble_rke.set_response(RkeResponse::new(
+                    ble_rke.set_response(ble::rke::RkeResponse::new(
                         rke.get_rke_function(),
                         rke.get_rke_action(),
                         0xAABB,
