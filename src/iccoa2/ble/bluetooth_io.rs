@@ -217,7 +217,7 @@ pub fn handle_response_from_mobile(message: &Message, bt_sender: Sender<Vec<u8>>
                         std::thread::sleep(Duration::from_secs(1));
                         bt_sender.blocking_send(subscribe_response).unwrap();
                     });
-                    return ble_subscribe.create_subscribe_verification_response();
+                    return ble_subscribe.create_vehicle_status_verification_response();
                 }
                 if let Some(query) = ble_auth.get_query() {
                     let mut ble_query = BLE_VEHICLE_STATUS.lock().unwrap();
@@ -229,6 +229,11 @@ pub fn handle_response_from_mobile(message: &Message, bt_sender: Sender<Vec<u8>>
                         Some(SubscribeVerificationResponse::new(ble_auth.get_random())),
                     ));
                     return ble_query.create_vehicle_status_response();
+                }
+                if ble_auth.get_unsubscribe().is_some() {
+                    let mut ble_unsubscribe = BLE_VEHICLE_STATUS.lock().unwrap();
+                    ble_unsubscribe.set_random(ble_auth.get_random());
+                    return ble_unsubscribe.create_vehicle_status_verification_response();
                 }
             }
             Err("No response to mobile".to_string().into())

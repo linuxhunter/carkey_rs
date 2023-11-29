@@ -49,7 +49,7 @@ impl BleVehicleStatus {
     pub fn set_response(&mut self, response: ble::vehicle_status::VehicleStatusResponse) {
         self.response = Some(response)
     }
-    pub fn create_subscribe_verification_response(&self) -> Result<Message> {
+    pub fn create_vehicle_status_verification_response(&self) -> Result<Message> {
         if let Some(random) = self.get_random() {
             let subscribe_verification_response = ble::vehicle_status::SubscribeVerificationResponse::new(random);
             Ok(Message::new(
