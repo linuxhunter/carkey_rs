@@ -2,7 +2,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use crate::iccoa2::ble::message::{Message, MessageData, MessageStatus, MessageType};
-use crate::iccoa2::{ble, instructions, Serde};
+use crate::iccoa2::{ble, identifier, instructions, Serde};
 use crate::iccoa2::ble::auth::Auth;
 use crate::iccoa2::ble::custom::{CustomMessage, VehicleAppCustomResponse, VehicleServerCustomRequest};
 use crate::iccoa2::ble::vehicle_status;
@@ -17,26 +17,9 @@ use crate::iccoa2::ble_rke::BleRke;
 use crate::iccoa2::ble_vehicle_status::BleVehicleStatus;
 
 const AID: u8 = 0x00;
-const VEHICLE_OEM_ID: u16 = 0x0102;
-const VEHICLE_SERIAL_ID: [u8; 14] = [
-    0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09,
-    0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
-];
-const DEFAULT_BLE_MEASURE_REQUEST_DURATION: u8 = 0x10;
-
 lazy_static! {
-    static ref STANDARD_TRANSACTION: Mutex<StandardTransaction> = Mutex::new(
-        StandardTransaction::new(AID, VEHICLE_OEM_ID, VEHICLE_SERIAL_ID.as_ref()).unwrap()
-    );
-    static ref BLE_MEASURE: Mutex<BleMeasure> = Mutex::new(
-        BleMeasure::new(
-            ble::measure::MeasureRequest::new(
-                ble::measure::MeasureType::BtRssi,
-                ble::measure::MeasureAction::Start,
-                ble::measure::MeasureDuration::new(DEFAULT_BLE_MEASURE_REQUEST_DURATION),
-            )
-        )
-    );
+    static ref STANDARD_TRANSACTION: Mutex<StandardTransaction> = Mutex::new(StandardTransaction::new(identifier::get_vehicle_id().unwrap()).unwrap());
+    static ref BLE_MEASURE: Mutex<BleMeasure> = Mutex::new(BleMeasure::new());
     static ref BLE_AUTH: Mutex<BleAuth> = Mutex::new(BleAuth::new());
     static ref BLE_RKE: Mutex<BleRke> = Mutex::new(BleRke::new());
     static ref BLE_VEHICLE_STATUS: Mutex<BleVehicleStatus> = Mutex::new(BleVehicleStatus::new());
@@ -45,7 +28,18 @@ lazy_static! {
 
 pub fn create_select_request_message() -> Result<Message> {
     let standard_transaction = STANDARD_TRANSACTION.lock().unwrap();
-    standard_transaction.create_select_request()
+    standard_transaction.create_select_request(AID)
+}
+
+pub fn create_ble_measure_request_message() -> Result<Message> {
+    let ble_measure = BLE_MEASURE.lock().unwrap();
+    ble_measure.create_ble_measure_request(
+        ble::measure::MeasureRequest::new(
+            ble::measure::MeasureType::BtRssi,
+            ble::measure::MeasureAction::Start,
+            ble::measure::MeasureDuration::new(0x20),
+        )
+    )
 }
 
 pub fn create_vehicle_server_custom_request() -> Result<Message> {
@@ -67,14 +61,16 @@ pub fn handle_request_from_mobile(message: &Message) -> Result<Message> {
         }
         MessageType::Rke => {
             if let MessageData::Rke(ble::rke::Rke::ContinuedRequest(request)) = message.get_message_data() {
-                let mut ble_continued_rke = BLE_RKE.lock().unwrap();
+                let ble_continued_rke = BLE_RKE.lock().unwrap();
                 ble_continued_rke.handle_rke_continued_request(request);
-                ble_continued_rke.set_response(ble::rke::RkeResponse::new(
-                    request.get_rke_request().get_rke_function(),
-                    request.get_rke_request().get_rke_action(),
-                    0xAABB,
-                ).unwrap());
-                return ble_continued_rke.create_ble_rke_response();
+                return ble_continued_rke.create_ble_rke_response(
+                    MessageStatus::Success,
+                    ble::rke::RkeResponse::new(
+                        request.get_rke_request().get_rke_function(),
+                        request.get_rke_request().get_rke_action(),
+                        0xAABB,
+                    ).unwrap()
+                )
             }
             todo!()
         }
@@ -160,15 +156,7 @@ pub fn handle_response_from_mobile(message: &Message, bt_sender: Sender<Vec<u8>>
                         instructions::ApduInstructions::ResponseControlFlow(response) => {
                             let standard_transaction = STANDARD_TRANSACTION.lock().unwrap();
                             standard_transaction.handle_control_flow_response(response)?;
-                            let mut ble_measure = BLE_MEASURE.lock().unwrap();
-                            ble_measure.set_request(
-                                ble::measure::MeasureRequest::new(
-                                    ble::measure::MeasureType::BtRssi,
-                                    ble::measure::MeasureAction::Start,
-                                    ble::measure::MeasureDuration::new(0x20),
-                                )
-                            );
-                            ble_measure.create_ble_measure_request()
+                            create_ble_measure_request_message()
                         }
                         /*
                         ApduInstructions::ResponseListDk(_) => {} }
@@ -218,31 +206,34 @@ pub fn handle_response_from_mobile(message: &Message, bt_sender: Sender<Vec<u8>>
                 if let Some(rke) = ble_auth.get_rke() {
                     let mut ble_rke = BLE_RKE.lock().unwrap();
                     ble_rke.set_random(ble_auth.get_random());
-                    ble_rke.set_request(*rke);
-                    //create rke response
-                    ble_rke.set_response(ble::rke::RkeResponse::new(
-                        rke.get_rke_function(),
-                        rke.get_rke_action(),
-                        0xAABB,
-                    ).unwrap());
-                    let rke_response = ble_rke.create_ble_rke_response()?.serialize()?;
+                    ble_rke.handle_rke_request(rke);
+                    let rke_response = ble_rke.create_ble_rke_response(
+                        MessageStatus::Success,
+                        ble::rke::RkeResponse::new(
+                            rke.get_rke_function(),
+                            rke.get_rke_action(),
+                            0xAABB,
+                        ).unwrap()
+                    )?.serialize()?;
                     //create thread to simulate sending rke response to mobile
                     std::thread::spawn(move || {
                         std::thread::sleep(Duration::from_secs(1));
                         bt_sender.blocking_send(rke_response).unwrap();
                     });
-                    return ble_rke.create_rke_verification_response();
+                    return ble_rke.create_rke_verification_response(MessageStatus::Success);
                 }
                 if let Some(subscribe) = ble_auth.get_subscribe() {
                     let mut ble_subscribe = BLE_VEHICLE_STATUS.lock().unwrap();
                     ble_subscribe.set_random(ble_auth.get_random());
-                    ble_subscribe.set_request(*subscribe);
-                    ble_subscribe.set_response(VehicleStatusResponse::new(
-                        subscribe.get_entity_id(),
-                        0x0102,
-                        None,
-                    ));
-                    let subscribe_response = ble_subscribe.create_vehicle_status_response()?.serialize()?;
+                    ble_subscribe.handle_vehicle_status_request(subscribe);
+                    let subscribe_response = ble_subscribe.create_vehicle_status_response(
+                        MessageStatus::Success,
+                        VehicleStatusResponse::new(
+                            subscribe.get_entity_id(),
+                            0x0102,
+                            None,
+                        )
+                    )?.serialize()?;
                     //create thread to simulate sending rke response to mobile
                     std::thread::spawn(move || {
                         std::thread::sleep(Duration::from_secs(1));
@@ -253,17 +244,20 @@ pub fn handle_response_from_mobile(message: &Message, bt_sender: Sender<Vec<u8>>
                 if let Some(query) = ble_auth.get_query() {
                     let mut ble_query = BLE_VEHICLE_STATUS.lock().unwrap();
                     ble_query.set_random(ble_auth.get_random());
-                    ble_query.set_request(*query);
-                    ble_query.set_response(VehicleStatusResponse::new(
-                        query.get_entity_id(),
-                        0x0304,
-                        Some(SubscribeVerificationResponse::new(ble_auth.get_random())),
-                    ));
-                    return ble_query.create_vehicle_status_response();
+                    ble_query.handle_vehicle_status_request(query);
+                    return ble_query.create_vehicle_status_response(
+                        MessageStatus::Success,
+                        VehicleStatusResponse::new(
+                            query.get_entity_id(),
+                            0x0304,
+                            Some(SubscribeVerificationResponse::new(ble_auth.get_random())),
+                        )
+                    );
                 }
-                if ble_auth.get_unsubscribe().is_some() {
+                if let Some(unsubscribe) = ble_auth.get_unsubscribe() {
                     let mut ble_unsubscribe = BLE_VEHICLE_STATUS.lock().unwrap();
                     ble_unsubscribe.set_random(ble_auth.get_random());
+                    ble_unsubscribe.handle_vehicle_status_request(unsubscribe);
                     return ble_unsubscribe.create_vehicle_status_verification_response();
                 }
             }

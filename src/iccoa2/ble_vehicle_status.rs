@@ -1,6 +1,7 @@
+use log::info;
 use crate::iccoa2::{ble, Serde};
 use crate::iccoa2::ble::message::{Message, MessageData, MessageStatus, MessageType};
-use crate::iccoa2::ble::vehicle_status::VehicleStatus;
+use crate::iccoa2::ble::vehicle_status::{VehicleStatus, VehicleStatusRequest, VehicleStatusResponse};
 use crate::iccoa2::errors::*;
 
 #[derive(Debug, Default)]
@@ -49,6 +50,11 @@ impl BleVehicleStatus {
     pub fn set_response(&mut self, response: ble::vehicle_status::VehicleStatusResponse) {
         self.response = Some(response)
     }
+    pub fn handle_vehicle_status_request(&self, request: &VehicleStatusRequest) {
+        info!("[Vehicle Status Request]: ");
+        info!("\tOption = {}", request.get_operation());
+        info!("\tEntity = {}", request.get_entity_id());
+    }
     pub fn create_vehicle_status_verification_response(&self) -> Result<Message> {
         if let Some(random) = self.get_random() {
             let subscribe_verification_response = ble::vehicle_status::SubscribeVerificationResponse::new(random);
@@ -62,16 +68,12 @@ impl BleVehicleStatus {
             Err(ErrorKind::BleVehicleStatusError("random number is NULL".to_string()).into())
         }
     }
-    pub fn create_vehicle_status_response(&self) -> Result<Message> {
-        if let Some(response) = self.get_response() {
-            Ok(Message::new(
-                MessageType::VehicleStatus,
-                MessageStatus::Success,
-                response.serialize()?.len() as u16,
-                MessageData::VehicleStatus(VehicleStatus::Response(response.clone())),
-            ))
-        } else {
-            Err(ErrorKind::BleRkeError("rke response is NULL".to_string()).into())
-        }
+    pub fn create_vehicle_status_response(&self, message_status: MessageStatus, response: VehicleStatusResponse) -> Result<Message> {
+        Ok(Message::new(
+            MessageType::VehicleStatus,
+            message_status,
+            response.serialize()?.len() as u16,
+            MessageData::VehicleStatus(VehicleStatus::Response(response)),
+        ))
     }
 }

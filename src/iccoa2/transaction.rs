@@ -11,15 +11,14 @@ use rand::Rng;
 use crate::iccoa2::ble::message::{Message, MessageData, MessageStatus, MessageType};
 use crate::iccoa2::errors::*;
 use crate::iccoa2::instructions::{ApduInstructions, CLA};
-use crate::iccoa2::{ble, certificate, create_tlv_with_primitive_value, identifier, instructions, RANDOM_LENGTH, Serde};
+use crate::iccoa2::{ble, certificate, create_tlv_with_primitive_value, instructions, RANDOM_LENGTH, Serde};
+use crate::iccoa2::identifier::VehicleId;
 use crate::iccoa2::instructions::get_dk_certificate::DkCertType;
 
 #[derive(Debug)]
 pub struct StandardTransaction {
-    aid: u8,
     version: Option<u16>,
-    vehicle_oem_id: u16,
-    vehicle_serial_id: Vec<u8>,
+    vehicle_id: VehicleId,
     vehicle_temp_private_key: EcKey<Private>,
     random: Vec<u8>,
     device_temp_public_key: Option<PKey<Public>>,
@@ -28,7 +27,7 @@ pub struct StandardTransaction {
 
 #[allow(dead_code)]
 impl StandardTransaction {
-    pub fn new(aid: u8, vehicle_oem_id: u16, vehicle_serial_id: &[u8]) -> Result<Self> {
+    pub fn new(vehicle_id: VehicleId) -> Result<Self> {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1)
             .map_err(|e| ErrorKind::TransactionError(format!("create ec group error: {}", e)))?;
         let private_key = EcKey::generate(&group)
@@ -39,18 +38,16 @@ impl StandardTransaction {
             random.push(rng.gen::<u8>());
         }
         Ok(StandardTransaction {
-            aid,
             version: None,
-            vehicle_oem_id,
-            vehicle_serial_id: vehicle_serial_id.to_vec(),
+            vehicle_id,
             vehicle_temp_private_key: private_key,
             random,
             device_temp_public_key: None,
             crypto_gram: None,
         })
     }
-    pub fn create_select_request(&self) -> Result<Message> {
-        let select_request = instructions::select::CommandApduSelect::new(&[self.aid]);
+    pub fn create_select_request(&self, aid: u8) -> Result<Message> {
+        let select_request = instructions::select::CommandApduSelect::new(&[aid]);
         let mut apdu = ble::apdu::Apdu::new();
         apdu.add_apdu_instruction(ApduInstructions::CommandSelect(select_request));
         Ok(Message::new(
@@ -66,29 +63,26 @@ impl StandardTransaction {
         info!("\tversion = {:?}", self.version);
         Ok(())
     }
-    pub fn create_auth0_request(&self) -> Result<Message> {
-        if self.version.is_none() {
-            return Err(ErrorKind::TransactionError("version is NULL".to_string()).into());
-        }
-        let vehicle_id = identifier::VehicleId::new(
-            self.vehicle_oem_id,
-            self.vehicle_serial_id.as_ref()
-        ).map_err(|e| ErrorKind::TransactionError(format!("create vehicle id error: {}", e)))?;
-
+    fn create_temp_public_key(&self) -> Result<Vec<u8>> {
         let group =EcGroup::from_curve_name(Nid::X9_62_PRIME256V1)
             .map_err(|e| ErrorKind::TransactionError(format!("create ec group error: {}", e)))?;
         let mut ctx = BigNumContext::new()
             .map_err(|e| ErrorKind::TransactionError(format!("create big number context error: {}", e)))?;
-        let vehicle_temp_pub_key = self.vehicle_temp_private_key
+        self.vehicle_temp_private_key
             .public_key()
             .to_bytes(&group, PointConversionForm::UNCOMPRESSED, &mut ctx)
-            .map_err(|e| ErrorKind::TransactionError(format!("export vehicle temp public key error: {}", e)))?;
+            .map_err(|e| ErrorKind::TransactionError(format!("export vehicle temp public key error: {}", e)).into())
+    }
+    pub fn create_auth0_request(&self) -> Result<Message> {
+        if self.version.is_none() {
+            return Err(ErrorKind::TransactionError("version is NULL".to_string()).into());
+        }
         let auth0_request = instructions::auth_0::CommandApduAuth0::new(
             CLA,
             instructions::auth_0::Auth0P1::Standard,
             self.version.unwrap(),
-            vehicle_id,
-            vehicle_temp_pub_key.as_ref(),
+            self.vehicle_id.clone(),
+            self.create_temp_public_key()?.as_ref(),
             self.random.as_ref(),
         );
         let mut apdu = ble::apdu::Apdu::new();
@@ -144,10 +138,7 @@ impl StandardTransaction {
         vehicle_ec_key.affine_coordinates(&group, &mut vehicle_x, &mut vehicle_y, &mut ctx)
             .map_err(|e| ErrorKind::TransactionError(format!("get vehicle ec key x and y error: {}", e)))?;
         Ok(instructions::auth_1::Auth1Data::new(
-            identifier::VehicleId::new(
-                self.vehicle_oem_id,
-                self.vehicle_serial_id.as_ref(),
-            )?,
+            self.vehicle_id.clone(),
             device_x.to_vec().as_ref(),
             vehicle_x.to_vec().as_ref(),
             self.random.as_ref(),
@@ -155,7 +146,6 @@ impl StandardTransaction {
     }
     pub fn create_auth1_request(&self) -> Result<Message> {
         let data = self.create_auth1_authentication_data()?.serialize()?;
-        println!("auth1 data = {:02X?}", data);
         let keypair = PKey::from_ec_key(self.vehicle_temp_private_key.clone())
             .map_err(|e| ErrorKind::TransactionError(format!("create private key from ec key error: {}", e)))?;
         let mut signer = Signer::new(MessageDigest::sha256(), &keypair)
