@@ -20,8 +20,9 @@ use crate::bluetooth::agent;
 use crate::bluetooth::ranging;
 use crate::iccoa::objects::Iccoa;
 use crate::iccoa::{bluetooth_io, objects, command, pairing};
-use crate::iccoa2::ble::bluetooth_io::create_vehicle_server_custom_request;
-use crate::iccoa2::Serde;
+use crate::iccoa2::ble::bluetooth_io::{create_ble_measure_request_message, create_vehicle_server_custom_request};
+use crate::iccoa2::ble::custom::VehicleServerCustomRequest;
+use crate::iccoa2::{ble, Serde};
 use crate::iccoa::notification::senseless_control;
 use crate::iccoa::notification::vehicle_status;
 use crate::iccoa::notification::vehicle_unsafe;
@@ -353,10 +354,42 @@ async fn main() -> bluer::Result<()> {
         CarkeyProtocol::Iccoa2 => {
             //test code for sending message from vehicle to mobile by notification
             tokio::spawn(async move {
+                let mut index = 0x00;
                 loop {
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                    let request = create_vehicle_server_custom_request().unwrap();
-                    let _ = bt_send_package_tx.send(request.serialize().unwrap()).await;
+                    let request = match index {
+                        0x00 => {
+                            create_ble_measure_request_message(ble::measure::MeasureRequest::new(
+                                ble::measure::MeasureType::BtRssi,
+                                ble::measure::MeasureAction::Start,
+                                ble::measure::MeasureDuration::new(0x20),
+                            )).unwrap()
+                        },
+                        0x01 => {
+                            create_ble_measure_request_message(ble::measure::MeasureRequest::new(
+                                ble::measure::MeasureType::BtRssi,
+                                ble::measure::MeasureAction::Stop,
+                                ble::measure::MeasureDuration::new(0x20),
+                            )).unwrap()
+                        },
+                        0x02 => {
+                            create_vehicle_server_custom_request(VehicleServerCustomRequest::new(
+                                0x0102,
+                                0x03,
+                            )).unwrap()
+                        },
+                        _ => {
+                            todo!()
+                        }
+                    };
+                    if index <= 0x02 {
+                        let _ = bt_send_package_tx.send(request.serialize().unwrap()).await;
+                    }
+                    if index == 0x02 {
+                        index = 0x00;
+                    } else {
+                        index += 1;
+                    }
                 }
             });
         }

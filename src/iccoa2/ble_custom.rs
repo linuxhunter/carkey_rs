@@ -24,12 +24,12 @@ impl BleCustom {
             MessageData::VehicleAppCustomMessage(CustomMessage::AppCustomResponse(response.clone()))
         ))
     }
-    pub fn create_server_custom_request(&self, request: &VehicleServerCustomRequest) -> Result<Message> {
+    pub fn create_server_custom_request(&self, request: VehicleServerCustomRequest) -> Result<Message> {
         Ok(Message::new(
             MessageType::VehicleServerCustomMessage,
             MessageStatus::NoApplicable,
             request.serialize()?.len() as u16,
-            MessageData::VehicleServerCustomMessage(CustomMessage::ServerCustomRequest(*request))
+            MessageData::VehicleServerCustomMessage(CustomMessage::ServerCustomRequest(request))
         ))
     }
     pub fn handle_server_custom_response(&self, response: &VehicleServerCustomResponse) {

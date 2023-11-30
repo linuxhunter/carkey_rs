@@ -31,8 +31,10 @@ pub fn create_select_request_message() -> Result<Message> {
     standard_transaction.create_select_request(AID)
 }
 
-pub fn create_ble_measure_request_message() -> Result<Message> {
+pub fn create_ble_measure_request_message(request: ble::measure::MeasureRequest) -> Result<Message> {
     let ble_measure = BLE_MEASURE.lock().unwrap();
+    ble_measure.create_ble_measure_request(request)
+        /*
     ble_measure.create_ble_measure_request(
         ble::measure::MeasureRequest::new(
             ble::measure::MeasureType::BtRssi,
@@ -40,14 +42,12 @@ pub fn create_ble_measure_request_message() -> Result<Message> {
             ble::measure::MeasureDuration::new(0x20),
         )
     )
+         */
 }
 
-pub fn create_vehicle_server_custom_request() -> Result<Message> {
+pub fn create_vehicle_server_custom_request(request: VehicleServerCustomRequest) -> Result<Message> {
     let ble_custom = BLE_CUSTOM.lock().unwrap();
-    ble_custom.create_server_custom_request(&VehicleServerCustomRequest::new(
-        0x0102,
-        0x03,
-    ))
+    ble_custom.create_server_custom_request(request)
 }
 
 #[allow(dead_code)]
@@ -156,7 +156,7 @@ pub fn handle_response_from_mobile(message: &Message, bt_sender: Sender<Vec<u8>>
                         instructions::ApduInstructions::ResponseControlFlow(response) => {
                             let standard_transaction = STANDARD_TRANSACTION.lock().unwrap();
                             standard_transaction.handle_control_flow_response(response)?;
-                            create_ble_measure_request_message()
+                            Err(ErrorKind::TransactionError("no reply".to_string()).into())
                         }
                         /*
                         ApduInstructions::ResponseListDk(_) => {} }

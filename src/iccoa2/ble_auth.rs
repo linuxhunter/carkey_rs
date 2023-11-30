@@ -1,4 +1,4 @@
-use log::info;
+use log::{debug, info};
 use openssl::hash::MessageDigest;
 use openssl::sign::Verifier;
 use rand::Rng;
@@ -53,6 +53,12 @@ impl BleAuth {
     pub fn set_key_id(&mut self, key_id: KeyId) {
         self.key_id = Some(key_id);
     }
+    fn clear_business_contents(&mut self) {
+        self.rke = None;
+        self.subscribe = None;
+        self.query = None;
+        self.unsubscribe = None;
+    }
     pub fn get_rke(&self) -> Option<&ble::rke::RkeRequest> {
         if let Some(ref rke) = self.rke {
             Some(rke)
@@ -61,6 +67,7 @@ impl BleAuth {
         }
     }
     pub fn set_rke(&mut self, rke: ble::rke::RkeRequest) {
+        self.clear_business_contents();
         self.rke = Some(rke);
     }
     pub fn get_subscribe(&self) -> Option<&ble::vehicle_status::VehicleStatusRequest> {
@@ -71,6 +78,7 @@ impl BleAuth {
         }
     }
     pub fn set_subscribe(&mut self, subscribe: ble::vehicle_status::VehicleStatusRequest) {
+        self.clear_business_contents();
         self.subscribe = Some(subscribe);
     }
     pub fn get_query(&self) -> Option<&ble::vehicle_status::VehicleStatusRequest> {
@@ -81,6 +89,7 @@ impl BleAuth {
         }
     }
     pub fn set_query(&mut self, query: ble::vehicle_status::VehicleStatusRequest) {
+        self.clear_business_contents();
         self.query = Some(query);
     }
     pub fn get_unsubscribe(&self) -> Option<&ble::vehicle_status::VehicleStatusRequest> {
@@ -91,6 +100,7 @@ impl BleAuth {
         }
     }
     pub fn set_unsubscribe(&mut self, unsubscribe: ble::vehicle_status::VehicleStatusRequest) {
+        self.clear_business_contents();
         self.unsubscribe = Some(unsubscribe);
     }
     pub fn handle_random_request(&mut self, _request: &ble::auth::AuthRequestRandom) {
@@ -142,30 +152,30 @@ impl BleAuth {
                 return Err(ErrorKind::BleAuthError("Auth Rke entry contents is Null".to_string()).into());
             }
             self.set_key_id(response.get_key_id().clone());
-            info!("[Auth Response]: ");
-            info!("\tKey ID: {:?}", self.get_key_id());
+            debug!("[Auth Response]: ");
+            debug!("\tKey ID: {:?}", self.get_key_id());
             if let Some(rke) = entries.get_rke() {
                 self.set_rke(*rke);
-                info!("\tRKE: {:?}", self.get_rke());
+                debug!("\tRKE: {:?}", self.get_rke());
             }
             if let Some(subscribe) = entries.get_subscribe() {
                 self.set_subscribe(*subscribe);
-                info!("\tSubscribe: {:?}", self.get_subscribe());
+                debug!("\tSubscribe: {:?}", self.get_subscribe());
             }
             if let Some(query) = entries.get_query() {
                 self.set_query(*query);
-                info!("\tQuery: {:?}", self.get_query());
+                debug!("\tQuery: {:?}", self.get_query());
             }
             if let Some(unsubscribe) = entries.get_unsubscribe() {
                 self.set_unsubscribe(*unsubscribe);
-                info!("\tUnsubscribe: {:?}", self.get_unsubscribe());
+                debug!("\tUnsubscribe: {:?}", self.get_unsubscribe());
             }
-            info!("\tSignature: {:02X?}", response.get_signature());
+            debug!("\tSignature: {:02X?}", response.get_signature());
             info!("[BLE Auth]: ");
             if self.verify_auth_data(response.get_signature())? {
-                info!("\tResult = OK");
+                info!("\tOK");
             } else {
-                info!("\tResult = Failed");
+                info!("\tFailed");
             }
             Ok(())
         } else {
