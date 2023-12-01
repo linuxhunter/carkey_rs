@@ -1,5 +1,10 @@
 use std::fmt::{Display, Formatter};
+use std::sync::Mutex;
 use crate::iccoa2::identifier::KeyId;
+
+lazy_static! {
+    static ref KEY_MANAGER: Mutex<KeyManagement> = Mutex::new(KeyManagement::new());
+}
 
 #[derive(Debug, Default, Copy, Clone, PartialOrd, PartialEq)]
 pub enum KeyStatus {
@@ -146,6 +151,40 @@ impl KeyManagement {
                 self.current_key = None;
             }
         }
+    }
+}
+
+#[allow(dead_code)]
+pub fn enable_key(key_id: &KeyId, desc: Option<String>) -> bool {
+    let mut key_manager = KEY_MANAGER.lock().unwrap();
+    let key = Key::new(
+        key_id.clone(),
+        KeyStatus::Enable,
+        desc,
+    );
+    key_manager.add_key(key.clone());
+    key_manager.enable_key(&key)
+}
+
+#[allow(dead_code)]
+pub fn disable_key(key_id: &KeyId) -> bool {
+    let mut key_manager = KEY_MANAGER.lock().unwrap();
+    let key = Key::new(
+        key_id.clone(),
+        KeyStatus::Disable,
+        None,
+    );
+    key_manager.remove_key(&key);
+    key_manager.disable_key(&key)
+}
+
+#[allow(dead_code)]
+pub fn get_current_key() -> Option<KeyId> {
+    let key_manager = KEY_MANAGER.lock().unwrap();
+    if let Some(key) = key_manager.get_current_key() {
+        Some(key.clone())
+    } else {
+        None
     }
 }
 
