@@ -189,10 +189,12 @@ impl StandardTransaction {
                     .map_err(|e| ErrorKind::TransactionError(format!("create empty owner certificate file error: {}", e)))?;
             }
             DkCertType::TempSharedCert => {
-                todo!()
+                fs::File::create(certificate::MIDDLE_CERT_PATH)
+                    .map_err(|e| ErrorKind::TransactionError(format!("create empty middle certificate file error: {}", e)))?;
             }
             DkCertType::FriendKey => {
-                todo!()
+                fs::File::create(certificate::FRIEND_CERT_PATH)
+                    .map_err(|e| ErrorKind::TransactionError(format!("create empty friend certificate file error: {}", e)))?;
             }
         }
         let request = instructions::get_dk_certificate::CommandApduGetDkCert::new(
@@ -239,23 +241,87 @@ impl StandardTransaction {
                         .map_err(|e| ErrorKind::TransactionError(format!("load owner certificate error: {}", e)))?;
                     if let Ok(result) = vehicle_ca_certificate.verify(&owner_certificate) {
                         if result {
-                            println!("Owner Certificate Verification OK!!!");
+                            info!("\tOwner Certificate Verification OK!!!");
                             self.create_control_flow_request(CLA, instructions::control_flow::ControlFlowP1P2::StandardAuthSuccess)
                         } else {
-                            println!("Owner Certificate Verification Failed!!!");
+                            info!("\tOwner Certificate Verification Failed!!!");
                             self.create_control_flow_request(CLA, instructions::control_flow::ControlFlowP1P2::StandardAuthFailedWithUnknownVehicle)
                         }
                     } else {
-                        println!("Owner Certificate Verification Failed!!!");
+                        info!("\tOwner Certificate Verification Failed!!!");
                         self.create_control_flow_request(CLA, instructions::control_flow::ControlFlowP1P2::StandardAuthFailedWithInvalidAuthInfo)
                     }
                 }
             }
             DkCertType::TempSharedCert => {
-                todo!()
+                let mut file = fs::OpenOptions::new()
+                    .create(true)
+                    .write(true)
+                    .append(true)
+                    .open(certificate::MIDDLE_CERT_PATH)
+                    .map_err(|e| ErrorKind::TransactionError(format!("create middle certificate file error: {}", e)))?;
+                file.write_all(response.get_dk_cert())
+                    .map_err(|e| ErrorKind::TransactionError(format!("write middle certificate error: {}", e)))?;
+                if response.get_status().has_remain() {
+                    let request = instructions::get_response::CommandApduGetResponse::new();
+                    let mut apdu = ble::apdu::Apdu::new();
+                    apdu.add_apdu_instruction(ApduInstructions::CommandGetResponse(request));
+                    Ok(Message::new(
+                        MessageType::Apdu,
+                        MessageStatus::NoApplicable,
+                        apdu.serialize()?.len() as u16,
+                        MessageData::Apdu(apdu),
+                    ))
+                } else {
+                    self.create_get_dk_certificate_request(DkCertType::FriendKey)
+                }
             }
             DkCertType::FriendKey => {
-                todo!()
+                let mut file = fs::OpenOptions::new()
+                    .create(true)
+                    .write(true)
+                    .append(true)
+                    .open(certificate::FRIEND_CERT_PATH)
+                    .map_err(|e| ErrorKind::TransactionError(format!("create friend certificate file error: {}", e)))?;
+                file.write_all(response.get_dk_cert())
+                    .map_err(|e| ErrorKind::TransactionError(format!("write friend certificate error: {}", e)))?;
+                if response.get_status().has_remain() {
+                    let request = instructions::get_response::CommandApduGetResponse::new();
+                    let mut apdu = ble::apdu::Apdu::new();
+                    apdu.add_apdu_instruction(ApduInstructions::CommandGetResponse(request));
+                    Ok(Message::new(
+                        MessageType::Apdu,
+                        MessageStatus::NoApplicable,
+                        apdu.serialize()?.len() as u16,
+                        MessageData::Apdu(apdu),
+                    ))
+                } else {
+                    let owner_certificate = certificate::Certificate::new(certificate::OWNER_CERT_PATH)
+                        .map_err(|e| ErrorKind::TransactionError(format!("load owner certificate error: {}", e)))?;
+                    let middle_certificate = certificate::Certificate::new(certificate::MIDDLE_CERT_PATH)
+                        .map_err(|e| ErrorKind::TransactionError(format!("load middle certificate error: {}", e)))?;
+                    if let Ok(result) = owner_certificate.verify(&middle_certificate) {
+                        if result {
+                            info!("\tMiddle Certificate Verification OK!!!");
+                            let friend_certificate = certificate::Certificate::new(certificate::FRIEND_CERT_PATH)
+                                .map_err(|e| ErrorKind::TransactionError(format!("load friend certificate error: {}", e)))?;
+                            if let Ok(result) = middle_certificate.verify(&friend_certificate) {
+                                if result {
+                                    info!("\tFriend Certificate Verification OK!!!");
+                                } else {
+                                    info!("\tFriend Certificate Verification Failed!!!");
+                                }
+                            } else {
+                                info!("\tFriend Certificate Verification Failed!!!");
+                            }
+                        } else {
+                            info!("\tMiddle Certificate Verification Failed!!!");
+                        }
+                    } else {
+                        info!("\tMiddle Certificate Verification Failed!!!");
+                    }
+                    Err(ErrorKind::TransactionError("No Response".to_string()).into())
+                }
             }
         }
     }

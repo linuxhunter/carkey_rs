@@ -8,6 +8,8 @@ pub const VEHICLE_OEM_CA_CERT_PATH: &str = "/etc/certs/iccoa2/vehicle_oem_ca.pem
 #[allow(dead_code)]
 pub const VEHICLE_CERT_PATH: &str = "/etc/certs/iccoa2/vehicle.pem";
 pub const OWNER_CERT_PATH: &str = "/etc/certs/iccoa2/owner.pem";
+pub const MIDDLE_CERT_PATH: &str = "/etc/certs/iccoa2/middle.pem";
+pub const FRIEND_CERT_PATH: &str = "/etc/certs/iccoa2/friend.pem";
 
 #[derive(Debug)]
 pub struct Certificate {
