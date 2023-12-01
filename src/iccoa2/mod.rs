@@ -12,6 +12,7 @@ pub mod ble_auth;
 pub mod ble_rke;
 pub mod ble_vehicle_status;
 pub mod ble_custom;
+pub mod key_management;
 
 const RANDOM_LENGTH: usize = 0x08;
 
