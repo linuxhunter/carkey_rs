@@ -262,7 +262,7 @@ mod tests {
         ).unwrap()));
     }
     #[test]
-    fn test_disable_key_mangement() {
+    fn test_disable_key_management() {
         let mut key_management = KeyManagement::new();
         let key = Key::new(
             KeyId::new(
