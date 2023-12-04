@@ -30,3 +30,4 @@ tokio = { version = "1.29.1", features = ["full"] }
 uuid = "1.4.1"
 log = "0.4.19"
 iso7816-tlv = "0.4.3"
+x509-parser = "0.15.1"

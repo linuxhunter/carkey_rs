@@ -35,6 +35,7 @@ mod errors {
             BleAuthError(t: String)
             BleRkeError(t: String)
             BleVehicleStatusError(t: String)
+            KeyManagementsError(t: String)
         }
     }
 }

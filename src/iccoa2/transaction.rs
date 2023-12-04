@@ -1,5 +1,6 @@
 use std::fs;
 use std::io::Write;
+use std::path::PathBuf;
 use log::info;
 use openssl::bn::{BigNum, BigNumContext};
 use openssl::ec::{EcGroup, EcKey, EcPoint, PointConversionForm};
@@ -11,9 +12,10 @@ use rand::Rng;
 use crate::iccoa2::ble::message::{Message, MessageData, MessageStatus, MessageType};
 use crate::iccoa2::errors::*;
 use crate::iccoa2::instructions::{ApduInstructions, CLA};
-use crate::iccoa2::{ble, certificate, create_tlv_with_primitive_value, instructions, RANDOM_LENGTH, Serde};
+use crate::iccoa2::{ble, certificate, create_tlv_with_primitive_value, instructions, key_management, RANDOM_LENGTH, Serde};
 use crate::iccoa2::identifier::VehicleId;
 use crate::iccoa2::instructions::get_dk_certificate::DkCertType;
+use crate::iccoa2::key_management::KeyType;
 
 #[derive(Debug)]
 pub struct StandardTransaction {
@@ -242,6 +244,16 @@ impl StandardTransaction {
                     if let Ok(result) = vehicle_ca_certificate.verify(&owner_certificate) {
                         if result {
                             info!("\tOwner Certificate Verification OK!!!");
+                            let owner_key = key_management::Key::from_cert_and_oid(
+                                PathBuf::from(certificate::OWNER_CERT_PATH),
+                                certificate::KEY_ID_OID_STR,
+                                KeyType::Owner,
+                                instructions::list_dk::KeyIdStatus::Delivered,
+                                None,
+                            )?;
+                            key_management::km_add_key(owner_key.clone());
+                            key_management::km_enable_key(owner_key.get_key());
+                            info!("current key = {:02X?}", key_management::km_get_current_key());
                             self.create_control_flow_request(CLA, instructions::control_flow::ControlFlowP1P2::StandardAuthSuccess)
                         } else {
                             info!("\tOwner Certificate Verification Failed!!!");
@@ -308,6 +320,14 @@ impl StandardTransaction {
                             if let Ok(result) = middle_certificate.verify(&friend_certificate) {
                                 if result {
                                     info!("\tFriend Certificate Verification OK!!!");
+                                    let friend_key = key_management::Key::from_cert_and_oid(
+                                        PathBuf::from(certificate::FRIEND_CERT_PATH),
+                                        certificate::KEY_ID_OID_STR,
+                                        KeyType::Friend,
+                                        instructions::list_dk::KeyIdStatus::Delivered,
+                                        None,
+                                    )?;
+                                    key_management::km_add_key(friend_key);
                                 } else {
                                     info!("\tFriend Certificate Verification Failed!!!");
                                 }
