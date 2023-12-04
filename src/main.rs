@@ -18,14 +18,8 @@ use uuid::Uuid;
 
 use crate::bluetooth::agent;
 use crate::bluetooth::ranging;
-use crate::iccoa::objects::Iccoa;
-use crate::iccoa::{bluetooth_io, objects, command, pairing};
-use crate::iccoa2::ble::bluetooth_io::{create_ble_measure_request_message, create_vehicle_server_custom_request};
-use crate::iccoa2::ble::custom::VehicleServerCustomRequest;
-use crate::iccoa2::{ble, Serde};
-use crate::iccoa::notification::senseless_control;
-use crate::iccoa::notification::vehicle_status;
-use crate::iccoa::notification::vehicle_unsafe;
+use crate::iccoa::{bluetooth_io, objects, pairing};
+use crate::iccoa2::Serde;
 
 lazy_static! {
     static ref SERVICE_UUID: Uuid = Uuid::from_u16(0xFCD1);
@@ -69,6 +63,7 @@ async fn main() -> bluer::Result<()> {
     let bt_notify_tx2 = bt_notify_tx.clone();
     let (bt_send_package_tx, mut bt_send_package_rx) = mpsc::channel::<Vec<u8>>(32);
     let bt_send_package_tx2 = bt_send_package_tx.clone();
+    let ble_demo_sender= bt_send_package_tx.clone();
 
     let session = bluer::Session::new().await?;
     let adapter = session.default_adapter().await?;
@@ -205,193 +200,15 @@ async fn main() -> bluer::Result<()> {
     match protocol {
         CarkeyProtocol::Icce => {
             //test code for sending message from vehicle to mobile by notification
-            tokio::spawn(async move {
-                let mut index = 0;
-                loop {
-                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                    if !icce::objects::is_session_key_valid() {
-                        continue;
-                    }
-                    let icce_package = match index {
-                        0x00 => {
-                            icce::command::test_create_measure_request()
-                        },
-                        0x01 => {
-                            icce::command::test_craate_anti_relay_request()
-                        },
-                        0x02 => {
-                            icce::command::test_create_mobile_info_request()
-                        },
-                        0x03 => {
-                            icce::command::test_create_calbriate_time_request()
-                        },
-                        0x04 => {
-                            icce::command::test_create_protocol_request()
-                        },
-                        0x05 => {
-                            icce::notification::test_create_vehicle_event_request()
-                        },
-                        0x06 => {
-                            icce::notification::test_create_app_event_request()
-                        },
-                        _ => {
-                            icce::notification::test_create_server_event_request()
-                        }
-                    };
-                    println!("sending icce_package is {:02X?}", icce_package);
-                    let _ = bt_send_package_tx.send(icce_package).await;
-                    index += 1;
-                    if index > 0x07 {
-                        index = 0;
-                    }
-                }
-            });
+            tokio::spawn(icce::ble_send_demo::ble_send_demos(ble_demo_sender));
         },
         CarkeyProtocol::Iccoa => {
             //test code for sending message from vehicle to mobile by notification
-            tokio::spawn(async move {
-                let mut index = 0;
-                loop {
-                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                    let request = match index {
-                        0x00 => {
-                            command::ranging::create_iccoa_ranging_request_package().unwrap()
-                        },
-                        0x01 => {
-                            vehicle_status::create_iccoa_total_mileage_notification().unwrap()
-                        },
-                        0x02 => {
-                            vehicle_status::create_iccoa_rechange_mileage_notification().unwrap()
-                        },
-                        0x03 => {
-                            vehicle_status::create_iccoa_remaining_battery_notification().unwrap()
-                        },
-                        0x04 => {
-                            vehicle_status::create_iccoa_power_state_notification().unwrap()
-                        },
-                        0x05 => {
-                            vehicle_status::create_iccoa_door_lock_status_notification().unwrap()
-                        },
-                        0x06 => {
-                            vehicle_status::create_iccoa_door_open_status_notification().unwrap()
-                        },
-                        0x07 => {
-                            vehicle_status::create_iccoa_door_window_status_notification().unwrap()
-                        },
-                        0x08 => {
-                            vehicle_status::create_iccoa_front_hatch_status_notification().unwrap()
-                        },
-                        0x09 => {
-                            vehicle_status::create_iccoa_back_trunk_status_notification().unwrap()
-                        },
-                        0x0A => {
-                            vehicle_status::create_iccoa_sunroof_status_notification().unwrap()
-                        },
-                        0x0B => {
-                            vehicle_status::create_iccoa_headlight_status_notification().unwrap()
-                        },
-                        0x0C => {
-                            senseless_control::create_iccoa_senseless_control_passive_unlock_notification().unwrap()
-                        },
-                        0x0D => {
-                            senseless_control::create_iccoa_senseless_control_passive_lock_notification().unwrap()
-                        },
-                        0x0E => {
-                            senseless_control::create_iccoa_senseless_control_near_auto_unlock_notification().unwrap()
-                        },
-                        0x0F => {
-                            senseless_control::create_iccoa_senseless_control_far_auto_lock_notification().unwrap()
-                        },
-                        0x10 => {
-                            senseless_control::create_iccoa_senseless_control_one_key_start_notification().unwrap()
-                        },
-                        0x11 => {
-                            senseless_control::create_iccoa_senseless_control_welcome_notification().unwrap()
-                        },
-                        0x12 => {
-                            vehicle_unsafe::create_iccoa_vehicle_unsafe_power_state_notification().unwrap()
-                        },
-                        0x13 => {
-                            vehicle_unsafe::create_iccoa_vehicle_unsafe_door_lock_state_notification().unwrap()
-                        },
-                        0x14 => {
-                            vehicle_unsafe::create_iccoa_vehicle_unsafe_door_open_state_notification().unwrap()
-                        },
-                        0x15 => {
-                            vehicle_unsafe::create_iccoa_vehicle_unsafe_door_window_state_notification().unwrap()
-                        },
-                        0x16 => {
-                            vehicle_unsafe::create_iccoa_vehicle_unsafe_front_hatch_state_notification().unwrap()
-                        },
-                        0x17 => {
-                            vehicle_unsafe::create_iccoa_vehicle_unsafe_back_trunk_state_notification().unwrap()
-                        },
-                        0x18 => {
-                            vehicle_unsafe::create_iccoa_vehicle_unsafe_sunroof_state_notification().unwrap()
-                        },
-                        0x19 => {
-                            vehicle_unsafe::create_iccoa_vehicle_unsafe_headlight_state_notification().unwrap()
-                        },
-                        _ => {
-                            Iccoa::new()
-                        },
-                    };
-                    if index > 0x19 {
-                        index = 0;
-                        continue;
-                    }
-                    index += 1;
-                    if let Some(splitted_request) = objects::split_iccoa(&request) {
-                        for request in splitted_request {
-                            let _ = bt_send_package_tx.send(request.serialize()).await;
-                        }
-                    } else {
-                        let _ = bt_send_package_tx.send(request.serialize()).await;
-                    }
-                }
-            });
+            tokio::spawn(iccoa::ble_send_demo::ble_send_demos(ble_demo_sender));
         },
         CarkeyProtocol::Iccoa2 => {
             //test code for sending message from vehicle to mobile by notification
-            tokio::spawn(async move {
-                let mut index = 0x00;
-                loop {
-                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                    let request = match index {
-                        0x00 => {
-                            create_ble_measure_request_message(ble::measure::MeasureRequest::new(
-                                ble::measure::MeasureType::BtRssi,
-                                ble::measure::MeasureAction::Start,
-                                ble::measure::MeasureDuration::new(0x20),
-                            )).unwrap()
-                        },
-                        0x01 => {
-                            create_ble_measure_request_message(ble::measure::MeasureRequest::new(
-                                ble::measure::MeasureType::BtRssi,
-                                ble::measure::MeasureAction::Stop,
-                                ble::measure::MeasureDuration::new(0x20),
-                            )).unwrap()
-                        },
-                        0x02 => {
-                            create_vehicle_server_custom_request(VehicleServerCustomRequest::new(
-                                0x0102,
-                                0x03,
-                            )).unwrap()
-                        },
-                        _ => {
-                            todo!()
-                        }
-                    };
-                    if index <= 0x02 {
-                        let _ = bt_send_package_tx.send(request.serialize().unwrap()).await;
-                    }
-                    if index == 0x02 {
-                        index = 0x00;
-                    } else {
-                        index += 1;
-                    }
-                }
-            });
+            tokio::spawn(iccoa2::ble_send_demo::ble_send_demos(ble_demo_sender));
         }
     }
 

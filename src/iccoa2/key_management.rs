@@ -181,11 +181,7 @@ pub fn disable_key(key_id: &KeyId) -> bool {
 #[allow(dead_code)]
 pub fn get_current_key() -> Option<KeyId> {
     let key_manager = KEY_MANAGER.lock().unwrap();
-    if let Some(key) = key_manager.get_current_key() {
-        Some(key.clone())
-    } else {
-        None
-    }
+    key_manager.get_current_key().cloned()
 }
 
 #[cfg(test)]

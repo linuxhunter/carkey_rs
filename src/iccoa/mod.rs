@@ -8,6 +8,7 @@ pub mod command;
 pub mod notification;
 pub mod bluetooth_io;
 pub mod utils;
+pub mod ble_send_demo;
 
 mod errors {
     use super::*;
