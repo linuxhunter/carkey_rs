@@ -154,7 +154,7 @@ impl StandardTransaction {
             .map_err(|e| ErrorKind::TransactionError(format!("create signer with private key error: {}", e)))?;
         signer.update(data.as_ref()).map_err(|e| ErrorKind::TransactionError(format!("update signer with data error: {}", e)))?;
         let signature = signer.sign_to_vec().map_err(|e| ErrorKind::TransactionError(format!("get signature error: {}", e)))?;
-        let signature_tlv = create_tlv_with_primitive_value(0x8F, signature.as_ref())
+        let signature_tlv = create_tlv_with_primitive_value(instructions::SIGNATURE_TAG, signature.as_ref())
             .map_err(|e| ErrorKind::TransactionError(format!("create signature tlv error: {}", e)))?;
         let mut apdu = ble::apdu::Apdu::new();
         apdu.add_apdu_instruction(ApduInstructions::CommandAuth1(signature_tlv.to_vec()));

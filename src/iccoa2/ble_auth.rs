@@ -2,11 +2,10 @@ use log::{debug, info};
 use openssl::hash::MessageDigest;
 use openssl::sign::Verifier;
 use rand::Rng;
-use crate::iccoa2::{ble, certificate, Serde};
+use crate::iccoa2::{ble, certificate, key_management, Serde};
 use crate::iccoa2::ble::auth::Auth;
 use crate::iccoa2::ble::message::{Message, MessageData, MessageStatus, MessageType};
 use crate::iccoa2::errors::*;
-use crate::iccoa2::identifier::KeyId;
 
 const BLE_AUTH_RANDOM_LENGTH: u8 = 0x10;
 
@@ -14,7 +13,6 @@ const BLE_AUTH_RANDOM_LENGTH: u8 = 0x10;
 #[derive(Debug)]
 pub struct BleAuth {
     random: Vec<u8>,
-    key_id: Option<KeyId>,
     rke: Option<ble::rke::RkeRequest>,
     subscribe: Option<ble::vehicle_status::VehicleStatusRequest>,
     query: Option<ble::vehicle_status::VehicleStatusRequest>,
@@ -26,7 +24,6 @@ impl BleAuth {
     pub fn new() -> Self {
         BleAuth {
             random: vec![],
-            key_id: None,
             rke: None,
             subscribe: None,
             query: None,
@@ -42,16 +39,6 @@ impl BleAuth {
         for _ in 0..BLE_AUTH_RANDOM_LENGTH {
             self.random.push(rng.gen::<u8>());
         }
-    }
-    pub fn get_key_id(&self) -> Option<&KeyId> {
-        if let Some(ref key_id) = self.key_id {
-            Some(key_id)
-        } else {
-            None
-        }
-    }
-    pub fn set_key_id(&mut self, key_id: KeyId) {
-        self.key_id = Some(key_id);
     }
     fn clear_business_contents(&mut self) {
         self.rke = None;
@@ -118,7 +105,7 @@ impl BleAuth {
     fn verify_auth_data(&self, signature: &[u8]) -> Result<bool> {
         let mut auth_data = Vec::new();
         auth_data.append(&mut self.get_random().to_vec());
-        if let Some(key_id) = self.get_key_id() {
+        if let Some(key_id) = key_management::km_get_current_key() {
             auth_data.append(&mut key_id.serialize()?);
         }
         if let Some(rke) = self.get_rke() {
@@ -151,9 +138,12 @@ impl BleAuth {
                 entries.get_unsubscribe().is_none() {
                 return Err(ErrorKind::BleAuthError("Auth Rke entry contents is Null".to_string()).into());
             }
-            self.set_key_id(response.get_key_id().clone());
+            let current_key = key_management::km_get_current_key().ok_or("current key is null".to_string())?;
+            if current_key.ne(response.get_key_id()) {
+                return Err(ErrorKind::BleAuthError("key id is not null".to_string()).into());
+            }
             debug!("[Auth Response]: ");
-            debug!("\tKey ID: {:?}", self.get_key_id());
+            debug!("\tKey ID: {:?}", current_key);
             if let Some(rke) = entries.get_rke() {
                 self.set_rke(*rke);
                 debug!("\tRKE: {:?}", self.get_rke());
