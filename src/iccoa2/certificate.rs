@@ -1,4 +1,5 @@
 use std::fs;
+use std::io::Write;
 use std::path::Path;
 use std::str::FromStr;
 use openssl::pkey::{PKey, PKeyRef, Public};
@@ -66,4 +67,24 @@ pub fn get_certificate_extension<P: AsRef<Path>>(cert_path: P, oid_str: &str) ->
         }
     }
     Err(ErrorKind::TransactionError("oid string is not exist in x509 certificate".to_string()).into())
+}
+
+pub fn write_certificate(cert_type: String, cert_data: &[u8]) -> Result<()> {
+    let cert_file = if cert_type.eq_ignore_ascii_case("owner") {
+        OWNER_CERT_PATH
+    } else if cert_type.eq_ignore_ascii_case("middle") {
+        MIDDLE_CERT_PATH
+    } else if cert_type.eq_ignore_ascii_case("friend") {
+        FRIEND_CERT_PATH
+    } else {
+        return Err(ErrorKind::TransactionError(format!("Certifiate type {} is not supported", cert_type)).into());
+    };
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(cert_file)
+        .map_err(|e| ErrorKind::TransactionError(format!("create middle certificate file error: {}", e)))?;
+    file.write_all(cert_data)
+        .map_err(|e| ErrorKind::TransactionError(format!("write middle certificate error: {}", e)))?;
+    Ok(())
 }

@@ -14,6 +14,7 @@ pub mod ble_vehicle_status;
 pub mod ble_custom;
 pub mod key_management;
 pub mod ble_send_demo;
+pub mod tsp;
 
 const RANDOM_LENGTH: usize = 0x08;
 
@@ -36,6 +37,7 @@ mod errors {
             BleRkeError(t: String)
             BleVehicleStatusError(t: String)
             KeyManagementsError(t: String)
+            TspError(t: String)
         }
     }
 }

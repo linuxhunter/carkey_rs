@@ -222,6 +222,16 @@ pub fn km_disable_key(key: &KeyId) -> bool{
     key_manager.disable_key(key)
 }
 
+pub fn km_find_key(key_type: KeyType) -> Option<KeyId> {
+    let key_manager = KEY_MANAGER.lock().unwrap();
+    for key in key_manager.keys.iter() {
+        if key.get_key_type() == key_type {
+            return Some(key.get_key().clone());
+        }
+    }
+    None
+}
+
 #[allow(dead_code)]
 pub fn km_get_current_key() -> Option<KeyId> {
     let key_manager = KEY_MANAGER.lock().unwrap();

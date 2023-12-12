@@ -19,7 +19,7 @@ use uuid::Uuid;
 use crate::bluetooth::agent;
 use crate::bluetooth::ranging;
 use crate::iccoa::{bluetooth_io, objects, pairing};
-use crate::iccoa2::Serde;
+use crate::iccoa2::{Serde, tsp};
 
 lazy_static! {
     static ref SERVICE_UUID: Uuid = Uuid::from_u16(0xFCD1);
@@ -47,6 +47,7 @@ impl From<&str> for CarkeyProtocol {
         }
     }
 }
+
 
 #[tokio::main]
 async fn main() -> bluer::Result<()> {
@@ -211,6 +212,8 @@ async fn main() -> bluer::Result<()> {
             tokio::spawn(iccoa2::ble_send_demo::ble_send_demos(ble_demo_sender));
         }
     }
+
+    tokio::spawn(tsp::tsp_handler());
 
     println!("Server ready. Press ctrl-c to quit");
     loop {
