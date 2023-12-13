@@ -1,5 +1,5 @@
 use std::fmt::{Display, Formatter};
-use crate::iccoa2::Serde;
+use crate::iccoa2::{certificate, Serde};
 use crate::iccoa2::errors::*;
 
 #[allow(dead_code)]
@@ -10,7 +10,6 @@ const VEHICLE_SERIAL_ID_LENGTH: usize = 14;
 const KEY_ID_LENGTH: usize = 16;
 #[allow(dead_code)]
 const VEHICLE_ID_LENGTH: usize = 16;
-const VEHICLE_OEM_ID: u16 = 0x0102;
 const VEHICLE_SERIAL_ID: [u8; 14] = [
     0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09,
     0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
@@ -168,8 +167,17 @@ impl Display for VehicleId {
 }
 
 pub fn get_vehicle_id() -> Result<VehicleId> {
+    let raw_vehicle_oem_id = certificate::get_certificate_extension(
+        certificate::VEHICLE_OEM_CA_CERT_PATH,
+        certificate::VEHICLE_OEM_ID_OID_STR,
+    )?;
+    let vehicle_oem_id = u16::from_be_bytes(
+        (&raw_vehicle_oem_id[0..2])
+            .try_into()
+            .map_err(|e| ErrorKind::IdentifierError(format!("get vehicle oem id from certificate error: {}", e)))?
+    );
     VehicleId::new(
-        VEHICLE_OEM_ID,
+        vehicle_oem_id,
         &VEHICLE_SERIAL_ID,
     )
 }
