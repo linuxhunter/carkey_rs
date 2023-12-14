@@ -1,6 +1,8 @@
 use std::fmt::{Display, Formatter};
+use futures::{SinkExt, StreamExt};
+use http::Uri;
 use log::info;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio_websockets::{ClientBuilder, Message};
 use crate::iccoa2::{certificate, Serde};
 use crate::iccoa2::errors::*;
 use crate::iccoa2::key_management;
@@ -8,7 +10,6 @@ use crate::iccoa2::key_management;
 const NOTIFICATION_LENGTH: usize = 0x02;
 const TSP_SERVER_ADDRESS: &str = "169.254.101.250";
 const TSP_SERVER_PORT: u16 = 12345;
-const TSP_DATA_BUFFER_LENGTH: usize = 0x800;
 
 #[derive(Debug, Default, Copy, Clone, PartialOrd, PartialEq)]
 pub enum Operations {
@@ -261,28 +262,20 @@ impl Serde for Notification {
 }
 
 pub async fn tsp_handler() {
-    let mut tsp_server = loop {
-        let tsp_server_socket_addr = format!("{}:{}", TSP_SERVER_ADDRESS, TSP_SERVER_PORT);
-        match tokio::net::TcpStream::connect(tsp_server_socket_addr).await {
-            Ok(server) => {
-                break server
-            },
-            Err(_) => {
-                continue
-            }
-        }
-    };
-    let mut tsp_data = vec![0; TSP_DATA_BUFFER_LENGTH];
-    loop {
-        let _ = tsp_server.read(&mut tsp_data).await.unwrap();
-        let notification_cmd = Notification::deserialize(&tsp_data).unwrap();
-        info!("Notification is {}", notification_cmd);
-        match notification_cmd.operate() {
-            Ok(_) => {
-                let _ = tsp_server.write("Ok".as_bytes()).await.unwrap();
-            }
-            Err(_) => {
-                let _ = tsp_server.write("Failed".as_bytes()).await.unwrap();
+    let uri = Uri::try_from(format!("ws://{}:{}/ws", TSP_SERVER_ADDRESS, TSP_SERVER_PORT).as_str()).unwrap();
+    let (mut client, _) = ClientBuilder::from_uri(uri).connect().await.unwrap();
+
+    while let Some(Ok(msg)) = client.next().await {
+        if msg.is_binary() {
+            let notification_cmd = Notification::deserialize(msg.as_payload().to_vec().as_ref()).unwrap();
+            info!("Notification is {}", notification_cmd);
+            match notification_cmd.operate() {
+                Ok(_) => {
+                    client.send(Message::text(String::from("OK"))).await.unwrap();
+                }
+                Err(_) => {
+                    client.send(Message::text(String::from("Failed"))).await.unwrap();
+                }
             }
         }
     }
