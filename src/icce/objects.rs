@@ -2,15 +2,11 @@ use std::sync::Mutex;
 
 use crc16::CCITT_FALSE;
 
-use crate::icce::aes128;
-
-type Result<T> = std::result::Result<T, String>;
+use crate::icce::errors::*;
+use crate::icce::session;
 
 lazy_static! {
     static ref BLE_DEFAULT_MTU: u16 = 500;
-    static ref SESSION_KEY: Mutex<[u8; 16]> = Mutex::new([0; 16]);
-    static ref SESSION_IV: Mutex<[u8; 16]> = Mutex::new([0; 16]);
-    static ref CARD_ATC: Mutex<[u8; 4]> = Mutex::new([0; 4]);
     static ref ICCE_FRAGMENTS: Mutex<Vec<Icce>> = Mutex::new(Vec::new());
 }
 
@@ -82,7 +78,7 @@ impl Control {
     }
     pub fn deserialize(byte_stream: &[u8]) -> Result<Self> {
         if byte_stream.is_empty() {
-            return Err("Invalid byte stream length".to_string());
+            return Err(ErrorKind::ObjectError("Invalid byte stream length".to_string()).into());
         }
         let mut control = Control::new();
         control.0 = byte_stream[0];
@@ -152,7 +148,7 @@ impl Header {
     }
     pub fn deserialize(byte_stream: &[u8]) -> Result<Self> {
         if byte_stream.len() < 5 {
-            return Err("Invalid byte stream length".to_string());
+            return Err(ErrorKind::ObjectError("Invalid byte stream length".to_string()).into());
         }
         let mut header = Header::new();
         header.set_sof(byte_stream[0]);
@@ -208,7 +204,7 @@ impl Payload {
     }
     pub fn deserialize(byte_stream: &[u8]) -> Result<Self> {
         if byte_stream.len() < 2 || byte_stream.len() < 2 + byte_stream[1] as usize {
-            return Err("Invalid byte stream length".to_string());
+            return Err(ErrorKind::ObjectError("Invalid byte stream length".to_string()).into());
         }
         let mut payload = Payload::new();
         payload.set_payload_type(byte_stream[0]);
@@ -274,7 +270,7 @@ impl Body {
     }
     pub fn deserialize(byte_stream: &[u8], frag_flag: bool) -> Result<Self> {
         if byte_stream.len() < 2 {
-            return Err("Invalid byte stream length".to_string());
+            return Err(ErrorKind::ObjectError("Invalid byte stream length".to_string()).into());
         }
         let mut body = Body::new();
         if !frag_flag {
@@ -352,9 +348,9 @@ impl Icce {
             //handle body encrypt
             let mut plain_text = Vec::new();
             plain_text.append(&mut self.body.serialize(frag_flag));
-            let encrypted_text = aes128::encrypt_with_session_key(
-                &SESSION_KEY.lock().unwrap().to_vec(),
-                &SESSION_IV.lock().unwrap().to_vec(),
+            let encrypted_text = session::encrypt_with_session_key(
+                session::get_session_key().as_ref(),
+                session::get_session_iv().as_ref(),
                 &plain_text).unwrap();
             //create new header object with new length
             let mut new_header = Header::new();
@@ -373,7 +369,7 @@ impl Icce {
     pub fn deserialize(byte_stream: &[u8]) -> Result<Self> {
         let mut icce = Icce::new();
         if byte_stream.len() < 5 {
-            return Err("Invalid byte stream length".to_string());
+            return Err(ErrorKind::ObjectError("Invalid byte stream length".to_string()).into());
         }
         icce.set_header(Header::deserialize(&byte_stream[0..])?);
         let frag_flag = icce.get_header().get_control().is_conti_frag() || icce.get_header().get_control().is_last_frag();
@@ -388,9 +384,9 @@ impl Icce {
             new_header.set_fsn(icce.get_header().get_fsn());
 
             let encrypted_text = &byte_stream[5..byte_stream.len()-2];
-            let plain_text = aes128::decrypt_with_session_key(
-                &SESSION_KEY.lock().unwrap().to_vec(),
-                &SESSION_IV.lock().unwrap().to_vec(),
+            let plain_text = session::decrypt_with_session_key(
+                session::get_session_key().as_ref(),
+                session::get_session_iv().as_ref(),
                 encrypted_text)?;
             new_header.set_length(2 + plain_text.len() as u16);
             icce.set_header(new_header);
@@ -456,34 +452,6 @@ pub fn create_icce_body(message_id: u8, command_id: u8, payloads: &[Payload]) ->
         body.set_payload(payload.to_owned());
     }
     body
-}
-
-pub fn is_session_key_valid() -> bool {
-    let session_key = SESSION_KEY.lock().unwrap().to_vec();
-    session_key.ne(&[0u8; 16])
-}
-
-pub fn update_session_key(key: &[u8]) {
-    let mut session_key = SESSION_KEY.lock().unwrap();
-    session_key.copy_from_slice(key);
-}
-
-pub fn update_session_iv(iv: &[u8]) {
-    let mut session_iv = SESSION_IV.lock().unwrap();
-    session_iv.copy_from_slice(iv);
-}
-
-pub fn update_card_atc(atc: &[u8]) {
-    let mut card_atc = CARD_ATC.lock().unwrap();
-    card_atc.copy_from_slice(atc);
-}
-
-pub fn get_session_key() -> Vec<u8> {
-    SESSION_KEY.lock().unwrap().to_vec()
-}
-
-pub fn get_session_iv() -> Vec<u8> {
-    SESSION_IV.lock().unwrap().to_vec()
 }
 
 pub fn collect_icce_fragments(icce: Icce) {
@@ -587,6 +555,7 @@ pub fn split_icce(icce: &Icce) -> Option<Vec<Icce>> {
 
 #[cfg(test)]
 mod tests {
+    use crate::icce::{card_info, dkey_info, vehicle_info};
     use super::*;
 
     #[test]
@@ -993,105 +962,105 @@ mod tests {
     }
     #[test]
     fn test_calculate_dkey() {
-        let card_seid = aes128::get_card_seid();
-        let card_id = aes128::get_card_id();
-        let dkey = aes128::calculate_dkey(&card_seid, &card_id);
+        let card_seid = card_info::get_card_se_id();
+        let card_id = card_info::get_card_id();
+        let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
         assert_eq!(dkey, vec![0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]);
     }
     #[test]
     fn test_get_card_iv() {
-        let card_iv = aes128::get_card_iv();
-        assert_eq!(card_iv, vec![0x00; 16]);
+        let card_iv = card_info::get_card_iv();
+        assert_eq!(card_iv.get_card_iv().to_vec(), vec![0x00; 16]);
     }
     #[test]
     fn test_calculate_session_iv() {
-        let reader_rnd = aes128::get_reader_rnd();
-        let card_rnd = aes128::get_card_rnd();
-        let session_iv = aes128::calculate_session_iv(&reader_rnd, &card_rnd);
-        assert_eq!(session_iv, vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01]);
+        let reader_rnd = vehicle_info::get_vehicle_reader_rnd();
+        let card_rnd = card_info::get_card_rnd();
+        let session_iv = session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
+        println!("session_iv = {:02X?}", session_iv);
     }
     #[test]
     fn test_calculate_session_key() {
-        let reader_rnd = aes128::get_reader_rnd();
-        let card_rnd = aes128::get_card_rnd();
-        let card_seid = aes128::get_card_seid();
-        let card_id = aes128::get_card_id();
-        let reader_key_parameter = aes128::get_reader_key_parameter();
+        let reader_rnd = vehicle_info::get_vehicle_reader_rnd();
+        let card_rnd = card_info::get_card_rnd();
+        let card_seid = card_info::get_card_se_id();
+        let card_id = card_info::get_card_id();
+        let reader_key_parameter = vehicle_info::get_vehicle_reader_key_parameter();
 
-        let session_iv = aes128::calculate_session_iv(&reader_rnd, &card_rnd);
-        let dkey = aes128::calculate_dkey(&card_seid, &card_id);
-        let card_iv = aes128::get_card_iv();
+        let session_iv = session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
+        let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
+        let card_iv = card_info::get_card_iv();
 
-        let session_key = aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
+        let session_key = session::calculate_session_key(&dkey, card_iv.get_card_iv(), &session_iv, reader_key_parameter.get_reader_key_parameter()).unwrap();
         assert_eq!(session_key.len(), 16);
         println!("session_key = {:02X?}", session_key);
     }
     #[test]
     fn test_encrypt_and_decrypt_with_session_key() {
-        let reader_rnd = aes128::get_reader_rnd();
-        let card_rnd = aes128::get_card_rnd();
-        let card_seid = aes128::get_card_seid();
-        let card_id = aes128::get_card_id();
-        let reader_key_parameter = aes128::get_reader_key_parameter();
+        let reader_rnd = vehicle_info::get_vehicle_reader_rnd();
+        let card_rnd = card_info::get_card_rnd();
+        let card_seid = card_info::get_card_se_id();
+        let card_id = card_info::get_card_id();
+        let reader_key_parameter = vehicle_info::get_vehicle_reader_key_parameter();
 
-        let session_iv = aes128::calculate_session_iv(&reader_rnd, &card_rnd);
-        let dkey = aes128::calculate_dkey(&card_seid, &card_id);
-        let card_iv = aes128::get_card_iv();
+        let session_iv = session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
+        let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
+        let card_iv = card_info::get_card_iv();
 
-        let session_key = aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
+        let session_key = session::calculate_session_key(&dkey, card_iv.get_card_iv(), &session_iv, reader_key_parameter.get_reader_key_parameter()).unwrap();
 
         let plain_text = b"Hello,World";
-        let encrypt_text = aes128::encrypt_with_session_key(&session_key, &session_iv, plain_text).unwrap();
-        let decrypt_text = aes128::decrypt_with_session_key(&session_key, &session_iv, &encrypt_text).unwrap();
+        let encrypt_text = session::encrypt_with_session_key(&session_key, &session_iv, plain_text).unwrap();
+        let decrypt_text = session::decrypt_with_session_key(&session_key, &session_iv, &encrypt_text).unwrap();
         assert_eq!(decrypt_text, plain_text);
     }
     #[test]
     fn test_encrypted_with_session_key_and_session_iv() {
-        let card_seid = aes128::get_card_seid();
-        let card_id = aes128::get_card_id();
-        let card_rnd = aes128::get_card_rnd();
-        let card_info1 = aes128::get_card_info1();
-        let card_auth_parameter = aes128::get_card_auth_parameter();
-        let card_atc = aes128::get_card_atc();
-        let reader_rnd = aes128::get_reader_rnd();
-        let reader_key_parameter = aes128::get_reader_key_parameter();
-        let reader_auth_parameter = aes128::get_reader_auth_parameter();
+        let card_seid = card_info::get_card_se_id();
+        let card_id = card_info::get_card_id();
+        let card_rnd = card_info::get_card_rnd();
+        let card_info1 = card_info::get_card_info1();
+        let card_auth_parameter = card_info::get_card_auth_parameter();
+        let card_atc = card_info::get_card_atc();
+        let reader_rnd = vehicle_info::get_vehicle_reader_rnd();
+        let reader_key_parameter = vehicle_info::get_vehicle_reader_key_parameter();
+        let reader_auth_parameter = vehicle_info::get_vehicle_reader_auth_parameter();
 
-        let session_iv = aes128::calculate_session_iv(&reader_rnd, &card_rnd);
-        let dkey = aes128::calculate_dkey(&card_seid, &card_id);
-        let card_iv = aes128::get_card_iv();
-        let session_key = aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
+        let session_iv = session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
+        let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
+        let card_iv = card_info::get_card_iv();
+        let session_key = session::calculate_session_key(&dkey, card_iv.get_card_iv(), &session_iv, reader_key_parameter.get_reader_key_parameter()).unwrap();
 
         //emulate auth get process data response package from mobile
         let mut payload = Vec::new();
         payload.push(0x77);
         payload.push(0x5A);
-        payload.push(card_seid.len() as u8);
-        payload.append(&mut card_seid.clone().to_vec());
+        payload.push(card_seid.get_card_se_id().len() as u8);
+        payload.append(&mut card_seid.get_card_se_id().to_vec());
         payload.push(0x9F);
         payload.push(0x3B);
-        payload.push(card_id.len() as u8);
-        payload.append(&mut card_id.clone().to_vec());
+        payload.push(card_id.get_card_id().len() as u8);
+        payload.append(&mut card_id.get_card_id().to_vec());
         payload.push(0x9F);
         payload.push(0x3E);
-        payload.push(card_rnd.len() as u8);
-        payload.append(&mut card_rnd.clone().to_vec());
+        payload.push(card_rnd.get_card_rnd().len() as u8);
+        payload.append(&mut card_rnd.get_card_rnd().to_vec());
         payload.push(0x9F);
         payload.push(0x05);
-        payload.push(card_info1.len() as u8);
-        payload.append(&mut card_info1.clone().to_vec());
+        payload.push(card_info1.get_card_info1().len() as u8);
+        payload.append(&mut card_info1.get_card_info1().to_vec());
         payload.push(0x73);
 
         let mut plain_text = Vec::new();
         plain_text.push(0x9F);
         plain_text.push(0x36);
-        plain_text.push(card_atc.len() as u8);
-        plain_text.append(&mut card_atc.clone().to_vec());
+        plain_text.push(card_atc.get_card_atc().len() as u8);
+        plain_text.append(&mut card_atc.get_card_atc().to_vec());
         plain_text.push(0x9F);
         plain_text.push(0x37);
-        plain_text.push(reader_rnd.len() as u8);
-        plain_text.append(&mut reader_rnd.clone().to_vec());
-        let encrypted_text = aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        plain_text.push(reader_rnd.get_reader_rnd().len() as u8);
+        plain_text.append(&mut reader_rnd.get_reader_rnd().to_vec());
+        let encrypted_text = session::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
         payload.push(0x00);
@@ -1108,17 +1077,17 @@ mod tests {
         let mut plain_text = Vec::new();
         plain_text.push(0x9F);
         plain_text.push(0x31);
-        plain_text.push(card_auth_parameter.len() as u8);
-        plain_text.append(&mut card_auth_parameter.clone().to_vec());
+        plain_text.push(card_auth_parameter.get_card_auth_parameter().len() as u8);
+        plain_text.append(&mut card_auth_parameter.get_card_auth_parameter().to_vec());
         plain_text.push(0x9F);
         plain_text.push(0x0A);
-        plain_text.push(reader_auth_parameter.len() as u8);
-        plain_text.append(&mut &mut reader_auth_parameter.clone().to_vec());
+        plain_text.push(reader_auth_parameter.get_reader_auth_parameter().len() as u8);
+        plain_text.append(&mut &mut reader_auth_parameter.get_reader_auth_parameter().to_vec());
         plain_text.push(0x9F);
         plain_text.push(0x37);
-        plain_text.push(reader_rnd.len() as u8);
-        plain_text.append(&mut reader_rnd.clone().to_vec());
-        let encrypted_text = aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        plain_text.push(reader_rnd.get_reader_rnd().len() as u8);
+        plain_text.append(&mut reader_rnd.get_reader_rnd().to_vec());
+        let encrypted_text = session::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
         payload.push(0x00);
@@ -1139,56 +1108,56 @@ mod tests {
 
         let _ = crate::icce::bluetooth_io::handle_icce_mobile_request(&origin_icce).unwrap();
 
-        println!("SESSION_KEY = {:02X?}", SESSION_KEY.lock().unwrap());
-        println!("SESSION_IV = {:02X?}", SESSION_IV.lock().unwrap());
+        println!("SESSION_KEY = {:02X?}", session::get_session_key());
+        println!("SESSION_IV = {:02X?}", session::get_session_iv());
     }
     #[test]
     fn test_encrypt_and_decrypt_with_session_key_iv() {
-        let card_seid = aes128::get_card_seid();
-        let card_id = aes128::get_card_id();
-        let card_rnd = aes128::get_card_rnd();
-        let card_info1 = aes128::get_card_info1();
-        let card_auth_parameter = aes128::get_card_auth_parameter();
-        let card_atc = aes128::get_card_atc();
-        let reader_rnd = aes128::get_reader_rnd();
-        let reader_key_parameter = aes128::get_reader_key_parameter();
-        let reader_auth_parameter = aes128::get_reader_auth_parameter();
+        let card_seid = card_info::get_card_se_id();
+        let card_id = card_info::get_card_id();
+        let card_rnd = card_info::get_card_rnd();
+        let card_info1 = card_info::get_card_info1();
+        let card_auth_parameter = card_info::get_card_auth_parameter();
+        let card_atc = card_info::get_card_atc();
+        let reader_rnd = vehicle_info::get_vehicle_reader_rnd();
+        let reader_key_parameter = vehicle_info::get_vehicle_reader_key_parameter();
+        let reader_auth_parameter = vehicle_info::get_vehicle_reader_auth_parameter();
 
-        let session_iv = aes128::calculate_session_iv(&reader_rnd, &card_rnd);
-        let dkey = aes128::calculate_dkey(&card_seid, &card_id);
-        let card_iv = aes128::get_card_iv();
-        let session_key = aes128::calculate_session_key(&dkey, &card_iv, &session_iv, &reader_key_parameter).unwrap();
+        let session_iv = session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
+        let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
+        let card_iv = card_info::get_card_iv();
+        let session_key = session::calculate_session_key(&dkey, card_iv.get_card_iv(), &session_iv, reader_key_parameter.get_reader_key_parameter()).unwrap();
 
         //emulate auth get process data response package from mobile
         let mut payload = Vec::new();
         payload.push(0x77);
         payload.push(0x5A);
-        payload.push(card_seid.len() as u8);
-        payload.append(&mut card_seid.clone().to_vec());
+        payload.push(card_seid.get_card_se_id().len() as u8);
+        payload.append(&mut card_seid.get_card_se_id().to_vec());
         payload.push(0x9F);
         payload.push(0x3B);
-        payload.push(card_id.len() as u8);
-        payload.append(&mut card_id.clone().to_vec());
+        payload.push(card_id.get_card_id().len() as u8);
+        payload.append(&mut card_id.get_card_id().to_vec());
         payload.push(0x9F);
         payload.push(0x3E);
-        payload.push(card_rnd.len() as u8);
-        payload.append(&mut card_rnd.clone().to_vec());
+        payload.push(card_rnd.get_card_rnd().len() as u8);
+        payload.append(&mut card_rnd.get_card_rnd().to_vec());
         payload.push(0x9F);
         payload.push(0x05);
-        payload.push(card_info1.len() as u8);
-        payload.append(&mut card_info1.clone().to_vec());
+        payload.push(card_info1.get_card_info1().len() as u8);
+        payload.append(&mut card_info1.get_card_info1().to_vec());
         payload.push(0x73);
 
         let mut plain_text = Vec::new();
         plain_text.push(0x9F);
         plain_text.push(0x36);
-        plain_text.push(card_atc.len() as u8);
-        plain_text.append(&mut card_atc.clone().to_vec());
+        plain_text.push(card_atc.get_card_atc().len() as u8);
+        plain_text.append(&mut card_atc.get_card_atc().to_vec());
         plain_text.push(0x9F);
         plain_text.push(0x37);
-        plain_text.push(reader_rnd.len() as u8);
-        plain_text.append(&mut reader_rnd.clone().to_vec());
-        let encrypted_text = aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        plain_text.push(reader_rnd.get_reader_rnd().len() as u8);
+        plain_text.append(&mut reader_rnd.get_reader_rnd().to_vec());
+        let encrypted_text = session::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
         payload.push(0x00);
@@ -1204,17 +1173,17 @@ mod tests {
         let mut plain_text = Vec::new();
         plain_text.push(0x9F);
         plain_text.push(0x31);
-        plain_text.push(card_auth_parameter.len() as u8);
-        plain_text.append(&mut card_auth_parameter.clone().to_vec());
+        plain_text.push(card_auth_parameter.get_card_auth_parameter().len() as u8);
+        plain_text.append(&mut card_auth_parameter.get_card_auth_parameter().to_vec());
         plain_text.push(0x9F);
         plain_text.push(0x0A);
-        plain_text.push(reader_auth_parameter.len() as u8);
-        plain_text.append(&mut &mut reader_auth_parameter.clone().to_vec());
+        plain_text.push(reader_auth_parameter.get_reader_auth_parameter().len() as u8);
+        plain_text.append(&mut &mut reader_auth_parameter.get_reader_auth_parameter().to_vec());
         plain_text.push(0x9F);
         plain_text.push(0x37);
-        plain_text.push(reader_rnd.len() as u8);
-        plain_text.append(&mut reader_rnd.clone().to_vec());
-        let encrypted_text = aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        plain_text.push(reader_rnd.get_reader_rnd().len() as u8);
+        plain_text.append(&mut reader_rnd.get_reader_rnd().to_vec());
+        let encrypted_text = session::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
         payload.push(0x00);
@@ -1232,11 +1201,11 @@ mod tests {
         let origin_icce = Icce::deserialize(&icce.serialize()).unwrap();
         let _ = crate::icce::bluetooth_io::handle_icce_mobile_request(&origin_icce).unwrap();
 
-        let session_key = SESSION_KEY.lock().unwrap().to_vec();
-        let session_iv = SESSION_IV.lock().unwrap().to_vec();
+        let session_key = session::get_session_key();
+        let session_iv = session::get_session_iv();
         let plain_text: Vec<u8> = vec![0x5A, 0x0C, 0x00, 0x10, 0x00, 0x01, 0x02, 0x01, 0x06, 0x01, 0x02, 0x03, 0x04, 0x5, 0x06];
-        let encrypted_text = aes128::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
-        let decrypted_text = aes128::decrypt_with_session_key(&session_key, &session_iv, &encrypted_text).unwrap();
+        let encrypted_text = session::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let decrypted_text = session::decrypt_with_session_key(&session_key, &session_iv, &encrypted_text).unwrap();
         println!("session_key = {:02X?}", session_key);
         println!("sesion_iv = {:02X?}", session_iv);
         println!("plain_text = {:02X?}", plain_text);

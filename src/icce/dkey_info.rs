@@ -1,0 +1,6 @@
+//DKey is calculated by CardSEID and CardID, which length is 16Bytes
+pub fn calculate_dkey(_card_seid: &[u8], _card_id: &[u8]) -> Vec<u8> {
+    //根据card_seid查找到相应的认证根密钥
+    //用card_id分散因子计算认证密钥DKey
+    vec![0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]
+}

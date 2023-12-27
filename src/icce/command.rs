@@ -1,16 +1,173 @@
+use std::fmt::{Display, Formatter};
 use log::info;
-use super::objects;
+use super::{MessageType, objects};
+use crate::icce::errors::*;
 
-type Result<T> = std::result::Result<T, String>;
+const MEASURE_TYPE_TAG: u8 = 0x01;
+const VEHICLE_INFO_TAG: u8 = 0x02;
+const GET_MOBILE_INFO_TAG: u8 = 0x01;
+const VEHICLE_VERSION_TAG: u8 = 0x01;
 
-pub fn create_icce_measure_request(mesaure_type: u8) -> objects::Icce {
+#[derive(Debug, Default, Copy, Clone, PartialOrd, PartialEq)]
+pub enum InstructionCommandId {
+    #[default]
+    Measure = 0x01,
+    AntiRelay = 0x02,
+    Rke = 0x03,
+    RkeChallenge = 0x04,
+    GetVehicleInfo = 0x05,
+    GetMobileInfo = 0x06,
+    Calibrate = 0x07,
+    GetVehicleVersion = 0x08,
+}
+
+impl TryFrom<u8> for InstructionCommandId {
+    type Error = String;
+
+    fn try_from(value: u8) -> std::result::Result<Self, Self::Error> {
+        match value {
+            0x01 => Ok(InstructionCommandId::Measure),
+            0x02 => Ok(InstructionCommandId::AntiRelay),
+            0x03 => Ok(InstructionCommandId::Rke),
+            0x04 => Ok(InstructionCommandId::RkeChallenge),
+            0x05 => Ok(InstructionCommandId::GetVehicleInfo),
+            0x06 => Ok(InstructionCommandId::GetMobileInfo),
+            0x07 => Ok(InstructionCommandId::Calibrate),
+            0x08 => Ok(InstructionCommandId::GetVehicleVersion),
+            _ => Err(format!("Unsupported Command ID {}", value))
+        }
+    }
+}
+
+impl From<InstructionCommandId> for u8 {
+    fn from(value: InstructionCommandId) -> Self {
+        match value {
+            InstructionCommandId::Measure => 0x01,
+            InstructionCommandId::AntiRelay => 0x02,
+            InstructionCommandId::Rke => 0x03,
+            InstructionCommandId::RkeChallenge => 0x04,
+            InstructionCommandId::GetVehicleInfo => 0x05,
+            InstructionCommandId::GetMobileInfo => 0x06,
+            InstructionCommandId::Calibrate => 0x07,
+            InstructionCommandId::GetVehicleVersion => 0x08,
+        }
+    }
+}
+
+impl Display for InstructionCommandId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InstructionCommandId::Measure => write!(f, "Measure"),
+            InstructionCommandId::AntiRelay => write!(f, "Anti-Relay"),
+            InstructionCommandId::Rke => write!(f, "RKE"),
+            InstructionCommandId::RkeChallenge => write!(f, "RKE Challenge"),
+            InstructionCommandId::GetVehicleInfo => write!(f, "Get Vehicle Info"),
+            InstructionCommandId::GetMobileInfo => write!(f, "Get Mobile Info"),
+            InstructionCommandId::Calibrate => write!(f, "Calibrate"),
+            InstructionCommandId::GetVehicleVersion => write!(f, "Get Vehicle Version"),
+        }
+    }
+}
+
+#[derive(Debug, Default, Copy, Clone, PartialOrd, PartialEq)]
+pub enum MeasureType {
+    #[default]
+    Rssi = 0x01,
+    Uwb = 0x02,
+    Hadm = 0x03,
+    Rfu = 0x04,
+}
+
+impl TryFrom<u8> for MeasureType {
+    type Error = String;
+
+    fn try_from(value: u8) -> std::result::Result<Self, Self::Error> {
+        match value {
+            0x01 => Ok(MeasureType::Rssi),
+            0x02 => Ok(MeasureType::Uwb),
+            0x03 => Ok(MeasureType::Hadm),
+            _ => Ok(MeasureType::Rfu),
+        }
+    }
+}
+
+impl From<MeasureType> for u8 {
+    fn from(value: MeasureType) -> Self {
+        match value {
+            MeasureType::Rssi => 0x01,
+            MeasureType::Uwb => 0x02,
+            MeasureType::Hadm => 0x03,
+            MeasureType::Rfu => 0x04,
+        }
+    }
+}
+
+impl Display for MeasureType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MeasureType::Rssi => write!(f, "RSSI"),
+            MeasureType::Uwb => write!(f, "UWB"),
+            MeasureType::Hadm => write!(f, "HADM"),
+            MeasureType::Rfu => write!(f, "RFU"),
+        }
+    }
+}
+
+#[derive(Debug, Default, Copy, Clone, PartialOrd, PartialEq)]
+pub enum MobileInfoType {
+    #[default]
+    CalibrateData = 0x01,
+    AntiRelayResult = 0x02,
+    CustomData = 0x03,
+    Rfu = 0x04,
+}
+
+impl TryFrom<u8> for MobileInfoType {
+    type Error = String;
+
+    fn try_from(value: u8) -> std::result::Result<Self, Self::Error> {
+        match value {
+            0x01 => Ok(MobileInfoType::CalibrateData),
+            0x02 => Ok(MobileInfoType::AntiRelayResult),
+            0x03 => Ok(MobileInfoType::CustomData),
+            _ => Ok(MobileInfoType::Rfu),
+        }
+    }
+}
+
+impl From<MobileInfoType> for u8 {
+    fn from(value: MobileInfoType) -> Self {
+        match value {
+            MobileInfoType::CalibrateData => 0x01,
+            MobileInfoType::AntiRelayResult => 0x02,
+            MobileInfoType::CustomData => 0x03,
+            MobileInfoType::Rfu => 0x04,
+        }
+    }
+}
+
+impl Display for MobileInfoType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MobileInfoType::CalibrateData => write!(f, "Calibrate Data"),
+            MobileInfoType::AntiRelayResult => write!(f, "Anti-Relay Result"),
+            MobileInfoType::CustomData => write!(f, "Custom Data"),
+            MobileInfoType::Rfu => write!(f, "RFU"),
+        }
+    }
+}
+
+pub fn create_icce_measure_request(measure_type: MeasureType) -> objects::Icce {
     let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+3);
     icce.set_header(header);
 
-    let measure_payload = objects::create_icce_body_payload(0x01, &[mesaure_type]);
-    let body = objects::create_icce_body(0x02, 0x01, &[measure_payload]);
+    let measure_payload = objects::create_icce_body_payload(MEASURE_TYPE_TAG, &[u8::from(measure_type)]);
+    let body = objects::create_icce_body(
+        u8::from(MessageType::Command),
+        u8::from(InstructionCommandId::Measure),
+        &[measure_payload]);
     icce.set_body(body);
 
     icce.calculate_checksum();
@@ -35,15 +192,18 @@ pub fn create_icce_measure_response(status: u8, timeout: &[u8]) -> objects::Icce
     icce
 }
 
-pub fn create_icce_anti_relay_request(measure_type: u8, vehicle_info: &[u8]) -> objects::Icce {
+pub fn create_icce_anti_relay_request(measure_type: MeasureType, vehicle_info: &[u8]) -> objects::Icce {
     let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+3+2+vehicle_info.len() as u16);
     icce.set_header(header);
 
-    let measure_payload = objects::create_icce_body_payload(0x01, &[measure_type]);
-    let vehicle_info_payload = objects::create_icce_body_payload(0x02, vehicle_info);
-    let body = objects::create_icce_body(0x02, 0x02, &[measure_payload, vehicle_info_payload]);
+    let measure_payload = objects::create_icce_body_payload(MEASURE_TYPE_TAG, &[u8::from(measure_type)]);
+    let vehicle_info_payload = objects::create_icce_body_payload(VEHICLE_INFO_TAG, vehicle_info);
+    let body = objects::create_icce_body(
+        u8::from(MessageType::Command),
+        u8::from(InstructionCommandId::AntiRelay),
+        &[measure_payload, vehicle_info_payload]);
     icce.set_body(body);
 
     icce.calculate_checksum();
@@ -165,14 +325,17 @@ pub fn create_icce_get_vehicle_info_response(status: u8, vehicle_info: &[u8]) ->
     icce
 }
 
-pub fn create_icce_get_mobile_info_request(request_type: u8) -> objects::Icce {
+pub fn create_icce_get_mobile_info_request(request_type: MobileInfoType) -> objects::Icce {
     let mut icce = objects::Icce::new();
 
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+3);
     icce.set_header(header);
 
-    let request_type_payload = objects::create_icce_body_payload(0x01, &[request_type]);
-    let body = objects::create_icce_body(0x02, 0x06, &[request_type_payload]);
+    let request_type_payload = objects::create_icce_body_payload(GET_MOBILE_INFO_TAG, &[u8::from(request_type)]);
+    let body = objects::create_icce_body(
+        u8::from(MessageType::Command),
+        u8::from(InstructionCommandId::GetMobileInfo),
+        &[request_type_payload]);
     icce.set_body(body);
 
     icce.calculate_checksum();
@@ -203,7 +366,10 @@ pub fn create_icce_calibrate_clock_request() -> objects::Icce {
     let header = objects::create_icce_header(true, false, false, 0, 0, 4);
     icce.set_header(header);
 
-    let body = objects::create_icce_body(0x02, 0x07, &[]);
+    let body = objects::create_icce_body(
+        u8::from(MessageType::Command),
+        u8::from(InstructionCommandId::Calibrate),
+        &[]);
     icce.set_body(body);
 
     icce.calculate_checksum();
@@ -234,8 +400,11 @@ pub fn create_icce_get_protocol_request(protocol: &[u8]) -> objects::Icce {
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+2+protocol.len() as u16);
     icce.set_header(header);
 
-    let protocol_payload = objects::create_icce_body_payload(0x01, protocol);
-    let body = objects::create_icce_body(0x02, 0x08, &[protocol_payload]);
+    let protocol_payload = objects::create_icce_body_payload(VEHICLE_VERSION_TAG, protocol);
+    let body = objects::create_icce_body(
+        u8::from(MessageType::Command),
+        u8::from(InstructionCommandId::GetVehicleVersion),
+        &[protocol_payload]);
     icce.set_body(body);
 
     icce.calculate_checksum();
@@ -267,14 +436,14 @@ pub fn handle_measure_response(body: &objects::Body) -> Result<Vec<u8>> {
         match payload_type {
             0x00 => {
                 if payload.get_payload_value()[0] != 0x00 {
-                    return Err("Measure Response Status Error".to_string());
+                    return Err(ErrorKind::CommandError("Measure Response Status Error".to_string()).into());
                 }
             },
             0x01 => {
                 info!("Measure Last Time(ms) = {:02X?}", payload.get_payload_value());
             },
             _ => {
-                return Err("RFU".to_string());
+                return Err(ErrorKind::CommandError("RFU".to_string()).into());
             }
         }
     }
@@ -288,7 +457,7 @@ pub fn handle_anti_relay_response(body: &objects::Body) -> Result<Vec<u8>> {
         match payload_type {
             0x00 => {
                 if payload.get_payload_value()[0] != 0x00 {
-                    return Err("Anti-Relay Response Status Error".to_string());
+                    return Err(ErrorKind::CommandError("Anti-Relay Response Status Error".to_string()).into());
                 }
             },
             0x01 => {
@@ -298,7 +467,7 @@ pub fn handle_anti_relay_response(body: &objects::Body) -> Result<Vec<u8>> {
                 info!("Device Info about Anti-Relay is {:02X?}", payload.get_payload_value());
             },
             _ => {
-                return Err("RFU".to_string());
+                return Err(ErrorKind::CommandError("RFU".to_string()).into());
             }
         }
     }
@@ -312,14 +481,14 @@ pub fn handle_mobile_info_response(body: &objects::Body) -> Result<Vec<u8>> {
         match payload_type {
             0x00 => {
                 if payload.get_payload_value()[0] != 0x00 {
-                    return Err("Get Mobile Info Response Status Error".to_string());
+                    return Err(ErrorKind::CommandError("Get Mobile Info Response Status Error".to_string()).into());
                 }
             },
             0x01 => {
                 info!("Mobile Info is {:02X?}", payload.get_payload_value())
             },
             _ => {
-                return Err("RFU".to_string());
+                return Err(ErrorKind::CommandError("RFU".to_string()).into());
             }
         }
     }
@@ -333,14 +502,14 @@ pub fn handle_calbriate_time_response(body: &objects::Body) -> Result<Vec<u8>> {
         match payload_type {
             0x00 => {
                 if payload.get_payload_value()[0] != 0x00 {
-                    return Err("Calbriate Time Response Status Error".to_string());
+                    return Err(ErrorKind::CommandError("Calbriate Time Response Status Error".to_string()).into());
                 }
             },
             0x01 => {
                 info!("Calbriated Time is {:02X?}", payload.get_payload_value())
             },
             _ => {
-                return Err("RFU".to_string());
+                return Err(ErrorKind::CommandError("RFU".to_string()).into());
             }
         }
     }
@@ -354,42 +523,61 @@ pub fn handle_protocol_response(body: &objects::Body) -> Result<Vec<u8>> {
         match payload_type {
             0x00 => {
                 if payload.get_payload_value()[0] != 0x00 {
-                    return Err("Protocol Response Status Error".to_string());
+                    return Err(ErrorKind::CommandError("Protocol Response Status Error".to_string()).into());
                 }
             },
             0x01 => {
                 info!("Protocol is {:02X?}", payload.get_payload_value())
             },
             _ => {
-                return Err("RFU".to_string());
+                return Err(ErrorKind::CommandError("RFU".to_string()).into());
             }
         }
     }
     Ok(response)
 }
 
-pub fn test_create_measure_request() -> Vec<u8> {
-    let measure_type = 0x01;
-    let icce = create_icce_measure_request(measure_type);
-    icce.serialize()
+pub fn test_create_rssi_measure_request() -> Vec<u8> {
+    create_icce_measure_request(MeasureType::Rssi).serialize()
 }
 
-pub fn test_craate_anti_relay_request() -> Vec<u8> {
-    let measure_type = 0x01;
+pub fn test_create_uwb_measure_request() -> Vec<u8> {
+    create_icce_measure_request(MeasureType::Uwb).serialize()
+}
+
+pub fn test_create_hadm_measure_request() -> Vec<u8> {
+    create_icce_measure_request(MeasureType::Hadm).serialize()
+}
+
+pub fn test_create_rssi_anti_relay_request() -> Vec<u8> {
     let vehicle_info = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06];
-    let icce = create_icce_anti_relay_request(measure_type, &vehicle_info);
-    icce.serialize()
+    create_icce_anti_relay_request(MeasureType::Rssi, &vehicle_info).serialize()
 }
 
-pub fn test_create_mobile_info_request() -> Vec<u8> {
-    let request_type = 0x01;
-    let icce = create_icce_get_mobile_info_request(request_type);
-    icce.serialize()
+pub fn test_create_uwb_anti_relay_request() -> Vec<u8> {
+    let vehicle_info = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06];
+    create_icce_anti_relay_request(MeasureType::Uwb, &vehicle_info).serialize()
+}
+
+pub fn test_create_hadm_anti_replay_request() -> Vec<u8> {
+    let vehicle_info = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06];
+    create_icce_anti_relay_request(MeasureType::Hadm, &vehicle_info).serialize()
+}
+
+pub fn test_create_get_calibrate_data_mobile_info_request() -> Vec<u8> {
+    create_icce_get_mobile_info_request(MobileInfoType::CalibrateData).serialize()
+}
+
+pub fn test_create_get_anti_relay_result_mobile_info_request() -> Vec<u8> {
+    create_icce_get_mobile_info_request(MobileInfoType::AntiRelayResult).serialize()
+}
+
+pub fn test_create_get_custom_data_mobile_info_request() -> Vec<u8> {
+    create_icce_get_mobile_info_request(MobileInfoType::CustomData).serialize()
 }
 
 pub fn test_create_calbriate_time_request() -> Vec<u8> {
-    let icce = create_icce_calibrate_clock_request();
-    icce.serialize()
+    create_icce_calibrate_clock_request().serialize()
 }
 
 pub fn test_create_protocol_request() -> Vec<u8> {

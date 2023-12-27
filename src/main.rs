@@ -154,9 +154,10 @@ async fn main() -> bluer::Result<()> {
                                 if !notifier.is_stopped() {
                                     match protocol {
                                         CarkeyProtocol::Icce => {
-                                            let icce = icce::auth::create_icce_auth_get_process_data_request();
-                                            if let Err(err) = notifier.notify(icce.serialize()).await {
-                                                println!("Notification error when setting get process data request: {}", err);
+                                            if let Ok(message) = icce::auth::create_icce_auth_get_process_data_request() {
+                                                if let Err(err) = notifier.notify(message.serialize()).await {
+                                                    println!("Notification error when setting get process data request: {}", err);
+                                                }
                                             }
                                         },
                                         CarkeyProtocol::Iccoa => {
