@@ -3,10 +3,15 @@ use log::info;
 use super::{MessageType, objects};
 use crate::icce::errors::*;
 
-const MEASURE_TYPE_TAG: u8 = 0x01;
-const VEHICLE_INFO_TAG: u8 = 0x02;
-const GET_MOBILE_INFO_TAG: u8 = 0x01;
-const VEHICLE_VERSION_TAG: u8 = 0x01;
+const COMMAND_RESPONSE_STATUS_TAG: u8 = 0x00;
+const MEASURE_REQUEST_TYPE_TAG: u8 = 0x01;
+const ANTI_RELAY_REQUEST_MEASURE_TYPE_TAG: u8 = 0x01;
+const ANTI_RELAY_REQUEST_VEHICLE_INFO_TAG: u8 = 0x02;
+const RKE_RESPONSE_DATA_TAG: u8 = 0x01;
+const RKE_CHALLENGE_RESPONSE_RANDOM_TAG: u8 = 0x01;
+const GET_MOBILE_INFO_REQUEST_TYPE_TAG: u8 = 0x01;
+const GET_MOBILE_INFO_RESPONSE_INFO_TAG: u8 = 0x01;
+const GET_VERSION_REQUEST_VEHICLE_VERSION_TAG: u8 = 0x01;
 
 #[derive(Debug, Default, Copy, Clone, PartialOrd, PartialEq)]
 pub enum InstructionCommandId {
@@ -163,7 +168,7 @@ pub fn create_icce_measure_request(measure_type: MeasureType) -> objects::Icce {
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+3);
     icce.set_header(header);
 
-    let measure_payload = objects::create_icce_body_payload(MEASURE_TYPE_TAG, &[u8::from(measure_type)]);
+    let measure_payload = objects::create_icce_body_payload(MEASURE_REQUEST_TYPE_TAG, &[u8::from(measure_type)]);
     let body = objects::create_icce_body(
         u8::from(MessageType::Command),
         u8::from(InstructionCommandId::Measure),
@@ -198,8 +203,8 @@ pub fn create_icce_anti_relay_request(measure_type: MeasureType, vehicle_info: &
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+3+2+vehicle_info.len() as u16);
     icce.set_header(header);
 
-    let measure_payload = objects::create_icce_body_payload(MEASURE_TYPE_TAG, &[u8::from(measure_type)]);
-    let vehicle_info_payload = objects::create_icce_body_payload(VEHICLE_INFO_TAG, vehicle_info);
+    let measure_payload = objects::create_icce_body_payload(ANTI_RELAY_REQUEST_MEASURE_TYPE_TAG, &[u8::from(measure_type)]);
+    let vehicle_info_payload = objects::create_icce_body_payload(ANTI_RELAY_REQUEST_VEHICLE_INFO_TAG, vehicle_info);
     let body = objects::create_icce_body(
         u8::from(MessageType::Command),
         u8::from(InstructionCommandId::AntiRelay),
@@ -251,9 +256,12 @@ pub fn create_icce_rke_control_response(status: u8, rke_result: &[u8]) -> object
     let header = objects::create_icce_header(false, true, false, 0, 0, 4+3+2+rke_result.len() as u16);
     icce.set_header(header);
 
-    let status_payload = objects::create_icce_body_payload(0x00, &[status]);
-    let rke_result_payload = objects::create_icce_body_payload(0x01, rke_result);
-    let body = objects::create_icce_body(0x02, 0x03, &[status_payload, rke_result_payload]);
+    let status_payload = objects::create_icce_body_payload(COMMAND_RESPONSE_STATUS_TAG, &[status]);
+    let rke_result_payload = objects::create_icce_body_payload(RKE_RESPONSE_DATA_TAG, rke_result);
+    let body = objects::create_icce_body(
+        u8::from(MessageType::Command),
+        u8::from(InstructionCommandId::Rke),
+        &[status_payload, rke_result_payload]);
     icce.set_body(body);
 
     icce.calculate_checksum();
@@ -283,9 +291,12 @@ pub fn create_icce_rke_challege_response(status: u8, random_value: &[u8]) -> obj
     let header = objects::create_icce_header(false, false, false, 0, 0, 4+3+2+random_value.len() as u16);
     icce.set_header(header);
 
-    let status_payload = objects::create_icce_body_payload(0x00, &[status]);
-    let random_value_payload = objects::create_icce_body_payload(0x01, random_value);
-    let body = objects::create_icce_body(0x02, 0x04, &[status_payload, random_value_payload]);
+    let status_payload = objects::create_icce_body_payload(COMMAND_RESPONSE_STATUS_TAG, &[status]);
+    let random_value_payload = objects::create_icce_body_payload(RKE_CHALLENGE_RESPONSE_RANDOM_TAG, random_value);
+    let body = objects::create_icce_body(
+        u8::from(MessageType::Command),
+        u8::from(InstructionCommandId::RkeChallenge),
+        &[status_payload, random_value_payload]);
     icce.set_body(body);
 
     icce.calculate_checksum();
@@ -315,9 +326,12 @@ pub fn create_icce_get_vehicle_info_response(status: u8, vehicle_info: &[u8]) ->
     let header = objects::create_icce_header(false, false, false, 0, 0, 4+3+2+vehicle_info.len() as u16);
     icce.set_header(header);
 
-    let status_payload = objects::create_icce_body_payload(0x00, &[status]);
-    let vehicle_info_payload = objects::create_icce_body_payload(0x01, vehicle_info);
-    let body = objects::create_icce_body(0x02, 0x05, &[status_payload, vehicle_info_payload]);
+    let status_payload = objects::create_icce_body_payload(COMMAND_RESPONSE_STATUS_TAG, &[status]);
+    let vehicle_info_payload = objects::create_icce_body_payload(GET_MOBILE_INFO_RESPONSE_INFO_TAG, vehicle_info);
+    let body = objects::create_icce_body(
+        u8::from(MessageType::Command),
+        u8::from(InstructionCommandId::GetMobileInfo),
+        &[status_payload, vehicle_info_payload]);
     icce.set_body(body);
 
     icce.calculate_checksum();
@@ -331,7 +345,7 @@ pub fn create_icce_get_mobile_info_request(request_type: MobileInfoType) -> obje
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+3);
     icce.set_header(header);
 
-    let request_type_payload = objects::create_icce_body_payload(GET_MOBILE_INFO_TAG, &[u8::from(request_type)]);
+    let request_type_payload = objects::create_icce_body_payload(GET_MOBILE_INFO_REQUEST_TYPE_TAG, &[u8::from(request_type)]);
     let body = objects::create_icce_body(
         u8::from(MessageType::Command),
         u8::from(InstructionCommandId::GetMobileInfo),
@@ -400,7 +414,7 @@ pub fn create_icce_get_protocol_request(protocol: &[u8]) -> objects::Icce {
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+2+protocol.len() as u16);
     icce.set_header(header);
 
-    let protocol_payload = objects::create_icce_body_payload(VEHICLE_VERSION_TAG, protocol);
+    let protocol_payload = objects::create_icce_body_payload(GET_VERSION_REQUEST_VEHICLE_VERSION_TAG, protocol);
     let body = objects::create_icce_body(
         u8::from(MessageType::Command),
         u8::from(InstructionCommandId::GetVehicleVersion),
@@ -440,7 +454,8 @@ pub fn handle_measure_response(body: &objects::Body) -> Result<Vec<u8>> {
                 }
             },
             0x01 => {
-                info!("Measure Last Time(ms) = {:02X?}", payload.get_payload_value());
+                info!("[Measure Response]");
+                info!("\tLast Time(ms): {:02X?}", payload.get_payload_value());
             },
             _ => {
                 return Err(ErrorKind::CommandError("RFU".to_string()).into());
@@ -461,10 +476,11 @@ pub fn handle_anti_relay_response(body: &objects::Body) -> Result<Vec<u8>> {
                 }
             },
             0x01 => {
-                info!("Result of Anti-Relay is {:02X?}", payload.get_payload_value())
+                info!("[Anti-Relay Response]");
+                info!("\tResult: {:02X?}", payload.get_payload_value());
             },
             0x02 => {
-                info!("Device Info about Anti-Relay is {:02X?}", payload.get_payload_value());
+                info!("\tDevice Info: {:02X?}", payload.get_payload_value());
             },
             _ => {
                 return Err(ErrorKind::CommandError("RFU".to_string()).into());
@@ -485,7 +501,8 @@ pub fn handle_mobile_info_response(body: &objects::Body) -> Result<Vec<u8>> {
                 }
             },
             0x01 => {
-                info!("Mobile Info is {:02X?}", payload.get_payload_value())
+                info!("[Mobile Info Response]");
+                info!("\tInfo: {:02X?}", payload.get_payload_value());
             },
             _ => {
                 return Err(ErrorKind::CommandError("RFU".to_string()).into());
@@ -506,7 +523,8 @@ pub fn handle_calbriate_time_response(body: &objects::Body) -> Result<Vec<u8>> {
                 }
             },
             0x01 => {
-                info!("Calbriated Time is {:02X?}", payload.get_payload_value())
+                info!("[Calibrate Response]");
+                info!("\tTime: {:02X?}", payload.get_payload_value());
             },
             _ => {
                 return Err(ErrorKind::CommandError("RFU".to_string()).into());
@@ -527,7 +545,8 @@ pub fn handle_protocol_response(body: &objects::Body) -> Result<Vec<u8>> {
                 }
             },
             0x01 => {
-                info!("Protocol is {:02X?}", payload.get_payload_value())
+                info!("[Protocol Version Response]");
+                info!("\tVersion: {:02X?}", payload.get_payload_value());
             },
             _ => {
                 return Err(ErrorKind::CommandError("RFU".to_string()).into());

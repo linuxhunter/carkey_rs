@@ -28,9 +28,9 @@ pub fn handle_icce_mobile_request(icce_object: &objects::Icce) -> Result<Vec<u8>
                 Ok(InstructionCommandId::Rke) => {
                     //test for print decrypted RKE Commands
                     for payload in body.get_payloads() {
-                        info!("RKE Command Type is {}", payload.get_payload_type());
-                        info!("RKE Command Content Length is {}", payload.get_payload_length());
-                        info!("RKE Command Content is {:02X?}", payload.get_payload_value());
+                        info!("[RKE Command]");
+                        info!("\tType: {}", payload.get_payload_type());
+                        info!("\tContent: {:02X?}", payload.get_payload_value());
                     }
                     //test for reply RKE Command Response
                     let status = 0x00;
@@ -41,9 +41,9 @@ pub fn handle_icce_mobile_request(icce_object: &objects::Icce) -> Result<Vec<u8>
                 },
                 Ok(InstructionCommandId::RkeChallenge) => {
                     for payload in body.get_payloads() {
-                        info!("RKE Challenge Type is {}", payload.get_payload_type());
-                        info!("RKE Challenge Content Length is {}", payload.get_payload_length());
-                        info!("RKE Challenge Content is {:02X?}", payload.get_payload_value());
+                        info!("[RKE Challenge]");
+                        info!("\tType: {}", payload.get_payload_type());
+                        info!("\tContent: {:02X?}", payload.get_payload_value());
                     }
                     let status = 0x00;
                     let rke_challenge_random_numbers = generate_random(RKE_CHALLENGE_RANDOM_LENGTH);
@@ -53,9 +53,9 @@ pub fn handle_icce_mobile_request(icce_object: &objects::Icce) -> Result<Vec<u8>
                 },
                 Ok(InstructionCommandId::GetVehicleInfo) => {
                     for payload in body.get_payloads(){
-                        info!("Get Vehicle Info Type is {}", payload.get_payload_type());
-                        info!("Get Vehicle Info Length is {}", payload.get_payload_length());
-                        info!("Get Vehicle Info Value is {:02X?}", payload.get_payload_value());
+                        info!("[Vehicle Info]");
+                        info!("\tType: {}", payload.get_payload_type());
+                        info!("\tValue: {:02X?}", payload.get_payload_value());
                     }
                     let status = 0x00;
                     let vehicle_info = vec![0x01];
@@ -72,9 +72,9 @@ pub fn handle_icce_mobile_request(icce_object: &objects::Icce) -> Result<Vec<u8>
             match NotificationCommandId::try_from(body.get_command_id()) {
                 Ok(NotificationCommandId::MobileStateToVehicleEvent) => {
                     for payload in body.get_payloads() {
-                        info!("Mobile Event Type is {}", payload.get_payload_type());
-                        info!("Mobile Event Length is {}", payload.get_payload_length());
-                        info!("Mobile Event Value is {:02X?}", payload.get_payload_value());
+                        info!("[Mobile Event Notification]");
+                        info!("\tType: {}", payload.get_payload_type());
+                        info!("\tValue: {:02X?}", payload.get_payload_value());
                     }
                     let status = 0x00;
                     let icce = notification::create_icce_mobile_state_event_response(status);
@@ -83,9 +83,9 @@ pub fn handle_icce_mobile_request(icce_object: &objects::Icce) -> Result<Vec<u8>
                 },
                 Ok(NotificationCommandId::ServerStateToVehicleEvent) => {
                     for payload in body.get_payloads() {
-                        info!("Framework to Vehicle Type is {}", payload.get_payload_type());
-                        info!("Framework to Vehicle Length is {}", payload.get_payload_length());
-                        info!("Framework to Vehicle Value is {:02X?}", payload.get_payload_value());
+                        info!("[Server Event Notification]");
+                        info!("\tType: {}", payload.get_payload_type());
+                        info!("\tValue: {:02X?}", payload.get_payload_value());
                     }
                     let status = 0x00;
                     let icce = notification::create_icce_mobile_to_vehicle_event_response(status);
