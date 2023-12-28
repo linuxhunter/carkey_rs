@@ -2,14 +2,17 @@ use std::sync::Mutex;
 use openssl::symm::{Cipher, decrypt, encrypt};
 use crate::icce::errors::ErrorKind;
 
+const SESSION_KEY_LENGTH: usize = 0x10;
+const SESSION_IV_LENGTH: usize = 0x10;
+
 lazy_static! {
-    static ref SESSION_KEY: Mutex<[u8; 16]> = Mutex::new([0; 16]);
-    static ref SESSION_IV: Mutex<[u8; 16]> = Mutex::new([0; 16]);
+    static ref SESSION_KEY: Mutex<[u8; SESSION_KEY_LENGTH]> = Mutex::new([0; SESSION_KEY_LENGTH]);
+    static ref SESSION_IV: Mutex<[u8; SESSION_IV_LENGTH]> = Mutex::new([0; SESSION_IV_LENGTH]);
 }
 
 pub fn is_session_key_valid() -> bool {
     let session_key = SESSION_KEY.lock().unwrap().to_vec();
-    session_key.ne(&[0u8; 16])
+    session_key.ne(&[0u8; SESSION_KEY_LENGTH])
 }
 
 pub fn update_session_key(key: &[u8]) {
@@ -32,11 +35,11 @@ pub fn get_session_iv() -> Vec<u8> {
 
 //calculate Sessin IV with ReaderRnd || CardRnd
 pub fn calculate_session_iv(reader_rnd: &[u8], card_rnd: &[u8]) -> Vec<u8> {
-    let mut session_iv = Vec::with_capacity(16);
+    let mut session_iv = Vec::with_capacity(SESSION_IV_LENGTH);
     session_iv.append(&mut reader_rnd.to_vec());
     session_iv.append(&mut card_rnd.to_vec());
-    if session_iv.len() > 16 {
-        session_iv[session_iv.len() - 16..].to_vec()
+    if session_iv.len() > SESSION_IV_LENGTH {
+        session_iv[session_iv.len() - SESSION_IV_LENGTH..].to_vec()
     } else {
         session_iv
     }
@@ -49,8 +52,8 @@ pub fn calculate_session_key(dkey: &[u8], card_iv: &[u8], session_iv: &[u8], rea
     payload.append(&mut reader_key_parameter.to_vec());
 
     let session_key = encrypt_with_session_key(dkey, card_iv, &payload)?;
-    if session_key.len() > 16 {
-        Ok(session_key[0..16].to_vec())
+    if session_key.len() > SESSION_KEY_LENGTH {
+        Ok(session_key[0..SESSION_KEY_LENGTH].to_vec())
     } else {
         Ok(session_key)
     }

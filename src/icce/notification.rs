@@ -2,9 +2,12 @@ use std::fmt::{Display, Formatter};
 use super::{MessageType, objects};
 use crate::icce::errors::*;
 
-const VEHICLE_EVENT_TAG: u8 = 0x01;
-const VEHICLE_ASYNC_RESPONSE_TAG: u8 = 0x02;
-const VEHICLE_STATE_INFO_TAG: u8 = 0x03;
+const NOTIFICATION_RESPONSE_STATUS_TAG: u8 = 0x00;
+const NOTIFICATION_VEHICLE_EVENT_TAG: u8 = 0x01;
+const NOTIFICATION_VEHICLE_ASYNC_RESPONSE_TAG: u8 = 0x02;
+const NOTIFICATION_VEHICLE_STATE_INFO_TAG: u8 = 0x03;
+const NOTIFICATION_VEHICLE_TO_APP_TAG: u8 = 0x01;
+const NOTIFICATION_VEHICLE_TO_SERVER_TAG: u8 = 0x01;
 
 #[derive(Debug, Default, Copy, Clone, PartialOrd, PartialEq)]
 pub enum NotificationCommandId {
@@ -145,8 +148,11 @@ pub fn create_icce_mobile_state_event_response(status: u8) -> objects::Icce {
     let header = objects::create_icce_header(false, false, false, 0, 0, 4+3);
     icce.set_header(header);
 
-    let status_payload = objects::create_icce_body_payload(0x00, &[status]);
-    let body = objects::create_icce_body(0x03, 0x01, &[status_payload]);
+    let status_payload = objects::create_icce_body_payload(NOTIFICATION_RESPONSE_STATUS_TAG, &[status]);
+    let body = objects::create_icce_body(
+        u8::from(MessageType::Notification),
+        u8::from(NotificationCommandId::MobileStateToVehicleEvent),
+        &[status_payload]);
     icce.set_body(body);
 
     icce.calculate_checksum();
@@ -160,9 +166,9 @@ pub fn create_icce_vehicle_state_event_request(vehicle_event: VehicleStateEvent,
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+3+2+async_result.len() as u16 + 2+vehicle_state.len() as u16);
     icce.set_header(header);
 
-    let vehicle_event_payload = objects::create_icce_body_payload(VEHICLE_EVENT_TAG, &[u8::from(vehicle_event)]);
-    let async_result_payload = objects::create_icce_body_payload(VEHICLE_ASYNC_RESPONSE_TAG, async_result);
-    let vehicle_state_payload = objects::create_icce_body_payload(VEHICLE_STATE_INFO_TAG, vehicle_state);
+    let vehicle_event_payload = objects::create_icce_body_payload(NOTIFICATION_VEHICLE_EVENT_TAG, &[u8::from(vehicle_event)]);
+    let async_result_payload = objects::create_icce_body_payload(NOTIFICATION_VEHICLE_ASYNC_RESPONSE_TAG, async_result);
+    let vehicle_state_payload = objects::create_icce_body_payload(NOTIFICATION_VEHICLE_STATE_INFO_TAG, vehicle_state);
     let body = objects::create_icce_body(
         u8::from(MessageType::Notification),
         u8::from(NotificationCommandId::VehicleStateToMobileEvent),
@@ -196,8 +202,11 @@ pub fn create_icce_vehicle_to_app_event_request(data: &[u8]) -> objects::Icce {
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+2+data.len() as u16);
     icce.set_header(header);
 
-    let payload = objects::create_icce_body_payload(0x01, data);
-    let body = objects::create_icce_body(0x03, 0x03, &[payload]);
+    let payload = objects::create_icce_body_payload(NOTIFICATION_VEHICLE_TO_APP_TAG, data);
+    let body = objects::create_icce_body(
+        u8::from(MessageType::Notification),
+        u8::from(NotificationCommandId::VehicleStateToAppEvent),
+        &[payload]);
     icce.set_body(body);
 
     icce.calculate_checksum();
@@ -227,8 +236,11 @@ pub fn create_icce_vehicle_to_server_event_request(data: &[u8]) -> objects::Icce
     let header = objects::create_icce_header(true, false, false, 0, 0, 4+2+data.len() as u16);
     icce.set_header(header);
 
-    let payload = objects::create_icce_body_payload(0x01, data);
-    let body = objects::create_icce_body(0x03, 0x04, &[payload]);
+    let payload = objects::create_icce_body_payload(NOTIFICATION_VEHICLE_TO_SERVER_TAG, data);
+    let body = objects::create_icce_body(
+        u8::from(MessageType::Notification),
+        u8::from(NotificationCommandId::VehicleStateToServerEvent),
+        &[payload]);
     icce.set_body(body);
 
     icce.calculate_checksum();
@@ -274,8 +286,11 @@ pub fn create_icce_mobile_to_vehicle_event_response(status: u8) -> objects::Icce
     let header = objects::create_icce_header(false, false, false, 0, 0, 4+3);
     icce.set_header(header);
 
-    let status_payload = objects::create_icce_body_payload(0x00, &[status]);
-    let body = objects::create_icce_body(0x03, 0x05, &[status_payload]);
+    let status_payload = objects::create_icce_body_payload(NOTIFICATION_RESPONSE_STATUS_TAG, &[status]);
+    let body = objects::create_icce_body(
+        u8::from(MessageType::Notification),
+        u8::from(NotificationCommandId::ServerStateToVehicleEvent),
+        &[status_payload]);
     icce.set_body(body);
 
     icce.calculate_checksum();
