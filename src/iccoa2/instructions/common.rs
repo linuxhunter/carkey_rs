@@ -145,9 +145,7 @@ impl Serde for CommandApduTrailer {
             if data.len() < 1 + lc as usize {
                 return Err(ErrorKind::ApduInstructionErr("deserialize Command APDU Trailer data length error".to_string()).into());
             }
-            let payload = (&data[1..1 + lc as usize])
-                .try_into()
-                .map_err(|e| ErrorKind::ApduInstructionErr(format!("deserialize Command APDU Trailer data error: {}", e)))?;
+            let payload = (&data[1..1 + lc as usize]).into();
             let le = if data.len() == 2 + lc as usize {
                 data[1+lc as usize]
             } else {

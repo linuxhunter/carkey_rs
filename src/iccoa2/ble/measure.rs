@@ -244,8 +244,7 @@ impl Serde for MeasureRequest {
             .map_err(|e| ErrorKind::MeasureError(format!("create measure request duration tag error: {:?}", e)))?;
         let request_duration = get_tlv_primitive_value(&tlv_data, &duration_tag)
             .map_err(|e| ErrorKind::MeasureError(format!("deserialize measure duration error: {:?}", e)))?;
-        let request_duration = MeasureDuration::try_from(request_duration[0])
-            .map_err(|e| ErrorKind::MeasureError(format!("deserialize message duration invalid: {:?}", e)))?;
+        let request_duration = MeasureDuration::from(request_duration[0]);
         Ok(MeasureRequest::new(request_type, request_action, request_duration))
     }
 }
@@ -317,8 +316,7 @@ impl Serde for MeasureResponse {
             .map_err(|e| ErrorKind::MeasureError(format!("create measure response duration tag error: {:?}", e)))?;
         let response_duration = get_tlv_primitive_value(&tlv_data, &duration_tag)
             .map_err(|e| ErrorKind::MeasureError(format!("deserialize measure duration error: {:?}", e)))?;
-        let response_duration = MeasureDuration::try_from(response_duration[0])
-            .map_err(|e| ErrorKind::MeasureError(format!("deserialize message duration invalid: {:?}", e)))?;
+        let response_duration = MeasureDuration::from(response_duration[0]);
         Ok(MeasureResponse::new(response_action, response_duration))
     }
 }

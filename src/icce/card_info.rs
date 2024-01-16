@@ -9,6 +9,14 @@ const CARD_ATC_LENGTH: usize = 0x04;
 #[allow(dead_code)]
 const CARD_IV_LENGTH: usize = 0x10;
 
+const DEFAULT_CARD_SE_ID: [u8; 8] = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
+const DEFAULT_CARD_ID: [u8; 16] = [0x0f, 0x0e, 0x0d, 0x0c, 0x0b, 0x0a, 0x09, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00];
+const DEFAULT_CARD_RND: [u8; 8] = [0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01];
+const DEFAULT_CARD_INFO1: [u8; 6] = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06];
+const DEFAULT_CARD_ATC: [u8; 4] = [0x01, 0x02, 0x03, 0x04];
+const DEFAULT_CARD_IV: [u8; 16] = [0x00; 16];
+const DEFAULT_CARD_AUTH_PARAMETER: [u8; 8] = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
+
 lazy_static! {
     static ref CARD_SE_ID: Mutex<CardSeId> = Mutex::new(CardSeId::default());
     static ref CARD_ID: Mutex<CardId> = Mutex::new(CardId::default());
@@ -27,7 +35,7 @@ pub struct CardSeId {
 impl Default for CardSeId {
     fn default() -> Self {
         CardSeId {
-            inner: vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08],
+            inner: DEFAULT_CARD_SE_ID.to_vec(),
         }
     }
 }
@@ -50,11 +58,11 @@ impl CardSeId {
 impl Serde for CardSeId {
     type Output = Self;
 
-    fn serialize(&self) -> crate::icce::errors::Result<Vec<u8>> {
+    fn serialize(&self) -> Result<Vec<u8>> {
         Ok(self.get_card_se_id().to_vec())
     }
 
-    fn deserialize(data: &[u8]) -> crate::icce::errors::Result<Self::Output> {
+    fn deserialize(data: &[u8]) -> Result<Self::Output> {
         if data.len() != CARD_SE_ID_LENGTH {
             return Err(ErrorKind::CardInfoError("deserialize card se id length error".to_string()).into());
         }
@@ -70,7 +78,7 @@ pub struct CardId {
 impl Default for CardId {
     fn default() -> Self {
         CardId {
-            inner: vec![0x0f, 0x0e, 0x0d, 0x0c, 0x0b, 0x0a, 0x09, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00],
+            inner: DEFAULT_CARD_ID.to_vec(),
         }
     }
 }
@@ -113,7 +121,7 @@ pub struct CardRnd {
 impl Default for CardRnd {
     fn default() -> Self {
         CardRnd {
-            inner: vec![0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01],
+            inner: DEFAULT_CARD_RND.to_vec(),
         }
     }
 }
@@ -156,7 +164,7 @@ pub struct CardInfo1 {
 impl Default for CardInfo1 {
     fn default() -> Self {
         CardInfo1 {
-            inner: vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06],
+            inner: DEFAULT_CARD_INFO1.to_vec(),
         }
     }
 }
@@ -196,7 +204,7 @@ pub struct CardATC {
 impl Default for CardATC {
     fn default() -> Self {
         CardATC {
-            inner: vec![0x01, 0x02, 0x03, 0x04],
+            inner: DEFAULT_CARD_ATC.to_vec(),
         }
     }
 }
@@ -239,7 +247,7 @@ pub struct CardIV {
 impl Default for CardIV {
     fn default() -> Self {
         CardIV {
-            inner: vec![0x00; 16],
+            inner: DEFAULT_CARD_IV.to_vec(),
         }
     }
 }
@@ -267,7 +275,7 @@ pub struct CardAuthParameter {
 impl Default for CardAuthParameter {
     fn default() -> Self {
         CardAuthParameter {
-            inner: vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08],
+            inner: DEFAULT_CARD_AUTH_PARAMETER.to_vec(),
         }
     }
 }
