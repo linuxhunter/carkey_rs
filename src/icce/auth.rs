@@ -32,26 +32,16 @@ pub fn create_auth_get_process_data_payload(reader_type: &[u8], reader_id: &[u8]
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct IcceAuthResponseInfo {
-    session_key: Vec<u8>,
-    session_iv: Vec<u8>,
     card_atc: Vec<u8>,
     card_rnd: Vec<u8>,
 }
 
 impl IcceAuthResponseInfo {
-    pub fn new(session_key: &[u8], session_iv: &[u8], card_atc: &[u8], card_rnd: &[u8]) -> Self {
+    pub fn new(card_atc: &[u8], card_rnd: &[u8]) -> Self {
         IcceAuthResponseInfo {
-            session_key: session_key.to_vec(),
-            session_iv: session_iv.to_vec(),
             card_atc: card_atc.to_vec(),
             card_rnd: card_rnd.to_vec(),
         }
-    }
-    pub fn get_session_key(&self) -> &[u8] {
-        self.session_key.as_ref()
-    }
-    pub fn get_session_iv(&self) -> &[u8] {
-        self.session_iv.as_ref()
     }
     pub fn get_card_atc(&self) -> &[u8] {
         self.card_atc.as_ref()
@@ -118,11 +108,11 @@ pub fn handle_auth_get_process_data_response_payload(payload: &[u8], reader_rnd:
             card_info::set_card_rnd(&CardRnd::new(card_rnd.as_ref()));
             card_info::set_card_info1(&CardInfo1::new(card_info1.as_ref()));
 
-            let session_iv = session::calculate_session_iv(reader_rnd, &card_rnd);
+            session::calculate_session_iv(reader_rnd, &card_rnd);
             let dkey = dkey_info::calculate_dkey(&card_seid, &card_id);
             let card_iv = card_info::get_card_iv();
-            let session_key = session::calculate_session_key(&dkey, card_iv.get_card_iv(), &session_iv, reader_key_parameter)?;
-            let decrypted_text = session::decrypt_with_session_key(&session_key, &session_iv, &encrypted_text)?;
+            session::calculate_session_key(&dkey, card_iv.get_card_iv(), reader_key_parameter)?;
+            let decrypted_text = session::decrypt_with_session_key(&encrypted_text)?;
             index = 0;
             while index < decrypted_text.len() {
                 if decrypted_text[index] == 0x9F && decrypted_text[index+1] == 0x36 {
@@ -140,7 +130,7 @@ pub fn handle_auth_get_process_data_response_payload(payload: &[u8], reader_rnd:
                     index += length;
                 }
             }
-            Ok(IcceAuthResponseInfo::new(session_key.as_ref(), session_iv.as_ref(), card_info::get_card_atc().get_card_atc(), card_rnd.as_ref()))
+            Ok(IcceAuthResponseInfo::new(card_info::get_card_atc().get_card_atc(), card_rnd.as_ref()))
         } else {
             Err(ErrorKind::AuthError("Invalid Payload Label".to_string()).into())
         }
@@ -149,7 +139,7 @@ pub fn handle_auth_get_process_data_response_payload(payload: &[u8], reader_rnd:
     }
 }
 
-pub fn create_auth_auth_payload(card_atc: &[u8], reader_auth_parameter: &[u8], card_rnd: &[u8], session_key: &[u8], session_iv: &[u8]) -> Result<Vec<u8>> {
+pub fn create_auth_auth_payload(card_atc: &[u8], reader_auth_parameter: &[u8], card_rnd: &[u8]) -> Result<Vec<u8>> {
     let mut payload = vec![0x80, 0x80, 0x00, 0x00];
 
     let mut data_domain = Vec::new();
@@ -165,7 +155,7 @@ pub fn create_auth_auth_payload(card_atc: &[u8], reader_auth_parameter: &[u8], c
     data_domain.push(0x3E);
     data_domain.push(card_rnd.len() as u8);
     data_domain.append(&mut card_rnd.to_vec());
-    let encrypt_data = session::encrypt_with_session_key(session_key, session_iv, &data_domain)?;
+    let encrypt_data = session::encrypt_with_session_key(&data_domain)?;
 
     payload.push(1 + encrypt_data.len() as u8);      //Lc
     payload.push(0x77);
@@ -175,14 +165,14 @@ pub fn create_auth_auth_payload(card_atc: &[u8], reader_auth_parameter: &[u8], c
     Ok(payload)
 }
 
-pub fn handle_auth_auth_response_payload(payload: &[u8], _reader_rnd: &[u8], session_key: &[u8], session_iv: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
+pub fn handle_auth_auth_response_payload(payload: &[u8], _reader_rnd: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
     let sw1 = payload[payload.len()-2];
     let sw2 = payload[payload.len()-1];
     let mut card_auth_parameter = Vec::new();
     let mut reader_auth_parameter = Vec::new();
     if sw1 == 0x90 && sw2 == 0x00 {
         if payload[0] == 0x77 {
-            let decrypted_text = session::decrypt_with_session_key(session_key, session_iv, &payload[1..payload.len()-2])?;
+            let decrypted_text = session::decrypt_with_session_key(&payload[1..payload.len()-2])?;
             let mut index = 0;
             while index < decrypted_text.len() {
                 if decrypted_text[index] == 0x9F && decrypted_text[index+1] == 0x31 {
@@ -277,14 +267,10 @@ pub fn handle_icce_auth_response(body: &Body) -> Result<Vec<u8>> {
             return if value[0] == 0x77 && value[1] == 0x5A && value[2] == 0x08 {
                 //sending auth get process data response
                 if let Ok(icce_auth_response) = handle_auth_get_process_data_response_payload(value, reader_rnd.serialize()?.as_ref(), reader_key_parameter.serialize()?.as_ref()) {
-                    session::update_session_key(icce_auth_response.get_session_key());
-                    session::update_session_iv(icce_auth_response.get_session_iv());
                     let auth_request_payload = create_auth_auth_payload(
                         icce_auth_response.get_card_atc(),
                         reader_auth_parameter.serialize()?.as_ref(),
                         icce_auth_response.get_card_rnd(),
-                        icce_auth_response.get_session_key(),
-                        icce_auth_response.get_session_iv(),
                     )?;
                     debug!("Sending Auth Request......");
                     response.append(&mut create_icce_auth_request(&auth_request_payload).serialize());
@@ -294,9 +280,7 @@ pub fn handle_icce_auth_response(body: &Body) -> Result<Vec<u8>> {
                 }
             } else {
                 //sending auth auth response
-                let session_key = session::get_session_key();
-                let session_iv = session::get_session_iv();
-                if let Ok((card_auth_parameter, reader_auth_parameter)) = handle_auth_auth_response_payload(value, reader_rnd.serialize()?.as_ref(), &session_key, &session_iv) {
+                if let Ok((card_auth_parameter, reader_auth_parameter)) = handle_auth_auth_response_payload(value, reader_rnd.serialize()?.as_ref()) {
                     debug!("card_auth_parameter = {:02X?}", card_auth_parameter);
                     debug!("reader_auth_parameter = {:02X?}", reader_auth_parameter);
                     Ok(response)
@@ -394,10 +378,10 @@ mod tests {
         let reader_rnd = vehicle_info::get_vehicle_reader_rnd();
         let reader_key_parameter = vehicle_info::get_vehicle_reader_key_parameter();
 
-        let session_iv = session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
+        session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
         let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
         let card_iv = card_info::get_card_iv();
-        let session_key = session::calculate_session_key(&dkey, card_iv.get_card_iv(), &session_iv, reader_key_parameter.get_reader_key_parameter()).unwrap();
+        session::calculate_session_key(&dkey, card_iv.get_card_iv(), reader_key_parameter.get_reader_key_parameter()).unwrap();
 
         let mut payload = Vec::new();
         payload.push(0x77);
@@ -427,7 +411,7 @@ mod tests {
         plain_text.push(0x37);
         plain_text.push(reader_rnd.get_reader_rnd().len() as u8);
         plain_text.append(&mut reader_rnd.get_reader_rnd().to_vec());
-        let encrypted_text = session::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let encrypted_text = session::encrypt_with_session_key(&plain_text).unwrap();
 
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
@@ -435,8 +419,6 @@ mod tests {
 
         match handle_auth_get_process_data_response_payload(&payload, reader_rnd.get_reader_rnd(), reader_key_parameter.get_reader_key_parameter()) {
             Ok(icce_auth_response) => {
-                assert_eq!(icce_auth_response.get_session_key(), icce_auth_response.get_session_key());
-                assert_eq!(icce_auth_response.get_session_iv(), icce_auth_response.get_session_iv());
                 assert_eq!(icce_auth_response.get_card_atc().to_vec(), card_atc.get_card_atc());
                 assert_eq!(icce_auth_response.get_card_rnd().to_vec(), card_rnd.get_card_rnd());
             },
@@ -456,12 +438,12 @@ mod tests {
         let card_rnd = card_info::get_card_rnd();
         let card_atc = card_info::get_card_atc();
 
-        let session_iv = session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
+        session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
         let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
         let card_iv = card_info::get_card_iv();
-        let session_key = session::calculate_session_key(&dkey, card_iv.get_card_iv(), &session_iv, reader_key_parameter.get_reader_key_parameter()).unwrap();
+        session::calculate_session_key(&dkey, card_iv.get_card_iv(), reader_key_parameter.get_reader_key_parameter()).unwrap();
 
-        let _payload = create_auth_auth_payload(card_atc.get_card_atc(), reader_auth_parameter.get_reader_auth_parameter(), card_rnd.get_card_rnd(), &session_key, &session_iv).unwrap();
+        let _payload = create_auth_auth_payload(card_atc.get_card_atc(), reader_auth_parameter.get_reader_auth_parameter(), card_rnd.get_card_rnd()).unwrap();
     }
     #[test]
     fn test_auth_auth_response_payload() {
@@ -473,10 +455,10 @@ mod tests {
         let reader_key_parameter = vehicle_info::get_vehicle_reader_key_parameter();
         let reader_auth_parameter = vehicle_info::get_vehicle_reader_auth_parameter();
 
-        let session_iv = session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
+        session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
         let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
         let card_iv = card_info::get_card_iv();
-        let session_key = session::calculate_session_key(&dkey, card_iv.get_card_iv(), &session_iv, reader_key_parameter.get_reader_key_parameter()).unwrap();
+        session::calculate_session_key(&dkey, card_iv.get_card_iv(), reader_key_parameter.get_reader_key_parameter()).unwrap();
 
         let mut payload = Vec::new();
         payload.push(0x77);
@@ -494,13 +476,13 @@ mod tests {
         plain_text.push(0x37);
         plain_text.push(reader_rnd.get_reader_rnd().len() as u8);
         plain_text.append(&mut reader_rnd.get_reader_rnd().to_vec());
-        let encrypted_text = session::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let encrypted_text = session::encrypt_with_session_key(&plain_text).unwrap();
 
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
         payload.push(0x00);
 
-        match handle_auth_auth_response_payload(&payload, reader_rnd.get_reader_rnd(), &session_key, &session_iv) {
+        match handle_auth_auth_response_payload(&payload, reader_rnd.get_reader_rnd()) {
             Ok((card_auth, reader_auth)) => {
                 assert_eq!(card_auth, card_auth_parameter.get_card_auth_parameter().to_vec());
                 assert_eq!(reader_auth, reader_auth_parameter.get_reader_auth_parameter().to_vec());
@@ -521,10 +503,10 @@ mod tests {
         let reader_rnd = vehicle_info::get_vehicle_reader_rnd();
         let reader_key_parameter = vehicle_info::get_vehicle_reader_key_parameter();
 
-        let session_iv = session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
+        session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
         let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
         let card_iv = card_info::get_card_iv();
-        let session_key = session::calculate_session_key(&dkey, card_iv.get_card_iv(), &session_iv, reader_key_parameter.get_reader_key_parameter()).unwrap();
+        session::calculate_session_key(&dkey, card_iv.get_card_iv(), reader_key_parameter.get_reader_key_parameter()).unwrap();
 
         let mut payload = Vec::new();
         payload.push(0x77);
@@ -554,7 +536,7 @@ mod tests {
         plain_text.push(0x37);
         plain_text.push(reader_rnd.get_reader_rnd().len() as u8);
         plain_text.append(&mut reader_rnd.get_reader_rnd().to_vec());
-        let encrypted_text = session::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let encrypted_text = session::encrypt_with_session_key(&plain_text).unwrap();
 
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
@@ -572,10 +554,10 @@ mod tests {
         let reader_key_parameter = vehicle_info::get_vehicle_reader_key_parameter();
         let reader_auth_parameter = vehicle_info::get_vehicle_reader_auth_parameter();
 
-        let session_iv = session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
+        session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
         let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
         let card_iv = card_info::get_card_iv();
-        let session_key = session::calculate_session_key(&dkey, card_iv.get_card_iv(), &session_iv, reader_key_parameter.get_reader_key_parameter()).unwrap();
+        session::calculate_session_key(&dkey, card_iv.get_card_iv(), reader_key_parameter.get_reader_key_parameter()).unwrap();
 
         let mut payload = Vec::new();
         payload.push(0x77);
@@ -593,7 +575,7 @@ mod tests {
         plain_text.push(0x37);
         plain_text.push(reader_rnd.get_reader_rnd().len() as u8);
         plain_text.append(&mut reader_rnd.get_reader_rnd().to_vec());
-        let encrypted_text = session::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let encrypted_text = session::encrypt_with_session_key(&plain_text).unwrap();
 
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);

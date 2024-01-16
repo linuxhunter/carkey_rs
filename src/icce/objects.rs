@@ -348,10 +348,7 @@ impl Icce {
             //handle body encrypt
             let mut plain_text = Vec::new();
             plain_text.append(&mut self.body.serialize(frag_flag));
-            let encrypted_text = session::encrypt_with_session_key(
-                session::get_session_key().as_ref(),
-                session::get_session_iv().as_ref(),
-                &plain_text).unwrap();
+            let encrypted_text = session::encrypt_with_session_key(&plain_text).unwrap();
             //create new header object with new length
             let mut new_header = Header::new();
             new_header.set_sof(0x5A);
@@ -384,10 +381,7 @@ impl Icce {
             new_header.set_fsn(icce.get_header().get_fsn());
 
             let encrypted_text = &byte_stream[5..byte_stream.len()-2];
-            let plain_text = session::decrypt_with_session_key(
-                session::get_session_key().as_ref(),
-                session::get_session_iv().as_ref(),
-                encrypted_text)?;
+            let plain_text = session::decrypt_with_session_key(encrypted_text)?;
             new_header.set_length(2 + plain_text.len() as u16);
             icce.set_header(new_header);
 
@@ -987,11 +981,12 @@ mod tests {
         let card_id = card_info::get_card_id();
         let reader_key_parameter = vehicle_info::get_vehicle_reader_key_parameter();
 
-        let session_iv = session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
+        session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
         let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
         let card_iv = card_info::get_card_iv();
 
-        let session_key = session::calculate_session_key(&dkey, card_iv.get_card_iv(), &session_iv, reader_key_parameter.get_reader_key_parameter()).unwrap();
+        session::calculate_session_key(&dkey, card_iv.get_card_iv(), reader_key_parameter.get_reader_key_parameter()).unwrap();
+        let session_key = session::get_session_key();
         assert_eq!(session_key.len(), 16);
         println!("session_key = {:02X?}", session_key);
     }
@@ -1003,15 +998,15 @@ mod tests {
         let card_id = card_info::get_card_id();
         let reader_key_parameter = vehicle_info::get_vehicle_reader_key_parameter();
 
-        let session_iv = session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
+        session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
         let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
         let card_iv = card_info::get_card_iv();
 
-        let session_key = session::calculate_session_key(&dkey, card_iv.get_card_iv(), &session_iv, reader_key_parameter.get_reader_key_parameter()).unwrap();
+        session::calculate_session_key(&dkey, card_iv.get_card_iv(), reader_key_parameter.get_reader_key_parameter()).unwrap();
 
         let plain_text = b"Hello,World";
-        let encrypt_text = session::encrypt_with_session_key(&session_key, &session_iv, plain_text).unwrap();
-        let decrypt_text = session::decrypt_with_session_key(&session_key, &session_iv, &encrypt_text).unwrap();
+        let encrypt_text = session::encrypt_with_session_key(plain_text).unwrap();
+        let decrypt_text = session::decrypt_with_session_key(&encrypt_text).unwrap();
         assert_eq!(decrypt_text, plain_text);
     }
     #[test]
@@ -1026,10 +1021,10 @@ mod tests {
         let reader_key_parameter = vehicle_info::get_vehicle_reader_key_parameter();
         let reader_auth_parameter = vehicle_info::get_vehicle_reader_auth_parameter();
 
-        let session_iv = session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
+        session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
         let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
         let card_iv = card_info::get_card_iv();
-        let session_key = session::calculate_session_key(&dkey, card_iv.get_card_iv(), &session_iv, reader_key_parameter.get_reader_key_parameter()).unwrap();
+        session::calculate_session_key(&dkey, card_iv.get_card_iv(), reader_key_parameter.get_reader_key_parameter()).unwrap();
 
         //emulate auth get process data response package from mobile
         let mut payload = Vec::new();
@@ -1060,7 +1055,7 @@ mod tests {
         plain_text.push(0x37);
         plain_text.push(reader_rnd.get_reader_rnd().len() as u8);
         plain_text.append(&mut reader_rnd.get_reader_rnd().to_vec());
-        let encrypted_text = session::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let encrypted_text = session::encrypt_with_session_key(&plain_text).unwrap();
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
         payload.push(0x00);
@@ -1087,7 +1082,7 @@ mod tests {
         plain_text.push(0x37);
         plain_text.push(reader_rnd.get_reader_rnd().len() as u8);
         plain_text.append(&mut reader_rnd.get_reader_rnd().to_vec());
-        let encrypted_text = session::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let encrypted_text = session::encrypt_with_session_key(&plain_text).unwrap();
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
         payload.push(0x00);
@@ -1123,10 +1118,10 @@ mod tests {
         let reader_key_parameter = vehicle_info::get_vehicle_reader_key_parameter();
         let reader_auth_parameter = vehicle_info::get_vehicle_reader_auth_parameter();
 
-        let session_iv = session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
+        session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
         let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
         let card_iv = card_info::get_card_iv();
-        let session_key = session::calculate_session_key(&dkey, card_iv.get_card_iv(), &session_iv, reader_key_parameter.get_reader_key_parameter()).unwrap();
+        session::calculate_session_key(&dkey, card_iv.get_card_iv(), reader_key_parameter.get_reader_key_parameter()).unwrap();
 
         //emulate auth get process data response package from mobile
         let mut payload = Vec::new();
@@ -1157,7 +1152,7 @@ mod tests {
         plain_text.push(0x37);
         plain_text.push(reader_rnd.get_reader_rnd().len() as u8);
         plain_text.append(&mut reader_rnd.get_reader_rnd().to_vec());
-        let encrypted_text = session::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let encrypted_text = session::encrypt_with_session_key(&plain_text).unwrap();
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
         payload.push(0x00);
@@ -1183,7 +1178,7 @@ mod tests {
         plain_text.push(0x37);
         plain_text.push(reader_rnd.get_reader_rnd().len() as u8);
         plain_text.append(&mut reader_rnd.get_reader_rnd().to_vec());
-        let encrypted_text = session::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
+        let encrypted_text = session::encrypt_with_session_key(&plain_text).unwrap();
         payload.append(&mut encrypted_text.clone().to_vec());
         payload.push(0x90);
         payload.push(0x00);
@@ -1204,8 +1199,8 @@ mod tests {
         let session_key = session::get_session_key();
         let session_iv = session::get_session_iv();
         let plain_text: Vec<u8> = vec![0x5A, 0x0C, 0x00, 0x10, 0x00, 0x01, 0x02, 0x01, 0x06, 0x01, 0x02, 0x03, 0x04, 0x5, 0x06];
-        let encrypted_text = session::encrypt_with_session_key(&session_key, &session_iv, &plain_text).unwrap();
-        let decrypted_text = session::decrypt_with_session_key(&session_key, &session_iv, &encrypted_text).unwrap();
+        let encrypted_text = session::encrypt_with_session_key(&plain_text).unwrap();
+        let decrypted_text = session::decrypt_with_session_key(&encrypted_text).unwrap();
         println!("session_key = {:02X?}", session_key);
         println!("sesion_iv = {:02X?}", session_iv);
         println!("plain_text = {:02X?}", plain_text);
