@@ -10,6 +10,7 @@ pub mod vehicle_info;
 pub mod card_info;
 pub mod session;
 pub mod dkey_info;
+pub mod tsp;
 
 mod errors {
     use error_chain::error_chain;
