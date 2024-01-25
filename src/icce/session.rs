@@ -45,6 +45,11 @@ pub fn is_session_key_valid() -> bool {
     session.is_key_valid()
 }
 
+pub fn remove_session_key() {
+    let mut session = SESSION.lock().unwrap();
+    session.set_key(&vec![0x00]);
+}
+
 #[allow(dead_code)]
 pub fn get_session_key() -> Vec<u8> {
     let session = SESSION.lock().unwrap();

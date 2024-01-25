@@ -5,7 +5,7 @@ use log::{debug, info};
 use tokio_websockets::{ClientBuilder, Message};
 use crate::icce::card_info::{CardId, CardSeId, set_card_id, set_card_se_id};
 use crate::icce::dkey_info::{get_dkey, remove_dkey, save_dkey};
-use crate::icce::Serde;
+use crate::icce::{Serde, session};
 use crate::icce::errors::*;
 
 const NOTIFICATION_LENGTH: usize = 0x02;
@@ -204,6 +204,7 @@ impl Notification {
                     debug!("card_seid = {:02x?}", card_seid);
                     debug!("card_id = {:02x?}", card_id);
                     remove_dkey(card_seid, card_id);
+                    session::remove_session_key();
                     debug!("[current dkey] = {:?}", get_dkey(card_seid, card_id));
                 }
             },
