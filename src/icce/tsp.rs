@@ -9,7 +9,7 @@ use crate::icce::{Serde, session};
 use crate::icce::errors::*;
 
 const NOTIFICATION_LENGTH: usize = 0x02;
-const TSP_SERVER_ADDRESS: &str = "169.254.101.250";
+const TSP_SERVER_ADDRESS: &str = "10.9.224.95";
 const TSP_SERVER_PORT: u16 = 12345;
 
 #[derive(Debug, Default, Copy, Clone, PartialOrd, PartialEq)]
