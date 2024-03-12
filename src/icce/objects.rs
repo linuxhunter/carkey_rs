@@ -985,7 +985,7 @@ mod tests {
         let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
         let card_iv = card_info::get_card_iv();
 
-        session::calculate_session_key(&dkey, card_iv.get_card_iv(), reader_key_parameter.get_reader_key_parameter()).unwrap();
+        session::calculate_session_key(&dkey, reader_key_parameter.get_reader_key_parameter()).unwrap();
         let session_key = session::get_session_key();
         assert_eq!(session_key.len(), 16);
         println!("session_key = {:02X?}", session_key);
@@ -1002,7 +1002,7 @@ mod tests {
         let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
         let card_iv = card_info::get_card_iv();
 
-        session::calculate_session_key(&dkey, card_iv.get_card_iv(), reader_key_parameter.get_reader_key_parameter()).unwrap();
+        session::calculate_session_key(&dkey, reader_key_parameter.get_reader_key_parameter()).unwrap();
 
         let plain_text = b"Hello,World";
         let encrypt_text = session::encrypt_with_session_key(plain_text).unwrap();
@@ -1024,7 +1024,7 @@ mod tests {
         session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
         let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
         let card_iv = card_info::get_card_iv();
-        session::calculate_session_key(&dkey, card_iv.get_card_iv(), reader_key_parameter.get_reader_key_parameter()).unwrap();
+        session::calculate_session_key(&dkey, reader_key_parameter.get_reader_key_parameter()).unwrap();
 
         //emulate auth get process data response package from mobile
         let mut payload = Vec::new();
@@ -1121,7 +1121,7 @@ mod tests {
         session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
         let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
         let card_iv = card_info::get_card_iv();
-        session::calculate_session_key(&dkey, card_iv.get_card_iv(), reader_key_parameter.get_reader_key_parameter()).unwrap();
+        session::calculate_session_key(&dkey, reader_key_parameter.get_reader_key_parameter()).unwrap();
 
         //emulate auth get process data response package from mobile
         let mut payload = Vec::new();

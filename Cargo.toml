@@ -34,3 +34,5 @@ x509-parser = "0.15.1"
 http = "1.0.0"
 tokio-websockets = { version = "0.5.0", features = ["client", "fastrand", "sha1_smol"] }
 base64 = "0.21.7"
+cbc = "0.1.2"
+ecb = "0.1.2"

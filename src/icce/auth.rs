@@ -110,8 +110,7 @@ pub fn handle_auth_get_process_data_response_payload(payload: &[u8], reader_rnd:
 
             session::calculate_session_iv(reader_rnd, &card_rnd);
             let dkey = dkey_info::calculate_dkey(&card_seid, &card_id);
-            let card_iv = card_info::get_card_iv();
-            session::calculate_session_key(&dkey, card_iv.get_card_iv(), reader_key_parameter)?;
+            session::calculate_session_key(&dkey, reader_key_parameter)?;
             let decrypted_text = session::decrypt_with_session_key(&encrypted_text)?;
             index = 0;
             while index < decrypted_text.len() {
@@ -381,7 +380,7 @@ mod tests {
         session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
         let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
         let card_iv = card_info::get_card_iv();
-        session::calculate_session_key(&dkey, card_iv.get_card_iv(), reader_key_parameter.get_reader_key_parameter()).unwrap();
+        session::calculate_session_key(&dkey, reader_key_parameter.get_reader_key_parameter()).unwrap();
 
         let mut payload = Vec::new();
         payload.push(0x77);
@@ -441,7 +440,7 @@ mod tests {
         session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
         let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
         let card_iv = card_info::get_card_iv();
-        session::calculate_session_key(&dkey, card_iv.get_card_iv(), reader_key_parameter.get_reader_key_parameter()).unwrap();
+        session::calculate_session_key(&dkey, reader_key_parameter.get_reader_key_parameter()).unwrap();
 
         let _payload = create_auth_auth_payload(card_atc.get_card_atc(), reader_auth_parameter.get_reader_auth_parameter(), card_rnd.get_card_rnd()).unwrap();
     }
@@ -458,7 +457,7 @@ mod tests {
         session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
         let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
         let card_iv = card_info::get_card_iv();
-        session::calculate_session_key(&dkey, card_iv.get_card_iv(), reader_key_parameter.get_reader_key_parameter()).unwrap();
+        session::calculate_session_key(&dkey, reader_key_parameter.get_reader_key_parameter()).unwrap();
 
         let mut payload = Vec::new();
         payload.push(0x77);
@@ -506,7 +505,7 @@ mod tests {
         session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
         let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
         let card_iv = card_info::get_card_iv();
-        session::calculate_session_key(&dkey, card_iv.get_card_iv(), reader_key_parameter.get_reader_key_parameter()).unwrap();
+        session::calculate_session_key(&dkey, reader_key_parameter.get_reader_key_parameter()).unwrap();
 
         let mut payload = Vec::new();
         payload.push(0x77);
@@ -557,7 +556,7 @@ mod tests {
         session::calculate_session_iv(reader_rnd.get_reader_rnd(), card_rnd.get_card_rnd());
         let dkey = dkey_info::calculate_dkey(card_seid.get_card_se_id(), card_id.get_card_id());
         let card_iv = card_info::get_card_iv();
-        session::calculate_session_key(&dkey, card_iv.get_card_iv(), reader_key_parameter.get_reader_key_parameter()).unwrap();
+        session::calculate_session_key(&dkey, reader_key_parameter.get_reader_key_parameter()).unwrap();
 
         let mut payload = Vec::new();
         payload.push(0x77);
